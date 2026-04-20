@@ -1,0 +1,15 @@
+{
+  "name": "@office-agent/gateway",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node src/server.mjs",
+    "start": "node src/server.mjs",
+    "bootstrap-auth": "node scripts/bootstrap-auth.mjs",
+    "probe-auth": "node scripts/probe-pi-auth.mjs"
+  },
+  "dependencies": {
+    "@mariozechner/pi-ai": "0.67.2",
+    "@mariozechner/pi-coding-agent": "0.67.2"
+  }
+}

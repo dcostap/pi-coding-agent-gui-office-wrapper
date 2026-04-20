@@ -1,0 +1,12 @@
+{
+  "name": "@office-agent/client-runtime",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pi": "node ./node_modules/@mariozechner/pi-coding-agent/dist/cli.js",
+    "pi:managed": "node ./scripts/run-pi.mjs"
+  },
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "0.67.2"
+  }
+}

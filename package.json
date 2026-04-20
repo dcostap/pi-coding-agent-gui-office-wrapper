@@ -1,0 +1,15 @@
+{
+  "name": "office-gui-for-agentic-ai",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:gateway": "npm run dev --workspace @office-agent/gateway",
+    "start:gateway": "npm run start --workspace @office-agent/gateway",
+    "gateway:bootstrap-auth": "npm run bootstrap-auth --workspace @office-agent/gateway",
+    "gateway:probe-auth": "npm run probe-auth --workspace @office-agent/gateway",
+    "pi:local": "npm run pi --workspace @office-agent/client-runtime",
+    "pi:managed": "npm run pi:managed --workspace @office-agent/client-runtime"
+  }
+}
