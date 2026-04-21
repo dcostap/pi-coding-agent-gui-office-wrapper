@@ -829,6 +829,11 @@ The architecture is now chosen, but some implementation details remain open.
    - thin wrapper + best-effort extension now
    - stronger local enforcement only if product needs it later
 
+6. Future local sandboxing direction on B
+   - tracked separately in `future-sandboxing-notes.md`
+   - likely requires OS-backed Windows sandboxing, not cwd-only restrictions
+   - should be treated as a later implementation layer, not a blocker for the current gateway-first architecture
+
 These questions do not change the architecture choice.
 
 ---
