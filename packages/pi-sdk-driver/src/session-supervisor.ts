@@ -1,10 +1,11 @@
 import { access, realpath } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import {
   ModelRegistry,
   SessionManager,
   type AgentSession,
   type AgentSessionEvent,
+  type AgentSessionRuntime,
   type CreateAgentSessionOptions,
   type ExtensionCommandContextActions,
   type ExtensionUIDialogOptions,
@@ -69,11 +70,14 @@ import {
   workspaceToRef,
 } from "./session-supervisor-utils.js";
 import type { SessionTranscriptMessage } from "./transcript.js";
-import { createAgentSessionWithNpmFallback } from "./npm-package-fallback.js";
+import { createAgentSessionRuntimeWithNpmFallback } from "./npm-package-fallback.js";
 
 export interface PiSdkDriverOptions {
   readonly catalogFilePath?: string;
-  readonly createAgentSessionImpl?: (options?: CreateAgentSessionOptions) => Promise<{ session: AgentSession }>;
+  readonly agentDir?: string;
+  readonly createAgentSessionRuntimeImpl?: (
+    options?: CreateAgentSessionOptions,
+  ) => Promise<{ runtime: AgentSessionRuntime; session: AgentSession }>;
   readonly modelRegistry?: ModelRegistry;
   readonly generateThreadTitleOverride?: (
     workspace: WorkspaceRef,
@@ -90,6 +94,7 @@ interface ManagedSessionRecord {
   ref: SessionRef;
   workspace: WorkspaceRef;
   title: string;
+  runtime: AgentSessionRuntime | undefined;
   session: AgentSession | undefined;
   sessionFile: string | undefined;
   status: SessionStatus;
@@ -141,7 +146,10 @@ interface SkillAdapter {
 
 export class SessionSupervisor {
   private readonly catalogs: SessionFileCatalogStorage;
-  private readonly createAgentSessionImpl: (options?: CreateAgentSessionOptions) => Promise<{ session: AgentSession }>;
+  private readonly agentDir: string | undefined;
+  private readonly createAgentSessionRuntimeImpl: (
+    options?: CreateAgentSessionOptions,
+  ) => Promise<{ runtime: AgentSessionRuntime; session: AgentSession }>;
   private readonly modelRegistry: ModelRegistry | undefined;
   private readonly records = new Map<string, ManagedSessionRecord>();
 
@@ -149,7 +157,10 @@ export class SessionSupervisor {
     this.catalogs = options.catalogFilePath
       ? new JsonCatalogStore({ catalogFilePath: options.catalogFilePath })
       : new JsonCatalogStore();
-    this.createAgentSessionImpl = options.createAgentSessionImpl ?? ((createOptions) => createAgentSessionWithNpmFallback(createOptions));
+    this.agentDir = options.agentDir;
+    this.createAgentSessionRuntimeImpl =
+      options.createAgentSessionRuntimeImpl ??
+      ((createOptions) => createAgentSessionRuntimeWithNpmFallback(createOptions));
     this.modelRegistry = options.modelRegistry;
   }
 
@@ -169,7 +180,10 @@ export class SessionSupervisor {
 
   async syncWorkspace(path: string, displayName?: string): Promise<SyncWorkspaceResult> {
     const workspace = await this.registerWorkspace(path, displayName);
-    const infos = await SessionManager.list(path);
+    const infos = await SessionManager.list(
+      path,
+      this.agentDir ? getSessionDirForCwd(path, this.agentDir) : undefined,
+    );
     const existingSessions = (await this.catalogs.sessions.listSessions(workspace.workspaceId)).sessions;
     const existingByKey = new Map(existingSessions.map((session) => [sessionKey(session.sessionRef), session]));
     const nextEntries = infos.map((info) =>
@@ -218,10 +232,8 @@ export class SessionSupervisor {
         continue;
       }
 
-      record.unsubscribeAgent?.();
-      record.unsubscribeAgent = undefined;
+      await this.disposeRecordRuntime(record);
       record.listeners.clear();
-      record.session?.dispose();
       this.records.delete(key);
     }
 
@@ -258,10 +270,8 @@ export class SessionSupervisor {
         continue;
       }
 
-      record.unsubscribeAgent?.();
-      record.unsubscribeAgent = undefined;
+      await this.disposeRecordRuntime(record);
       record.listeners.clear();
-      record.session?.dispose();
       this.records.delete(key);
     }
   }
@@ -295,7 +305,7 @@ export class SessionSupervisor {
       : undefined;
     const createOptions: CreateAgentSessionOptions = {
       cwd: workspace.path,
-      sessionManager: SessionManager.create(workspace.path),
+      ...(this.agentDir ? { agentDir: this.agentDir } : {}),
       ...(this.modelRegistry ? { modelRegistry: this.modelRegistry } : {}),
     };
     if (initialModel) {
@@ -305,9 +315,9 @@ export class SessionSupervisor {
       createOptions.thinkingLevel = options.initialThinkingLevel as NonNullable<CreateAgentSessionOptions["thinkingLevel"]>;
     }
 
-    const { session } = await this.createAgentSessionImpl(createOptions);
+    const { runtime, session } = await this.createAgentSessionRuntimeImpl(createOptions);
 
-    const record = this.createRecord(workspace, session, options?.title ?? deriveWorkspaceTitle(workspace));
+    const record = this.createRecord(workspace, runtime, session, options?.title ?? deriveWorkspaceTitle(workspace));
     session.sessionManager.appendSessionInfo(record.title);
     forcePersistSession(session.sessionManager);
     record.config = deriveSessionConfig(session.sessionManager);
@@ -467,9 +477,9 @@ export class SessionSupervisor {
     }
 
     const model = this.resolveModel(selection.provider, selection.modelId);
-    const apiKey = await session.modelRegistry.getApiKey(model);
-    if (!apiKey) {
-      throw new Error(`No API key for ${model.provider}/${model.id}`);
+    const auth = await session.modelRegistry.getApiKeyAndHeaders(model);
+    if (!auth.ok) {
+      throw new Error(auth.error);
     }
 
     const previousModel = session.model;
@@ -477,8 +487,7 @@ export class SessionSupervisor {
       ? session.thinkingLevel
       : (session.settingsManager.getDefaultThinkingLevel() ?? DEFAULT_SESSION_THINKING_LEVEL);
 
-    session.agent.setModel(model);
-    session.sessionManager.appendModelChange(model.provider, model.id);
+    await session.setModel(model);
     this.applySessionThinkingLevel(session, previousThinkingLevel);
     await this.emitModelSelection(session, model, previousModel);
     forcePersistSession(session.sessionManager);
@@ -604,11 +613,8 @@ export class SessionSupervisor {
       } catch {
         // Best effort.
       }
-      record.unsubscribeAgent?.();
-      record.unsubscribeAgent = undefined;
-      record.session.dispose();
-      record.session = undefined;
     }
+    await this.disposeRecordRuntime(record);
 
     await this.persistSnapshot(record);
     await this.emit(record, {
@@ -642,14 +648,16 @@ export class SessionSupervisor {
       throw new Error(`Session ${key} cannot be reopened because no session file is tracked.`);
     }
 
-    const { session } = await this.createAgentSessionImpl({
+    const { runtime, session } = await this.createAgentSessionRuntimeImpl({
       cwd: workspace.path,
+      ...(this.agentDir ? { agentDir: this.agentDir } : {}),
       sessionManager: SessionManager.open(sessionFile),
       ...(this.modelRegistry ? { modelRegistry: this.modelRegistry } : {}),
     });
 
-    const record = existing ?? this.createRecord(workspaceToRef(workspace), session, sessionEntry.title);
-    record.session = session;
+    const record = existing ?? this.createRecord(workspaceToRef(workspace), runtime, session, sessionEntry.title);
+    record.runtime = runtime;
+    this.attachSessionSubscription(record, session);
     record.sessionFile = sessionFile;
     record.title = sessionEntry.title;
     record.status = sessionEntry.status;
@@ -659,17 +667,17 @@ export class SessionSupervisor {
     record.config = deriveSessionConfig(session.sessionManager);
     record.closed = false;
 
-    record.unsubscribeAgent?.();
-    record.unsubscribeAgent = session.subscribe((event) => {
-      void this.handleAgentEvent(record, event);
-    });
-
     this.records.set(key, record);
     await this.bindSessionRuntime(record);
     return record;
   }
 
-  private createRecord(workspace: WorkspaceRef, session: AgentSession, title: string): ManagedSessionRecord {
+  private createRecord(
+    workspace: WorkspaceRef,
+    runtime: AgentSessionRuntime,
+    session: AgentSession,
+    title: string,
+  ): ManagedSessionRecord {
     const ref = {
       workspaceId: workspace.workspaceId,
       sessionId: session.sessionId,
@@ -679,6 +687,7 @@ export class SessionSupervisor {
       ref,
       workspace: { ...workspace },
       title,
+      runtime,
       session,
       sessionFile: session.sessionFile ?? session.sessionManager.getSessionFile(),
       status: "idle",
@@ -697,10 +706,30 @@ export class SessionSupervisor {
       sessionCommands: [],
     };
 
+    this.attachSessionSubscription(record, session);
+    return record;
+  }
+
+  private attachSessionSubscription(record: ManagedSessionRecord, session: AgentSession): void {
+    record.unsubscribeAgent?.();
+    record.session = session;
     record.unsubscribeAgent = session.subscribe((event) => {
       void this.handleAgentEvent(record, event);
     });
-    return record;
+  }
+
+  private async disposeRecordRuntime(record: ManagedSessionRecord): Promise<void> {
+    record.unsubscribeAgent?.();
+    record.unsubscribeAgent = undefined;
+
+    if (record.runtime) {
+      await record.runtime.dispose();
+    } else {
+      record.session?.dispose();
+    }
+
+    record.runtime = undefined;
+    record.session = undefined;
   }
 
   private getWritableSessionManager(record: ManagedSessionRecord): SessionManager {
@@ -716,6 +745,13 @@ export class SessionSupervisor {
       throw new Error(`Session ${sessionKey(record.ref)} is not active.`);
     }
     return record.session;
+  }
+
+  private requireRuntime(record: ManagedSessionRecord): AgentSessionRuntime {
+    if (!record.runtime) {
+      throw new Error(`Session ${sessionKey(record.ref)} runtime is not active.`);
+    }
+    return record.runtime;
   }
 
   private async bindSessionRuntime(record: ManagedSessionRecord): Promise<void> {
@@ -743,13 +779,17 @@ export class SessionSupervisor {
     return {
       waitForIdle: () => this.requireSession(record).agent.waitForIdle(),
       newSession: async (options) => {
-        const cancelled = !(await this.requireSession(record).newSession(options));
-        await this.syncRecordAfterSessionMutation(record, { emitUpdate: true });
-        return { cancelled };
+        const result = await this.requireRuntime(record).newSession(options);
+        if (!result.cancelled) {
+          await this.syncRecordAfterRuntimeTransition(record, { emitUpdate: true });
+        }
+        return result;
       },
       fork: async (entryId) => {
-        const result = await this.requireSession(record).fork(entryId);
-        await this.syncRecordAfterSessionMutation(record, { emitUpdate: true });
+        const result = await this.requireRuntime(record).fork(entryId);
+        if (!result.cancelled) {
+          await this.syncRecordAfterRuntimeTransition(record, { emitUpdate: true });
+        }
         return { cancelled: result.cancelled };
       },
       navigateTree: async (targetId, options) => {
@@ -758,9 +798,11 @@ export class SessionSupervisor {
         return { cancelled: result.cancelled };
       },
       switchSession: async (sessionPath) => {
-        const cancelled = !(await this.requireSession(record).switchSession(sessionPath));
-        await this.syncRecordAfterSessionMutation(record, { emitUpdate: true });
-        return { cancelled };
+        const result = await this.requireRuntime(record).switchSession(sessionPath);
+        if (!result.cancelled) {
+          await this.syncRecordAfterRuntimeTransition(record, { emitUpdate: true });
+        }
+        return result;
       },
       reload: async () => {
         this.resetExtensionUi(record);
@@ -880,6 +922,7 @@ export class SessionSupervisor {
         });
       },
       setWorkingMessage: () => {},
+      setHiddenThinkingLabel: () => {},
       setWidget: (key, content: unknown, options?: ExtensionWidgetOptions) => {
         if (content === undefined || Array.isArray(content)) {
           const lines = content as readonly string[] | undefined;
@@ -985,14 +1028,14 @@ export class SessionSupervisor {
   private applySessionThinkingLevel(session: AgentSession, thinkingLevel: string): void {
     const availableLevels = session.getAvailableThinkingLevels();
     const effectiveLevel = clampThinkingLevel(thinkingLevel, availableLevels) as Parameters<
-      AgentSession["agent"]["setThinkingLevel"]
+      AgentSession["setThinkingLevel"]
     >[0];
     if (effectiveLevel !== session.agent.state.thinkingLevel) {
-      session.agent.setThinkingLevel(effectiveLevel);
+      session.setThinkingLevel(effectiveLevel);
       session.sessionManager.appendThinkingLevelChange(effectiveLevel);
       return;
     }
-    session.agent.setThinkingLevel(effectiveLevel);
+    session.setThinkingLevel(effectiveLevel);
   }
 
   private async emitModelSelection(
@@ -1151,6 +1194,17 @@ export class SessionSupervisor {
         }),
       ).catch(() => {});
     }
+  }
+
+  private async syncRecordAfterRuntimeTransition(
+    record: ManagedSessionRecord,
+    options: { emitUpdate?: boolean } = {},
+  ): Promise<void> {
+    const runtime = this.requireRuntime(record);
+    this.attachSessionSubscription(record, runtime.session);
+    record.closed = false;
+    await this.bindSessionRuntime(record);
+    await this.syncRecordAfterSessionMutation(record, options);
   }
 
   private async syncRecordAfterSessionMutation(
@@ -1509,6 +1563,11 @@ function clampThinkingLevel(level: string, availableLevels: readonly string[]): 
     }
   }
   return availableLevels[0] ?? "off";
+}
+
+function getSessionDirForCwd(cwd: string, agentDir: string): string {
+  const safePath = `--${cwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
+  return join(agentDir, "sessions", safePath);
 }
 
 async function createCanonicalWorkspaceRef(path: string, displayName?: string): Promise<WorkspaceRef> {

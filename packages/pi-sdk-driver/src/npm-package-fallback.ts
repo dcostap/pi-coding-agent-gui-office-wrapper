@@ -1,4 +1,13 @@
-import { DefaultResourceLoader, SettingsManager, createAgentSession, getAgentDir, type CreateAgentSessionOptions } from "@mariozechner/pi-coding-agent";
+import {
+  AgentSessionRuntime,
+  DefaultResourceLoader,
+  SettingsManager,
+  createAgentSession,
+  getAgentDir,
+  type AgentSession,
+  type AgentSessionServices,
+  type CreateAgentSessionOptions,
+} from "@mariozechner/pi-coding-agent";
 
 export function isGlobalNpmLookupError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -66,6 +75,52 @@ export async function createAgentSessionWithNpmFallback(options?: CreateAgentSes
       resourceLoader,
     });
   }
+}
+
+export async function createAgentSessionRuntimeWithNpmFallback(options: CreateAgentSessionOptions = {}) {
+  const initial = await createAgentSessionWithNpmFallback(options);
+  const agentDir = options.agentDir ?? getAgentDir();
+  const runtime = new AgentSessionRuntime(
+    initial.session,
+    toAgentSessionServices(initial.session, agentDir),
+    async (runtimeOptions) => {
+      const hasExistingEntries = runtimeOptions.sessionManager.getEntries().length > 0;
+      const result = await createAgentSessionWithNpmFallback({
+        cwd: runtimeOptions.cwd,
+        agentDir: runtimeOptions.agentDir,
+        sessionManager: runtimeOptions.sessionManager,
+        ...(runtimeOptions.sessionStartEvent ? { sessionStartEvent: runtimeOptions.sessionStartEvent } : {}),
+        ...(options.authStorage ? { authStorage: options.authStorage } : {}),
+        ...(options.modelRegistry ? { modelRegistry: options.modelRegistry } : {}),
+        ...(!hasExistingEntries && options.model ? { model: options.model } : {}),
+        ...(!hasExistingEntries && options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
+        ...(options.scopedModels ? { scopedModels: options.scopedModels } : {}),
+        ...(options.tools ? { tools: options.tools } : {}),
+        ...(options.customTools ? { customTools: options.customTools } : {}),
+      });
+      return {
+        ...result,
+        services: toAgentSessionServices(result.session, runtimeOptions.agentDir),
+        diagnostics: [],
+      };
+    },
+    [],
+    initial.modelFallbackMessage,
+  );
+
+  return { ...initial, runtime };
+}
+
+function toAgentSessionServices(session: AgentSession, agentDir: string): AgentSessionServices {
+  return {
+    cwd: session.sessionManager.getCwd(),
+    agentDir,
+    authStorage: session.modelRegistry.authStorage,
+    settingsManager: session.settingsManager,
+    modelRegistry: session.modelRegistry,
+    resourceLoader: session.resourceLoader,
+    diagnostics: [],
+  };
 }
 
 function filterOutNpmPackageSources(value: unknown): unknown {
