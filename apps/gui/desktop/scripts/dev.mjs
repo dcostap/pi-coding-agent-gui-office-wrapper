@@ -7,7 +7,7 @@ const desktopDir = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(desktopDir, "..", "..", "..");
 const rawArgs = process.argv.slice(2);
 const extraArgs = rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs;
-const workspacePackages = ["@pi-gui/session-driver", "@pi-gui/pi-sdk-driver", "@pi-gui/catalogs"];
+const workspacePackages = ["@office-agent/runtime", "@pi-gui/session-driver", "@pi-gui/pi-sdk-driver", "@pi-gui/catalogs"];
 
 const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
 const npxCmd = process.platform === "win32" ? "npx.cmd" : "npx";

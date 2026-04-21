@@ -5,14 +5,16 @@
 We are proving the smallest vertical slice first:
 
 1. A-side gateway accepts one abstract model: `assistant`
-2. B-side local pinned Pi uses that gateway through a local extension
+2. B-side local pinned Pi uses that gateway through a shared OfficeAgent runtime layer
 3. Pi runs locally on B without depending on any globally installed `pi`
 4. A-side auth is moving toward Pi-auth-backed Codex usage via a dedicated copied auth store
 
 ## Packages
 
 - `apps/gateway` - minimal A-side gateway
-- `apps/client-runtime` - pinned local Pi runtime + provider extension
+- `apps/tui` - terminal entrypoint using pinned local Pi
+- `apps/gui/desktop` - desktop entrypoint
+- `packages/office-agent-runtime` - shared managed OfficeAgent runtime wiring
 
 ## Setup
 
@@ -38,7 +40,7 @@ set OPENROUTER_API_KEY=...
 npm run dev:gateway
 ```
 
-## Run the local pinned Pi
+## Run the OfficeAgent TUI
 
 In a second terminal:
 
@@ -46,4 +48,10 @@ In a second terminal:
 npm run pi:managed
 ```
 
-This should start the locally pinned Pi runtime and default it to `corp/assistant`.
+or:
+
+```bash
+npm run tui
+```
+
+This starts the pinned Pi TUI using the shared OfficeAgent managed runtime and defaults it to `corp/assistant`.
