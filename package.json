@@ -14,7 +14,9 @@
     "pi:managed": "npm run tui --workspace @office-agent/tui",
     "tui": "npm run tui --workspace @office-agent/tui",
     "gui:dev": "npm run dev --workspace @office-agent/gui",
-    "gui:build": "npm run build --workspace @office-agent/gui"
+    "gui:build": "npm run build --workspace @office-agent/gui",
+    "gui:package": "npm run package:win --workspace @office-agent/gui",
+    "gui:package:dir": "npm run package:win:dir --workspace @office-agent/gui"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

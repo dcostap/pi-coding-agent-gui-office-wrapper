@@ -7,8 +7,8 @@ export const OFFICE_AGENT_PROVIDER_ID = "corp";
 export const OFFICE_AGENT_MODEL_ID = "assistant";
 export const OFFICE_AGENT_GATEWAY_URL_ENV_NAME = "OFFICE_AGENT_GATEWAY_URL";
 export const OFFICE_AGENT_GATEWAY_TOKEN_ENV_NAME = "OFFICE_AGENT_GATEWAY_TOKEN";
-export const OFFICE_AGENT_DEFAULT_GATEWAY_URL = "http://127.0.0.1:8082/v1";
-export const OFFICE_AGENT_DEFAULT_GATEWAY_TOKEN = "dev-gateway-token";
+export const OFFICE_AGENT_DEFAULT_GATEWAY_URL = "http://10.0.7.234:8082/v1";
+export const OFFICE_AGENT_DEFAULT_GATEWAY_TOKEN = "officeagent-demo-2026";
 
 export const OFFICE_AGENT_MANAGED_SETTINGS = {
   defaultProvider: OFFICE_AGENT_PROVIDER_ID,

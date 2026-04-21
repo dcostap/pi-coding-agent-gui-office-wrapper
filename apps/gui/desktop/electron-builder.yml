@@ -1,6 +1,6 @@
-appId: com.pi-gui.desktop
-productName: pi-gui
-copyright: Copyright 2026 Matthew Lam
+appId: com.officeagent.desktop
+productName: OfficeAgent
+copyright: Copyright 2026 OfficeAgent
 electronVersion: 34.5.8
 
 directories:
@@ -41,9 +41,21 @@ mac:
 
 linux:
   category: Development
-  executableName: pi-gui
+  executableName: office-agent
   target:
     - target: AppImage
+
+win:
+  forceCodeSigning: false
+  signAndEditExecutable: false
+  verifyUpdateCodeSignature: false
+  target:
+    - target: portable
+      arch:
+        - x64
+    - target: dir
+      arch:
+        - x64
 
 toolsets:
   appimage: "1.0.2"
@@ -60,7 +72,4 @@ dmg:
     width: 540
     height: 380
 
-publish:
-  provider: github
-  owner: minghinmatthewlam
-  repo: pi-gui
+publish: null

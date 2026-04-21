@@ -4,9 +4,9 @@ import path from "node:path";
 import { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 import { streamSimple as piStreamSimple } from "@mariozechner/pi-ai";
 
-const PORT = Number(process.env.OFFICE_AGENT_GATEWAY_PORT || process.env.PORT || 8080);
-const HOST = process.env.HOST || "127.0.0.1";
-const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || "dev-gateway-token";
+const PORT = Number(process.env.OFFICE_AGENT_GATEWAY_PORT || process.env.PORT || 8082);
+const HOST = process.env.HOST || "0.0.0.0";
+const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || "officeagent-demo-2026";
 const MOCK_MODE = process.env.MOCK_MODE === "1";
 
 const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
