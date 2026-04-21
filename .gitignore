@@ -6,3 +6,5 @@ npm-debug.log*
 apps/*/node_modules/
 apps/*/.env
 apps/*/.env.*
+apps/gui/desktop/out/
+packages/*/dist/

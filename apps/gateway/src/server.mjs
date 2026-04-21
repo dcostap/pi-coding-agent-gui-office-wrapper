@@ -4,7 +4,7 @@ import path from "node:path";
 import { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 import { streamSimple as piStreamSimple } from "@mariozechner/pi-ai";
 
-const PORT = Number(process.env.PORT || 8080);
+const PORT = Number(process.env.OFFICE_AGENT_GATEWAY_PORT || process.env.PORT || 8080);
 const HOST = process.env.HOST || "127.0.0.1";
 const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || "dev-gateway-token";
 const MOCK_MODE = process.env.MOCK_MODE === "1";

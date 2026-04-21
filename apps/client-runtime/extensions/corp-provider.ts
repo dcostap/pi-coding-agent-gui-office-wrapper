@@ -1,13 +1,13 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 const gatewayUrl = process.env.OFFICE_AGENT_GATEWAY_URL || "http://127.0.0.1:8080/v1";
-const gatewayTokenEnvName = "OFFICE_AGENT_GATEWAY_TOKEN";
+const gatewayToken = process.env.OFFICE_AGENT_GATEWAY_TOKEN || "dev-gateway-token";
 
 export default function (pi: ExtensionAPI) {
   pi.registerProvider("corp", {
     baseUrl: gatewayUrl,
     api: "openai-completions",
-    apiKey: gatewayTokenEnvName,
+    apiKey: gatewayToken,
     authHeader: true,
     models: [
       {
