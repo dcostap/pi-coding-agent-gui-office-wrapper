@@ -1,6 +1,9 @@
+import { randomUUID } from "node:crypto";
+import { appendFile, mkdir, readFile } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 import { streamSimple as piStreamSimple } from "@mariozechner/pi-ai";
 
@@ -8,23 +11,173 @@ const PORT = Number(process.env.OFFICE_AGENT_GATEWAY_PORT || process.env.PORT ||
 const HOST = process.env.HOST || "0.0.0.0";
 const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || "officeagent-demo-2026";
 const MOCK_MODE = process.env.MOCK_MODE === "1";
+const ANALYTICS_WINDOW_MINUTES = 30;
+const MAX_ANALYTICS_EVENTS = 5000;
+const MAX_ANALYTICS_RECENT_EVENTS = 40;
 
 const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
-const authPath = process.env.OFFICE_AGENT_GATEWAY_AUTH_PATH || path.join(localAppData, "OfficeAgent", "gateway-auth", "auth.json");
-const modelsPath = process.env.OFFICE_AGENT_GATEWAY_MODELS_PATH || path.join(localAppData, "OfficeAgent", "gateway-auth", "models.json");
+const authPath =
+  process.env.OFFICE_AGENT_GATEWAY_AUTH_PATH || path.join(localAppData, "OfficeAgent", "gateway-auth", "auth.json");
+const modelsPath =
+  process.env.OFFICE_AGENT_GATEWAY_MODELS_PATH ||
+  path.join(localAppData, "OfficeAgent", "gateway-auth", "models.json");
+const analyticsDir =
+  process.env.OFFICE_AGENT_GATEWAY_ANALYTICS_DIR || path.join(localAppData, "OfficeAgent", "gateway-analytics");
+const analyticsEventsPath = path.join(analyticsDir, "events.jsonl");
 const routedProvider = process.env.GATEWAY_UPSTREAM_PROVIDER || "openai-codex";
 const routedModelId = process.env.GATEWAY_UPSTREAM_MODEL || "gpt-5.3-codex-spark";
 
 const authStorage = AuthStorage.create(authPath);
 const modelRegistry = ModelRegistry.create(authStorage, modelsPath);
 
+class GatewayAnalyticsStore {
+  constructor(filePath) {
+    this.filePath = filePath;
+    this.events = [];
+    this.activeRequests = new Map();
+    this.loaded = false;
+  }
+
+  async load() {
+    if (this.loaded) return;
+    await mkdir(path.dirname(this.filePath), { recursive: true });
+    try {
+      const raw = await readFile(this.filePath, "utf8");
+      for (const line of raw.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          this.#pushEvent(JSON.parse(trimmed));
+        } catch {
+          // Ignore malformed historical lines in demo mode.
+        }
+      }
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        console.warn("[gateway] analytics load warning", error);
+      }
+    }
+    this.loaded = true;
+  }
+
+  startRequest(meta) {
+    const startedAtMs = Date.now();
+    const active = {
+      id: randomUUID(),
+      startedAt: new Date(startedAtMs).toISOString(),
+      startedAtMs,
+      client: meta.client,
+      request: meta.request,
+      routing: meta.routing,
+    };
+    this.activeRequests.set(active.id, active);
+    return active;
+  }
+
+  async finishRequest(active, result) {
+    this.activeRequests.delete(active.id);
+    const completedAtMs = Date.now();
+    const event = {
+      id: active.id,
+      startedAt: active.startedAt,
+      startedAtMs: active.startedAtMs,
+      completedAt: new Date(completedAtMs).toISOString(),
+      completedAtMs,
+      durationMs: Math.max(0, completedAtMs - active.startedAtMs),
+      client: active.client,
+      request: active.request,
+      routing: result.routing || active.routing,
+      result: {
+        status: result.status || "success",
+        finishReason: result.finishReason || "stop",
+        errorMessage: result.errorMessage || null,
+      },
+      metrics: {
+        outputChars: Number(result.outputChars || 0),
+        toolCalls: Number(result.toolCalls || 0),
+      },
+    };
+
+    this.#pushEvent(event);
+    await appendFile(this.filePath, `${JSON.stringify(event)}\n`, "utf8");
+    return event;
+  }
+
+  getSummary() {
+    const now = Date.now();
+    const recentEvents = this.events.slice(-MAX_ANALYTICS_RECENT_EVENTS).reverse();
+    const completed = this.events.length;
+    const successCount = this.events.filter((event) => event.result?.status === "success").length;
+    const errorCount = completed - successCount;
+    const totalDurationMs = this.events.reduce((sum, event) => sum + Number(event.durationMs || 0), 0);
+    const totalOutputChars = this.events.reduce((sum, event) => sum + Number(event.metrics?.outputChars || 0), 0);
+    const users = summarizeUsers(this.events);
+    const series = buildMinuteSeries(this.events, ANALYTICS_WINDOW_MINUTES, now);
+
+    return {
+      generatedAt: new Date(now).toISOString(),
+      gateway: {
+        host: HOST,
+        port: PORT,
+        mockMode: MOCK_MODE,
+        analyticsEventsPath,
+        routedProvider,
+        routedModelId,
+      },
+      totals: {
+        completedRequests: completed,
+        activeRequests: this.activeRequests.size,
+        uniqueUsers: users.length,
+        successCount,
+        errorCount,
+        successRate: completed > 0 ? successCount / completed : 1,
+        avgDurationMs: completed > 0 ? Math.round(totalDurationMs / completed) : 0,
+        totalOutputChars,
+      },
+      users,
+      recent: recentEvents,
+      active: [...this.activeRequests.values()]
+        .map((request) => ({
+          ...request,
+          elapsedMs: Math.max(0, now - request.startedAtMs),
+        }))
+        .sort((a, b) => b.startedAtMs - a.startedAtMs),
+      series,
+    };
+  }
+
+  #pushEvent(event) {
+    this.events.push(event);
+    if (this.events.length > MAX_ANALYTICS_EVENTS) {
+      this.events.splice(0, this.events.length - MAX_ANALYTICS_EVENTS);
+    }
+  }
+}
+
+const analyticsStore = new GatewayAnalyticsStore(analyticsEventsPath);
+await analyticsStore.load();
+
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const dashboardTemplatePath = path.join(currentDir, "dashboard.html");
+const dashboardTemplate = await readFile(dashboardTemplatePath, "utf8");
+
 function sendJson(res, status, body) {
   const text = JSON.stringify(body, null, 2);
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "content-length": Buffer.byteLength(text),
+    "cache-control": "no-store",
   });
   res.end(text);
+}
+
+function sendHtml(res, status, html) {
+  res.writeHead(status, {
+    "content-type": "text/html; charset=utf-8",
+    "content-length": Buffer.byteLength(html),
+    "cache-control": "no-store",
+  });
+  res.end(html);
 }
 
 function unauthorized(res) {
@@ -94,8 +247,8 @@ function convertUserContent(content) {
   }
 
   if (parts.length === 0) return "";
-  if (parts.every((p) => p.type === "text")) {
-    return parts.map((p) => p.text).join("\n");
+  if (parts.every((part) => part.type === "text")) {
+    return parts.map((part) => part.text).join("\n");
   }
   return parts;
 }
@@ -270,6 +423,18 @@ function sendMockStream(res, body) {
   res.write(`data: ${JSON.stringify(done)}\n\n`);
   res.write("data: [DONE]\n\n");
   res.end();
+
+  return {
+    status: "success",
+    finishReason: "stop",
+    outputChars: text.length,
+    toolCalls: 0,
+    routing: {
+      provider: "mock",
+      model: "assistant",
+      api: "mock",
+    },
+  };
 }
 
 function mapFinishReason(reason) {
@@ -319,6 +484,9 @@ async function streamViaPiAuth(res, body) {
   const streamId = `chatcmpl_pi_${Date.now()}`;
   let sentRole = false;
   let toolIndex = 0;
+  let outputChars = 0;
+  let toolCalls = 0;
+  let finishReason = "stop";
 
   const eventStream = piStreamSimple(model, context, {
     apiKey: resolvedAuth.apiKey,
@@ -342,12 +510,14 @@ async function streamViaPiAuth(res, body) {
         sentRole = true;
       }
       if (event.delta) {
+        outputChars += event.delta.length;
         writeOpenAIChunk(res, streamId, body.model || "assistant", { content: event.delta });
       }
       continue;
     }
 
     if (event.type === "toolcall_end") {
+      toolCalls += 1;
       if (!sentRole) {
         writeOpenAIChunk(res, streamId, body.model || "assistant", { role: "assistant" });
         sentRole = true;
@@ -369,10 +539,22 @@ async function streamViaPiAuth(res, body) {
     }
 
     if (event.type === "done") {
-      writeOpenAIChunk(res, streamId, body.model || "assistant", {}, mapFinishReason(event.reason));
+      finishReason = mapFinishReason(event.reason);
+      writeOpenAIChunk(res, streamId, body.model || "assistant", {}, finishReason);
       res.write("data: [DONE]\n\n");
       res.end();
-      return;
+      return {
+        status: "success",
+        finishReason,
+        outputChars,
+        toolCalls,
+        routing: {
+          provider: model.provider,
+          model: model.id,
+          api: model.api,
+          baseUrl: model.baseUrl,
+        },
+      };
     }
 
     if (event.type === "error") {
@@ -381,17 +563,42 @@ async function streamViaPiAuth(res, body) {
         sentRole = true;
       }
       const message = event.error?.errorMessage || `Gateway upstream error (${event.reason})`;
+      outputChars += message.length;
       writeOpenAIChunk(res, streamId, body.model || "assistant", { content: message });
       writeOpenAIChunk(res, streamId, body.model || "assistant", {}, "stop");
       res.write("data: [DONE]\n\n");
       res.end();
-      return;
+      return {
+        status: "error",
+        finishReason: "stop",
+        errorMessage: message,
+        outputChars,
+        toolCalls,
+        routing: {
+          provider: model.provider,
+          model: model.id,
+          api: model.api,
+          baseUrl: model.baseUrl,
+        },
+      };
     }
   }
 
   writeOpenAIChunk(res, streamId, body.model || "assistant", {}, "stop");
   res.write("data: [DONE]\n\n");
   res.end();
+  return {
+    status: "success",
+    finishReason: "stop",
+    outputChars,
+    toolCalls,
+    routing: {
+      provider: model.provider,
+      model: model.id,
+      api: model.api,
+      baseUrl: model.baseUrl,
+    },
+  };
 }
 
 async function handleChatCompletions(req, res) {
@@ -399,24 +606,199 @@ async function handleChatCompletions(req, res) {
   if (token !== GATEWAY_TOKEN) return unauthorized(res);
 
   const body = await readJson(req);
+  const client = getClientIdentity(req);
+  const request = getRequestSummary(body);
+  const active = analyticsStore.startRequest({
+    client,
+    request,
+    routing: {
+      provider: MOCK_MODE ? "mock" : routedProvider,
+      model: MOCK_MODE ? "assistant" : routedModelId,
+      api: MOCK_MODE ? "mock" : "pi-auth",
+    },
+  });
 
-  if (MOCK_MODE) {
-    console.log("[gateway] chat.completions mock", {
-      requestedModel: body.model,
-      stream: !!body.stream,
-      messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
+  try {
+    if (MOCK_MODE) {
+      console.log("[gateway] chat.completions mock", {
+        requestedModel: body.model,
+        stream: !!body.stream,
+        messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
+        identity: client.identity,
+        client: client.client,
+      });
+      const result = sendMockStream(res, body);
+      await analyticsStore.finishRequest(active, result);
+      return;
+    }
+
+    if (body.stream === false) {
+      await analyticsStore.finishRequest(active, {
+        status: "error",
+        finishReason: "stop",
+        errorMessage: "unsupported_mode",
+      });
+      return sendJson(res, 400, {
+        error: "unsupported_mode",
+        message: "This gateway currently supports only stream=true requests.",
+      });
+    }
+
+    const result = await streamViaPiAuth(res, body);
+    await analyticsStore.finishRequest(active, result);
+  } catch (error) {
+    await analyticsStore.finishRequest(active, {
+      status: "error",
+      finishReason: "stop",
+      errorMessage: String(error?.message || error),
     });
-    return sendMockStream(res, body);
+    throw error;
+  }
+}
+
+function getClientIdentity(req) {
+  const user = cleanHeader(req.headers["x-officeagent-user"]) || "unknown-user";
+  const domain = cleanHeader(req.headers["x-officeagent-domain"]);
+  const host = cleanHeader(req.headers["x-officeagent-host"]) || "unknown-host";
+  const client = cleanHeader(req.headers["x-officeagent-client"]) || "unknown";
+  const identityHeader = cleanHeader(req.headers["x-officeagent-identity"]);
+  const identity = identityHeader || (domain ? `${domain}\\${user}` : user);
+
+  return {
+    identity,
+    user,
+    domain,
+    host,
+    client,
+    remoteAddress: normalizeRemoteAddress(req.socket?.remoteAddress),
+    userAgent: cleanHeader(req.headers["user-agent"]),
+  };
+}
+
+function getRequestSummary(body) {
+  return {
+    abstractModel: typeof body.model === "string" && body.model ? body.model : "assistant",
+    messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
+    toolCount: Array.isArray(body.tools) ? body.tools.length : 0,
+    promptChars: estimatePromptChars(body.messages),
+    stream: body.stream !== false,
+  };
+}
+
+function estimatePromptChars(messages) {
+  if (!Array.isArray(messages)) return 0;
+  let total = 0;
+  for (const message of messages) {
+    total += extractTextFromContent(message?.content).length;
+  }
+  return total;
+}
+
+function cleanHeader(value) {
+  const first = Array.isArray(value) ? value[0] : value;
+  if (typeof first !== "string") return "";
+  return first.trim().slice(0, 200);
+}
+
+function normalizeRemoteAddress(value) {
+  if (!value) return "";
+  return value.startsWith("::ffff:") ? value.slice("::ffff:".length) : value;
+}
+
+function summarizeUsers(events) {
+  const byUser = new Map();
+
+  for (const event of events) {
+    const identity = event.client?.identity || "unknown-user";
+    let summary = byUser.get(identity);
+    if (!summary) {
+      summary = {
+        identity,
+        user: event.client?.user || "unknown-user",
+        domain: event.client?.domain || "",
+        requestCount: 0,
+        successCount: 0,
+        errorCount: 0,
+        avgDurationMs: 0,
+        totalDurationMs: 0,
+        totalOutputChars: 0,
+        lastSeenAt: event.completedAt,
+        lastHost: event.client?.host || "unknown-host",
+        clients: {},
+        hosts: new Set(),
+      };
+      byUser.set(identity, summary);
+    }
+
+    summary.requestCount += 1;
+    summary.totalDurationMs += Number(event.durationMs || 0);
+    summary.totalOutputChars += Number(event.metrics?.outputChars || 0);
+    summary.lastSeenAt = event.completedAt > summary.lastSeenAt ? event.completedAt : summary.lastSeenAt;
+    summary.lastHost = event.client?.host || summary.lastHost;
+    summary.hosts.add(event.client?.host || "unknown-host");
+    summary.clients[event.client?.client || "unknown"] = (summary.clients[event.client?.client || "unknown"] || 0) + 1;
+
+    if (event.result?.status === "success") summary.successCount += 1;
+    else summary.errorCount += 1;
   }
 
-  if (body.stream === false) {
-    return sendJson(res, 400, {
-      error: "unsupported_mode",
-      message: "This gateway currently supports only stream=true requests.",
-    });
+  return [...byUser.values()]
+    .map((summary) => ({
+      identity: summary.identity,
+      user: summary.user,
+      domain: summary.domain,
+      requestCount: summary.requestCount,
+      successCount: summary.successCount,
+      errorCount: summary.errorCount,
+      avgDurationMs: summary.requestCount > 0 ? Math.round(summary.totalDurationMs / summary.requestCount) : 0,
+      totalOutputChars: summary.totalOutputChars,
+      lastSeenAt: summary.lastSeenAt,
+      lastHost: summary.lastHost,
+      hostCount: summary.hosts.size,
+      clients: summary.clients,
+    }))
+    .sort((a, b) => b.requestCount - a.requestCount || String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)));
+}
+
+function buildMinuteSeries(events, minutes, now = Date.now()) {
+  const endMinute = Math.floor(now / 60000) * 60000;
+  const startMinute = endMinute - (minutes - 1) * 60000;
+  const points = Array.from({ length: minutes }, (_, index) => ({
+    minuteStartMs: startMinute + index * 60000,
+    label: formatMinuteLabel(startMinute + index * 60000),
+    requests: 0,
+    success: 0,
+    error: 0,
+    totalDurationMs: 0,
+  }));
+
+  for (const event of events) {
+    const completedAtMs = Number(event.completedAtMs || 0);
+    if (completedAtMs < startMinute || completedAtMs >= endMinute + 60000) continue;
+    const index = Math.floor((completedAtMs - startMinute) / 60000);
+    const point = points[index];
+    if (!point) continue;
+    point.requests += 1;
+    if (event.result?.status === "success") point.success += 1;
+    else point.error += 1;
+    point.totalDurationMs += Number(event.durationMs || 0);
   }
 
-  return streamViaPiAuth(res, body);
+  return points.map((point) => ({
+    label: point.label,
+    requests: point.requests,
+    success: point.success,
+    error: point.error,
+    avgDurationMs: point.requests > 0 ? Math.round(point.totalDurationMs / point.requests) : 0,
+  }));
+}
+
+function formatMinuteLabel(timestamp) {
+  return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function renderDashboardHtml() {
+  return dashboardTemplate.replaceAll("__ANALYTICS_WINDOW_MINUTES__", String(ANALYTICS_WINDOW_MINUTES));
 }
 
 const server = http.createServer(async (req, res) => {
@@ -448,8 +830,18 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         mockMode: MOCK_MODE,
         authPath,
+        analyticsEventsPath,
+        dashboardUrl: `http://localhost:${PORT}/dashboard`,
         routed,
       });
+    }
+
+    if (req.method === "GET" && req.url === "/dashboard") {
+      return sendHtml(res, 200, renderDashboardHtml());
+    }
+
+    if (req.method === "GET" && req.url === "/analytics/summary") {
+      return sendJson(res, 200, analyticsStore.getSummary());
     }
 
     if (req.method === "GET" && req.url === "/v1/models") {
@@ -485,4 +877,6 @@ server.listen(PORT, HOST, () => {
   console.log(`[gateway] listening on http://${HOST}:${PORT}`);
   console.log(`[gateway] abstract model assistant -> ${MOCK_MODE ? "mock" : `${routedProvider}/${routedModelId}`}`);
   console.log(`[gateway] auth path: ${authPath}`);
+  console.log(`[gateway] analytics dashboard: http://localhost:${PORT}/dashboard`);
+  console.log(`[gateway] analytics log: ${analyticsEventsPath}`);
 });

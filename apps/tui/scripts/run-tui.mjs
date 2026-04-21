@@ -12,7 +12,7 @@ const piMainPath = fileURLToPath(piMainUrl);
 const piPackageRoot = path.resolve(path.dirname(piMainPath), "..");
 const cliPath = path.join(piPackageRoot, "dist", "cli.js");
 
-const env = getOfficeAgentManagedEnv();
+const env = getOfficeAgentManagedEnv(process.env, { clientKind: "tui" });
 const agentDir = env.PI_CODING_AGENT_DIR || getOfficeAgentAgentDir();
 await ensureOfficeAgentManagedAgentDir(agentDir);
 

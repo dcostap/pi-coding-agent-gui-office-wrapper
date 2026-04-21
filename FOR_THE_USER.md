@@ -60,6 +60,11 @@ Current demo client target is hardcoded to:
 
 - `http://10.0.7.234:8082/v1`
 
+Gateway analytics dashboard:
+
+- on the gateway PC: `http://localhost:8082/dashboard`
+- on another PC in the LAN: `http://10.0.7.234:8082/dashboard`
+
 ---
 
 ## Run the TUI
@@ -134,6 +139,10 @@ Gateway auth uses:
 
 - `%LOCALAPPDATA%\OfficeAgent\gateway-auth`
 
+Gateway analytics log uses:
+
+- `%LOCALAPPDATA%\OfficeAgent\gateway-analytics\events.jsonl`
+
 ---
 
 ## Boss demo / packaged GUI
@@ -160,9 +169,21 @@ npm run gateway:bootstrap-auth
 npm run dev:gateway
 ```
 
-2. Make sure your Windows firewall allows inbound TCP on port `8082`.
-3. Copy `OfficeAgent-0.1.0-x64.exe` to the boss PC.
-4. Run it there.
+2. Open the analytics dashboard in a browser on the gateway PC:
+
+- `http://localhost:8082/dashboard`
+
+3. Make sure your Windows firewall allows inbound TCP on port `8082`.
+4. Copy `OfficeAgent-0.1.0-x64.exe` to the boss PC.
+5. Run it there.
+6. Watch the dashboard while the boss uses the app.
+
+The GUI/TUI now report simple client identity to the gateway using:
+
+- Windows domain
+- Windows username
+- computer name
+- client type (`gui` or `tui`)
 
 It is currently hardcoded to connect to:
 
