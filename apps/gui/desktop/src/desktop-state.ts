@@ -5,9 +5,8 @@ export type { SessionRole, TranscriptMessage } from "./timeline-types";
 import type { TranscriptMessage } from "./timeline-types";
 
 export type AppView = "threads" | "new-thread" | "skills" | "extensions" | "settings";
-export type WorkspaceKind = "primary" | "worktree";
-export type WorktreeStatus = "ready" | "missing" | "error";
-export type NewThreadEnvironment = "local" | "worktree";
+export type WorkspaceKind = "primary";
+export type NewThreadEnvironment = "local";
 export type ThemeMode = "system" | "light" | "dark";
 export type ModelSettingsScopeMode = "app-global" | "per-repo";
 export type ComposerDraftSyncSource =
@@ -73,17 +72,6 @@ export interface SelectedTranscriptRecord {
   readonly transcript: readonly TranscriptMessage[];
 }
 
-export interface WorktreeRecord {
-  readonly id: string;
-  readonly rootWorkspaceId: string;
-  readonly linkedWorkspaceId?: string;
-  readonly name: string;
-  readonly path: string;
-  readonly status: WorktreeStatus;
-  readonly branchName?: string;
-  readonly updatedAt: string;
-}
-
 export interface SessionExtensionStatusRecord {
   readonly key: string;
   readonly text: string;
@@ -130,15 +118,8 @@ export interface WorkspaceRecord {
   readonly sessions: readonly SessionRecord[];
 }
 
-export interface CreateWorktreeInput {
-  readonly workspaceId: string;
-  readonly fromSessionWorkspaceId?: string;
-  readonly fromSessionId?: string;
-}
-
 export type StartThreadInput = {
   readonly rootWorkspaceId: string;
-  readonly environment: NewThreadEnvironment;
   readonly prompt?: string;
   readonly attachments?: readonly ComposerAttachment[];
   readonly provider?: string;
@@ -146,14 +127,10 @@ export type StartThreadInput = {
   readonly thinkingLevel?: string;
 };
 
-export interface RemoveWorktreeInput {
-  readonly workspaceId: string;
-  readonly worktreeId: string;
-}
-
 export interface DesktopAppState {
+  readonly managedRootPath: string;
+  readonly managedProjectsPath: string;
   readonly workspaces: readonly WorkspaceRecord[];
-  readonly worktreesByWorkspace: Readonly<Record<string, readonly WorktreeRecord[]>>;
   readonly selectedWorkspaceId: string;
   readonly selectedSessionId: string;
   readonly activeView: AppView;
@@ -188,8 +165,9 @@ export interface WorkspaceSessionTarget {
 
 export function createEmptyDesktopAppState(): DesktopAppState {
   return {
+    managedRootPath: "",
+    managedProjectsPath: "",
     workspaces: [],
-    worktreesByWorkspace: {},
     selectedWorkspaceId: "",
     selectedSessionId: "",
     activeView: "threads",

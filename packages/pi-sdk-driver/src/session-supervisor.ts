@@ -1,6 +1,11 @@
 import { access, realpath } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
+  ensureOfficeAgentManagedSessionLayout,
+  findOfficeAgentManagedRootForPath,
+  getOfficeAgentWorkspaceSessionFilesDir,
+} from "@office-agent/runtime";
+import {
   ModelRegistry,
   SessionManager,
   type AgentSession,
@@ -70,7 +75,7 @@ import {
   workspaceToRef,
 } from "./session-supervisor-utils.js";
 import type { SessionTranscriptMessage } from "./transcript.js";
-import { createAgentSessionRuntimeWithNpmFallback } from "./npm-package-fallback.js";
+import { createOfficeAgentManagedSessionRuntime } from "./office-agent-managed-runtime.js";
 
 export interface PiSdkDriverOptions {
   readonly catalogFilePath?: string;
@@ -160,7 +165,7 @@ export class SessionSupervisor {
     this.agentDir = options.agentDir;
     this.createAgentSessionRuntimeImpl =
       options.createAgentSessionRuntimeImpl ??
-      ((createOptions) => createAgentSessionRuntimeWithNpmFallback(createOptions));
+      ((createOptions) => createOfficeAgentManagedSessionRuntime(createOptions));
     this.modelRegistry = options.modelRegistry;
   }
 
@@ -180,10 +185,7 @@ export class SessionSupervisor {
 
   async syncWorkspace(path: string, displayName?: string): Promise<SyncWorkspaceResult> {
     const workspace = await this.registerWorkspace(path, displayName);
-    const infos = await SessionManager.list(
-      path,
-      this.agentDir ? getSessionDirForCwd(path, this.agentDir) : undefined,
-    );
+    const infos = await SessionManager.list(path, getSessionDirForCwd(path, this.agentDir));
     const existingSessions = (await this.catalogs.sessions.listSessions(workspace.workspaceId)).sessions;
     const existingByKey = new Map(existingSessions.map((session) => [sessionKey(session.sessionRef), session]));
     const nextEntries = infos.map((info) =>
@@ -305,6 +307,7 @@ export class SessionSupervisor {
       : undefined;
     const createOptions: CreateAgentSessionOptions = {
       cwd: workspace.path,
+      sessionManager: SessionManager.create(workspace.path, getSessionDirForCwd(workspace.path, this.agentDir)),
       ...(this.agentDir ? { agentDir: this.agentDir } : {}),
       ...(this.modelRegistry ? { modelRegistry: this.modelRegistry } : {}),
     };
@@ -328,6 +331,7 @@ export class SessionSupervisor {
     }
 
     this.records.set(sessionKey(record.ref), record);
+    await this.ensureManagedSessionLayout(record);
     await this.bindSessionRuntime(record);
     await this.persistSnapshot(record);
     const snapshot = buildSnapshot(record);
@@ -651,7 +655,11 @@ export class SessionSupervisor {
     const { runtime, session } = await this.createAgentSessionRuntimeImpl({
       cwd: workspace.path,
       ...(this.agentDir ? { agentDir: this.agentDir } : {}),
-      sessionManager: SessionManager.open(sessionFile),
+      sessionManager: SessionManager.open(
+        sessionFile,
+        getSessionDirForCwd(workspace.path, this.agentDir),
+        workspace.path,
+      ),
       ...(this.modelRegistry ? { modelRegistry: this.modelRegistry } : {}),
     });
 
@@ -668,8 +676,17 @@ export class SessionSupervisor {
     record.closed = false;
 
     this.records.set(key, record);
+    await this.ensureManagedSessionLayout(record);
     await this.bindSessionRuntime(record);
     return record;
+  }
+
+  private async ensureManagedSessionLayout(record: ManagedSessionRecord): Promise<void> {
+    const managedRootDir = findOfficeAgentManagedRootForPath(record.workspace.path);
+    if (!managedRootDir) {
+      return;
+    }
+    await ensureOfficeAgentManagedSessionLayout(record.ref.sessionId, managedRootDir);
   }
 
   private createRecord(
@@ -1565,7 +1582,14 @@ function clampThinkingLevel(level: string, availableLevels: readonly string[]): 
   return availableLevels[0] ?? "off";
 }
 
-function getSessionDirForCwd(cwd: string, agentDir: string): string {
+function getSessionDirForCwd(cwd: string, agentDir: string | undefined): string | undefined {
+  const managedRootDir = findOfficeAgentManagedRootForPath(cwd);
+  if (managedRootDir) {
+    return getOfficeAgentWorkspaceSessionFilesDir(cwd, managedRootDir);
+  }
+  if (!agentDir) {
+    return undefined;
+  }
   const safePath = `--${cwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
   return join(agentDir, "sessions", safePath);
 }

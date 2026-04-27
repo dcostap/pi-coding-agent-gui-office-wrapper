@@ -4,7 +4,7 @@ Apply these rules under `apps/desktop/tests/`.
 
 - Use the lane scripts in `apps/desktop/package.json` before inventing ad hoc Playwright commands.
 - Pick the smallest lane that matches the changed surface:
-- `core`: background-friendly UI flows inside the Electron window. Default for renderer, sidebar, composer, session, persistence, and worktree UI changes.
+- `core`: background-friendly UI flows inside the Electron window. Default for renderer, sidebar, composer, session, and persistence changes.
 - `live`: real provider/runtime runs. Use for transcript, tool-call, parallel-run, and notification behavior that depends on actual agent execution.
 - `native`: macOS OS-surface flows such as folder pickers, image pickers, and real clipboard paste. These are foreground-only and focus-sensitive.
 - `production`: opt-in higher-fidelity smokes such as real-auth `live`, packaged-app launch, and real macOS open-panel coverage. Keep these out of the default `core` and `native` globs so fast lanes stay stable.

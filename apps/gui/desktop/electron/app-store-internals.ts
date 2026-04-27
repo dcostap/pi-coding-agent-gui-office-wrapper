@@ -12,7 +12,6 @@ import type {
   WorkspaceSessionTarget,
 } from "../src/desktop-state";
 import type { PendingAutoTitle, QueuedComposerEditState, SessionStateMap } from "./session-state-map";
-import type { GitWorktreeManager } from "./worktree-manager";
 import type { JsonFileStore } from "./json-file-store";
 import type { PendingRuntimeCommandExecution } from "./extension-command-compatibility";
 
@@ -32,13 +31,13 @@ export interface AppStoreInternals {
   /* ── Infrastructure ────────────────────────────────────── */
   readonly driver: PiSdkDriver;
   readonly catalogStore: JsonCatalogStore;
-  readonly worktreeManager: GitWorktreeManager;
   readonly attachmentStore: JsonFileStore<ComposerAttachment[]>;
 
   /* ── Shared helpers (called by extracted method groups) ── */
   initialize(): Promise<void>;
   refreshState(options?: RefreshStateOptions): Promise<DesktopAppState>;
   emit(): DesktopAppState;
+  getManagedRootPath(): string | undefined;
   withError(error: unknown): Promise<DesktopAppState>;
   withErrorHandling(fn: () => Promise<DesktopAppState>): Promise<DesktopAppState>;
   selectSessionFast(target: WorkspaceSessionTarget): Promise<DesktopAppState>;

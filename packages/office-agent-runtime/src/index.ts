@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -13,8 +13,32 @@ export const OFFICE_AGENT_WINDOWS_DOMAIN_ENV_NAME = "OFFICE_AGENT_WINDOWS_DOMAIN
 export const OFFICE_AGENT_WINDOWS_HOST_ENV_NAME = "OFFICE_AGENT_WINDOWS_HOST";
 export const OFFICE_AGENT_DEFAULT_GATEWAY_URL = "http://10.0.7.234:8082/v1";
 export const OFFICE_AGENT_DEFAULT_GATEWAY_TOKEN = "officeagent-demo-2026";
+export const OFFICE_AGENT_MANAGED_PROJECTS_DIR_NAME = "projects";
+export const OFFICE_AGENT_MANAGED_INTERNAL_DIR_NAME = ".officeagent";
+export const OFFICE_AGENT_MANAGED_SESSIONS_DIR_NAME = "sessions";
+export const OFFICE_AGENT_MANAGED_SESSION_FILES_DIR_NAME = "workspace-files";
+export const OFFICE_AGENT_MANAGED_SESSION_PROFILE_DIR_NAME = "profile";
+export const OFFICE_AGENT_MANAGED_SESSION_TEMP_DIR_NAME = "temp";
+export const OFFICE_AGENT_MANAGED_SESSION_NPM_CACHE_DIR_NAME = "npm-cache";
+export const OFFICE_AGENT_MANAGED_SESSION_NPM_PREFIX_DIR_NAME = "npm-prefix";
+export const OFFICE_AGENT_MANAGED_SESSION_PIP_CACHE_DIR_NAME = "pip-cache";
+export const OFFICE_AGENT_MANAGED_SESSION_PYTHON_USER_BASE_DIR_NAME = "python-user-base";
+export const OFFICE_AGENT_MANAGED_SESSION_LOGS_DIR_NAME = "logs";
 
 export type OfficeAgentClientKind = "gui" | "tui" | "unknown";
+
+export interface OfficeAgentManagedSessionPaths {
+  readonly sessionDir: string;
+  readonly profileDir: string;
+  readonly appDataDir: string;
+  readonly localAppDataDir: string;
+  readonly tempDir: string;
+  readonly npmCacheDir: string;
+  readonly npmPrefixDir: string;
+  readonly pipCacheDir: string;
+  readonly pythonUserBaseDir: string;
+  readonly logsDir: string;
+}
 
 export const OFFICE_AGENT_MANAGED_SETTINGS = {
   defaultProvider: OFFICE_AGENT_PROVIDER_ID,
@@ -78,6 +102,62 @@ export function getOfficeAgentAgentDir(appDataDir: string = getOfficeAgentAppDat
   return path.join(appDataDir, "pi-agent");
 }
 
+export function getOfficeAgentManagedRootDir(appDataDir: string = getOfficeAgentAppDataDir()): string {
+  return path.join(appDataDir, "workspace");
+}
+
+export function getOfficeAgentProjectsDir(managedRootDir: string = getOfficeAgentManagedRootDir()): string {
+  return path.join(managedRootDir, OFFICE_AGENT_MANAGED_PROJECTS_DIR_NAME);
+}
+
+export function getOfficeAgentInternalDir(managedRootDir: string = getOfficeAgentManagedRootDir()): string {
+  return path.join(managedRootDir, OFFICE_AGENT_MANAGED_INTERNAL_DIR_NAME);
+}
+
+export function getOfficeAgentSessionsDir(managedRootDir: string = getOfficeAgentManagedRootDir()): string {
+  return path.join(getOfficeAgentInternalDir(managedRootDir), OFFICE_AGENT_MANAGED_SESSIONS_DIR_NAME);
+}
+
+export function getOfficeAgentWorkspaceSessionFilesDir(
+  workspacePath: string,
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): string {
+  return path.join(
+    getOfficeAgentSessionsDir(managedRootDir),
+    OFFICE_AGENT_MANAGED_SESSION_FILES_DIR_NAME,
+    encodeOfficeAgentPathSegment(path.resolve(workspacePath)),
+  );
+}
+
+export function getOfficeAgentSessionDir(
+  sessionId: string,
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): string {
+  return path.join(getOfficeAgentSessionsDir(managedRootDir), sessionId);
+}
+
+export function getOfficeAgentManagedSessionPaths(
+  sessionId: string,
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): OfficeAgentManagedSessionPaths {
+  const sessionDir = getOfficeAgentSessionDir(sessionId, managedRootDir);
+  const profileDir = path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_PROFILE_DIR_NAME);
+  const appDataDir = path.join(profileDir, "AppData", "Roaming");
+  const localAppDataDir = path.join(profileDir, "AppData", "Local");
+  return {
+    sessionDir,
+    profileDir,
+    appDataDir,
+    localAppDataDir,
+    tempDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_TEMP_DIR_NAME),
+    npmCacheDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_NPM_CACHE_DIR_NAME),
+    npmPrefixDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_NPM_PREFIX_DIR_NAME),
+    pipCacheDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_PIP_CACHE_DIR_NAME),
+    pythonUserBaseDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_PYTHON_USER_BASE_DIR_NAME),
+    logsDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_LOGS_DIR_NAME),
+  };
+}
+
 export function getOfficeAgentProviderExtensionPath(agentDir: string = getOfficeAgentAgentDir()): string {
   return path.join(agentDir, "extensions", "corp-provider.ts");
 }
@@ -129,12 +209,172 @@ export async function ensureOfficeAgentManagedAgentDir(agentDir: string = getOff
   return agentDir;
 }
 
+export async function ensureOfficeAgentManagedRoot(managedRootDir: string = getOfficeAgentManagedRootDir()): Promise<string> {
+  await mkdir(getOfficeAgentProjectsDir(managedRootDir), { recursive: true });
+  await mkdir(getOfficeAgentInternalDir(managedRootDir), { recursive: true });
+  await mkdir(getOfficeAgentSessionsDir(managedRootDir), { recursive: true });
+  return managedRootDir;
+}
+
+export async function ensureOfficeAgentManagedSessionLayout(
+  sessionId: string,
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): Promise<OfficeAgentManagedSessionPaths> {
+  await ensureOfficeAgentManagedRoot(managedRootDir);
+  const paths = getOfficeAgentManagedSessionPaths(sessionId, managedRootDir);
+  await mkdir(paths.sessionDir, { recursive: true });
+  await mkdir(paths.profileDir, { recursive: true });
+  await mkdir(paths.appDataDir, { recursive: true });
+  await mkdir(paths.localAppDataDir, { recursive: true });
+  await mkdir(paths.tempDir, { recursive: true });
+  await mkdir(paths.npmCacheDir, { recursive: true });
+  await mkdir(paths.npmPrefixDir, { recursive: true });
+  await mkdir(paths.pipCacheDir, { recursive: true });
+  await mkdir(paths.pythonUserBaseDir, { recursive: true });
+  await mkdir(paths.logsDir, { recursive: true });
+  return paths;
+}
+
+export function getOfficeAgentManagedSessionEnv(
+  sessionId: string,
+  env: NodeJS.ProcessEnv = process.env,
+  options: {
+    managedRootDir?: string;
+    agentDir?: string;
+    gatewayUrl?: string;
+    gatewayToken?: string;
+    clientKind?: OfficeAgentClientKind;
+    windowsUser?: string;
+    windowsDomain?: string;
+    windowsHost?: string;
+  } = {},
+): NodeJS.ProcessEnv {
+  const managedEnv = getOfficeAgentManagedEnv(env, options);
+  const paths = getOfficeAgentManagedSessionPaths(sessionId, options.managedRootDir);
+  return {
+    ...managedEnv,
+    HOME: paths.profileDir,
+    USERPROFILE: paths.profileDir,
+    APPDATA: paths.appDataDir,
+    LOCALAPPDATA: paths.localAppDataDir,
+    TEMP: paths.tempDir,
+    TMP: paths.tempDir,
+    npm_config_cache: paths.npmCacheDir,
+    NPM_CONFIG_CACHE: paths.npmCacheDir,
+    npm_config_prefix: paths.npmPrefixDir,
+    NPM_CONFIG_PREFIX: paths.npmPrefixDir,
+    PIP_CACHE_DIR: paths.pipCacheDir,
+    PYTHONUSERBASE: paths.pythonUserBaseDir,
+    OFFICE_AGENT_SESSION_DIR: paths.sessionDir,
+    OFFICE_AGENT_SESSION_LOGS_DIR: paths.logsDir,
+  };
+}
+
+export function findOfficeAgentManagedRootForPath(pathValue: string): string | undefined {
+  let current = path.resolve(pathValue);
+
+  for (;;) {
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return undefined;
+    }
+    if (path.basename(parent) === OFFICE_AGENT_MANAGED_PROJECTS_DIR_NAME) {
+      return path.dirname(parent);
+    }
+    current = parent;
+  }
+}
+
+export async function getAvailableOfficeAgentProjectName(
+  managedRootDir: string,
+  projectName: string,
+): Promise<string> {
+  const normalizedName = normalizeOfficeAgentProjectName(projectName);
+  if (!normalizedName) {
+    throw new Error("Project name cannot be empty.");
+  }
+
+  await ensureOfficeAgentManagedRoot(managedRootDir);
+  let candidate = normalizedName;
+  let suffix = 2;
+
+  while (await officeAgentPathExists(path.join(getOfficeAgentProjectsDir(managedRootDir), candidate))) {
+    candidate = `${normalizedName}-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
+export async function createOfficeAgentProject(
+  managedRootDir: string,
+  projectName: string,
+  options: { readonly onExists?: "error" | "suffix" } = {},
+): Promise<{ readonly projectName: string; readonly projectPath: string }> {
+  const normalizedName =
+    options.onExists === "suffix"
+      ? await getAvailableOfficeAgentProjectName(managedRootDir, projectName)
+      : normalizeOfficeAgentProjectName(projectName);
+  if (!normalizedName) {
+    throw new Error("Project name cannot be empty.");
+  }
+
+  await ensureOfficeAgentManagedRoot(managedRootDir);
+  const projectPath = path.join(getOfficeAgentProjectsDir(managedRootDir), normalizedName);
+
+  try {
+    const existing = await stat(projectPath);
+    if (existing.isDirectory()) {
+      throw new Error(`Project already exists: ${normalizedName}`);
+    }
+    throw new Error(`A file already exists at ${projectPath}`);
+  } catch (error) {
+    if (!isMissingFileError(error)) {
+      throw error;
+    }
+  }
+
+  await mkdir(projectPath, { recursive: false });
+  return {
+    projectName: normalizedName,
+    projectPath,
+  };
+}
+
+export function normalizeOfficeAgentProjectName(projectName: string): string {
+  return projectName
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
+    .replace(/[. ]+$/g, "")
+    .replace(/\s+/g, " ");
+}
+
 export function getOfficeAgentProviderExtensionSource(): string {
   return OFFICE_AGENT_PROVIDER_EXTENSION_SOURCE;
 }
 
+function encodeOfficeAgentPathSegment(value: string): string {
+  return encodeURIComponent(value.replace(/\\/g, "/"));
+}
+
 function getLocalAppDataDir(): string {
   return process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+}
+
+async function officeAgentPathExists(pathValue: string): Promise<boolean> {
+  try {
+    await stat(pathValue);
+    return true;
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
 
 function normalizeClientKind(value: string | undefined): OfficeAgentClientKind | undefined {

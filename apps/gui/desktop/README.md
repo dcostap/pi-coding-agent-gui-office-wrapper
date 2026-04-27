@@ -46,7 +46,7 @@ Live agent tests use your existing `pi` runtime and provider auth. If local `pi`
 Use the smallest lane that matches the changed surface.
 
 - `core`
-  Background-friendly Electron UI coverage. This is the default lane for renderer, sidebar, composer, persistence, settings, skills, and worktree UI behavior.
+  Background-friendly Electron UI coverage. This is the default lane for renderer, sidebar, composer, persistence, settings, and skills behavior.
 
   ```bash
   pnpm --filter @pi-gui/desktop run test:e2e
@@ -83,6 +83,16 @@ Run all desktop lanes:
 ```bash
 pnpm --filter @pi-gui/desktop run test:e2e:all
 ```
+
+- `windows-sandbox`
+  Windows-only OS-enforced sandbox smoke coverage. This lane does not launch the GUI; it builds the runtime packages and Rust helper, creates a temporary managed root, invokes the same sandbox-backed bash bridge used by managed sessions, and verifies inside-root execution, outside-root blocking, redirected temp behavior, and timeout/job cleanup.
+
+  ```bash
+  npm run sandbox:smoke
+  npm run test:sandbox:smoke --workspace @office-agent/gui
+  ```
+
+  Set `OFFICE_AGENT_KEEP_SANDBOX_SMOKE_DIR=1` to keep the temporary smoke directories for debugging.
 
 For mac-first CI, use:
 
@@ -127,7 +137,6 @@ Rerun the matching lane before closing for `core` and `live`.
 For `native`, rerun the targeted native spec by default and expand to `test:e2e:native` only when the change touches shared native helpers, multiple native specs, or lane-wide native behavior.
 
 ```bash
-pnpm --filter @pi-gui/desktop run test:core:worktrees
 pnpm --filter @pi-gui/desktop run test:core:persistence
 pnpm --filter @pi-gui/desktop run test:live:tool-calls
 pnpm --filter @pi-gui/desktop run test:native:paste

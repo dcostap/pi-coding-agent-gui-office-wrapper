@@ -155,10 +155,9 @@ function selectionAfterArchiving(state: DesktopAppState, target: WorkspaceSessio
     };
   }
 
-  const rootWorkspaceId =
-    targetWorkspace.kind === "worktree" ? (targetWorkspace.rootWorkspaceId ?? targetWorkspace.id) : targetWorkspace.id;
+  const rootWorkspaceId = targetWorkspace.id;
   const rankedCandidates = state.workspaces
-    .filter((w) => w.id === rootWorkspaceId || w.rootWorkspaceId === rootWorkspaceId)
+    .filter((w) => w.id === rootWorkspaceId)
     .flatMap((w) =>
       w.sessions
         .filter((s) => s.id !== target.sessionId || w.id !== target.workspaceId)

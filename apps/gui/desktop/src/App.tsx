@@ -8,15 +8,12 @@ import {
   type ComposerAttachment,
   type ComposerImageAttachment,
   type DesktopAppState,
-  type NewThreadEnvironment,
   type SelectedTranscriptRecord,
   type StartThreadInput,
-  type WorktreeRecord,
   type WorkspaceRecord,
 } from "./desktop-state";
 import { formatRelativeTime } from "./string-utils";
 import { ComposerPanel } from "./composer-panel";
-import { DiffPanel } from "./diff-panel";
 import { buildModelOptions } from "./composer-commands";
 import { parseTreeComposerCommand } from "./composer-commands";
 import {
@@ -42,7 +39,6 @@ import { useWorkspaceMenu } from "./hooks/use-workspace-menu";
 import { buildExtensionDockModel, ExtensionDialog, hasExtensionDockContent } from "./extension-session-ui";
 import { TreeModal } from "./tree-modal";
 import { getEffectiveModelRuntime } from "./model-settings";
-import { resolveRepoWorkspaceId } from "./workspace-roots";
 import {
   extractImageFilesFromClipboardData,
   extractFilesFromDataTransfer,
@@ -146,7 +142,6 @@ export default function App() {
   const [extensionsWorkspaceId, setExtensionsWorkspaceId] = useState("");
   const [pendingNewThreadWorkspaceId, setPendingNewThreadWorkspaceId] = useState("");
   const [newThreadRootWorkspaceId, setNewThreadRootWorkspaceId] = useState("");
-  const [newThreadEnvironment, setNewThreadEnvironment] = useState<NewThreadEnvironment>("local");
   const [newThreadPrompt, setNewThreadPrompt] = useState("");
   const [newThreadAttachments, setNewThreadAttachments] = useState<readonly ComposerAttachment[]>([]);
   const [newThreadProvider, setNewThreadProvider] = useState<string | undefined>();
@@ -182,7 +177,6 @@ export default function App() {
   const hydratedComposerSessionKeyRef = useRef("");
   const handledComposerSyncNonceRef = useRef(0);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
-  const [showDiffPanel, setShowDiffPanel] = useState(false);
   const [timelinePaneMountVersion, setTimelinePaneMountVersion] = useState(0);
   const [disableTimelineVirtualization, setDisableTimelineVirtualization] = useState(true);
   const threadSearch = useThreadSearch(timelinePaneRef);
@@ -240,55 +234,23 @@ export default function App() {
 
   const selectedWorkspace = snapshot ? (getSelectedWorkspace(snapshot) ?? snapshot.workspaces[0]) : undefined;
   const selectedSession = snapshot ? (getSelectedSession(snapshot) ?? selectedWorkspace?.sessions[0]) : undefined;
-  const {
-    activeWorktrees,
-    linkedWorktreeByWorkspaceId,
-    rootWorkspace,
-    rootWorkspaceOptions,
-    visibleWorkspaces,
-  } = useMemo(() => {
+  const { rootWorkspace, rootWorkspaceOptions, visibleWorkspaces } = useMemo(() => {
     if (!snapshot) {
       return {
-        activeWorktrees: [] as readonly WorktreeRecord[],
-        linkedWorktreeByWorkspaceId: new Map<string, WorktreeRecord>(),
         rootWorkspace: undefined as WorkspaceRecord | undefined,
         rootWorkspaceOptions: [] as readonly WorkspaceRecord[],
         visibleWorkspaces: [] as readonly WorkspaceRecord[],
       };
     }
 
-    const workspacesById = new Map(snapshot.workspaces.map((workspace) => [workspace.id, workspace] as const));
-    const primaryWorkspaces = snapshot.workspaces.filter((workspace) => workspace.kind === "primary");
-    const orphanWorkspaces = snapshot.workspaces.filter(
-      (workspace) => workspace.kind === "worktree" && !workspacesById.has(workspace.rootWorkspaceId ?? ""),
-    );
-    const nextVisibleWorkspaces =
-      primaryWorkspaces.length > 0 ? [...primaryWorkspaces, ...orphanWorkspaces] : snapshot.workspaces;
-    const nextLinkedWorktreeByWorkspaceId = new Map(
-      Object.values(snapshot.worktreesByWorkspace)
-        .flat()
-        .filter((worktree) => Boolean(worktree.linkedWorkspaceId))
-        .map((worktree) => [worktree.linkedWorkspaceId as string, worktree] as const),
-    );
-    const nextRootWorkspaceId = resolveRepoWorkspaceId(snapshot.workspaces, selectedWorkspace?.id);
-    const nextRootWorkspace =
-      (nextRootWorkspaceId ? snapshot.workspaces.find((workspace) => workspace.id === nextRootWorkspaceId) : undefined)
-      ?? selectedWorkspace;
-    const nextRootWorkspaceOptions = [...new Set(snapshot.workspaces.map((workspace) => resolveRepoWorkspaceId(snapshot.workspaces, workspace.id) ?? workspace.id))]
-      .map((workspaceId) => snapshot.workspaces.find((workspace) => workspace.id === workspaceId))
-      .filter((workspace): workspace is WorkspaceRecord => Boolean(workspace));
-
     return {
-      activeWorktrees: nextRootWorkspace ? snapshot.worktreesByWorkspace[nextRootWorkspace.id] ?? [] : [],
-      linkedWorktreeByWorkspaceId: nextLinkedWorktreeByWorkspaceId,
-      rootWorkspace: nextRootWorkspace,
-      rootWorkspaceOptions: nextRootWorkspaceOptions,
-      visibleWorkspaces: nextVisibleWorkspaces,
+      rootWorkspace: selectedWorkspace,
+      rootWorkspaceOptions: snapshot.workspaces,
+      visibleWorkspaces: snapshot.workspaces,
     };
   }, [selectedWorkspace, snapshot]);
   const selectedRuntime = selectedWorkspace ? snapshot?.runtimeByWorkspace[selectedWorkspace.id] : undefined;
   const selectedModelRuntime = snapshot ? getEffectiveModelRuntime(snapshot, selectedWorkspace) : undefined;
-  const selectedWorktree = selectedWorkspace ? linkedWorktreeByWorkspaceId.get(selectedWorkspace.id) : undefined;
   const settingsWorkspace = settingsWorkspaceId
     ? rootWorkspaceOptions.find((workspace) => workspace.id === settingsWorkspaceId)
     : undefined;
@@ -364,7 +326,7 @@ export default function App() {
   const persistedComposerDraft = snapshot?.composerDraft ?? "";
   const threadGroups = useMemo(
     () => (snapshot ? buildThreadGroups(snapshot) : []),
-    [snapshot?.workspaces, snapshot?.worktreesByWorkspace, snapshot?.workspaceOrder],
+    [snapshot?.workspaces, snapshot?.workspaceOrder],
   );
   const focusComposer = () => {
     window.requestAnimationFrame(() => {
@@ -506,22 +468,6 @@ export default function App() {
 
     waitForFrames(delayFrames);
   }, [scrollTimelineToBottom]);
-
-  const toggleDiffPanel = useCallback(() => {
-    const pane = timelinePaneRef.current;
-    const shouldPreserveBottom = pane ? isNearBottom(pane) || pinnedToBottomRef.current : pinnedToBottomRef.current;
-    if (shouldPreserveBottom) {
-      preserveBottomOnNextPaneResizeRef.current = true;
-    }
-
-    setShowDiffPanel((prev) => !prev);
-
-    if (!shouldPreserveBottom) {
-      return;
-    }
-
-    schedulePinnedBottomRealignment(3);
-  }, [schedulePinnedBottomRealignment]);
 
   const openSettings = (workspaceId?: string, section?: SettingsSection) => {
     if (!api) {
@@ -767,7 +713,6 @@ export default function App() {
       setExtensionsWorkspaceId("");
       setPendingNewThreadWorkspaceId("");
       setNewThreadRootWorkspaceId("");
-      setNewThreadEnvironment("local");
       setNewThreadAttachments([]);
       return;
     }
@@ -789,27 +734,22 @@ export default function App() {
     if (!snapshot || !pendingNewThreadWorkspaceId) {
       return;
     }
-    const nextRootWorkspaceId = resolveRepoWorkspaceId(snapshot.workspaces, pendingNewThreadWorkspaceId);
-    if (!nextRootWorkspaceId || !rootWorkspaceOptions.some((workspace) => workspace.id === nextRootWorkspaceId)) {
+    if (!rootWorkspaceOptions.some((workspace) => workspace.id === pendingNewThreadWorkspaceId)) {
       return;
     }
-    setNewThreadRootWorkspaceId(nextRootWorkspaceId);
+    setNewThreadRootWorkspaceId(pendingNewThreadWorkspaceId);
     setPendingNewThreadWorkspaceId("");
   }, [pendingNewThreadWorkspaceId, rootWorkspaceOptions, snapshot]);
 
   const resetNewThreadSurface = (workspaceId?: string) => {
     const nextWorkspaceId =
-      (workspaceId && (
-        rootWorkspaceOptions.find((workspace) => workspace.id === workspaceId)?.id ||
-        (snapshot ? resolveRepoWorkspaceId(snapshot.workspaces, workspaceId) : undefined)
-      )) ||
+      (workspaceId && rootWorkspaceOptions.find((workspace) => workspace.id === workspaceId)?.id) ||
       rootWorkspace?.id ||
       visibleWorkspaces[0]?.id ||
       "";
     if (nextWorkspaceId) {
       setNewThreadRootWorkspaceId(nextWorkspaceId);
     }
-    setNewThreadEnvironment("local");
     setNewThreadPrompt("");
     setNewThreadAttachments([]);
     setNewThreadProvider(undefined);
@@ -821,9 +761,9 @@ export default function App() {
   useEffect(() => {
     const handleCommand = (command: PiDesktopCommand) => {
       if (command === desktopCommands.openSettings) {
-        openSettings(selectedWorkspace?.rootWorkspaceId ?? selectedWorkspace?.id);
+        openSettings(selectedWorkspace?.id);
       } else if (command === desktopCommands.openNewThread) {
-        openNewThreadSurface(selectedWorkspace?.rootWorkspaceId ?? selectedWorkspace?.id);
+        openNewThreadSurface(selectedWorkspace?.id);
       }
     };
 
@@ -844,12 +784,6 @@ export default function App() {
         }
         return;
       }
-      // Cmd+D toggles diff panel
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "d" && !event.shiftKey) {
-        event.preventDefault();
-        toggleDiffPanel();
-        return;
-      }
       const command = getDesktopCommandFromShortcut({
         modifier: event.metaKey || event.ctrlKey,
         shift: event.shiftKey,
@@ -868,7 +802,7 @@ export default function App() {
       removeClipboardImageListener?.();
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedWorkspace?.id, selectedWorkspace?.rootWorkspaceId, threadSearch, api, toggleDiffPanel]);
+  }, [selectedWorkspace?.id, threadSearch, api]);
 
   useLayoutEffect(() => {
     setShowJumpToLatest(false);
@@ -896,11 +830,8 @@ export default function App() {
       return;
     }
 
-    if (snapshot.activeView === "new-thread" && previousActiveViewRef.current !== "new-thread") {
-      const nextRootWorkspaceId = resolveRepoWorkspaceId(snapshot.workspaces, selectedWorkspace?.id);
-      if (nextRootWorkspaceId) {
-        setNewThreadRootWorkspaceId(nextRootWorkspaceId);
-      }
+    if (snapshot.activeView === "new-thread" && previousActiveViewRef.current !== "new-thread" && selectedWorkspace?.id) {
+      setNewThreadRootWorkspaceId(selectedWorkspace.id);
     }
 
     if (snapshot.activeView !== "threads") {
@@ -1030,7 +961,7 @@ export default function App() {
       resizeObserver.disconnect();
       previousTimelinePaneSizeRef.current = null;
     };
-  }, [scrollTimelineToBottom, selectedSessionKey, showDiffPanel, snapshot?.activeView, timelinePaneMountVersion]);
+  }, [scrollTimelineToBottom, selectedSessionKey, snapshot?.activeView, timelinePaneMountVersion]);
 
   useEffect(() => {
     const pane = timelinePaneRef.current;
@@ -1079,6 +1010,28 @@ export default function App() {
 
   const setActiveView = (view: AppView) => {
     void updateSnapshot(api, setSnapshot, () => api.setActiveView(view));
+  };
+
+  const chooseManagedRoot = () => {
+    void updateSnapshot(api, setSnapshot, () => api.pickManagedRoot());
+  };
+
+  const createManagedProject = () => {
+    if (!snapshot.managedRootPath) {
+      chooseManagedRoot();
+      return;
+    }
+
+    const projectName = window.prompt("Project name", "");
+    if (!projectName?.trim()) {
+      return;
+    }
+
+    void updateSnapshot(api, setSnapshot, () => api.createManagedProject(projectName.trim())).then((state) => {
+      if (state.selectedWorkspaceId) {
+        openNewThreadSurface(state.selectedWorkspaceId);
+      }
+    });
   };
 
   const openSkills = (workspaceId?: string) => {
@@ -1520,7 +1473,6 @@ export default function App() {
     };
     const input: StartThreadInput = {
       rootWorkspaceId: newThreadRootWorkspaceId,
-      environment: newThreadEnvironment,
       ...modelConfig,
     };
     wsMenu.expandWorkspace(newThreadRootWorkspaceId);
@@ -1532,7 +1484,6 @@ export default function App() {
       setNewThreadProvider(undefined);
       setNewThreadModelId(undefined);
       setNewThreadThinkingLevel(undefined);
-      setNewThreadEnvironment("local");
     });
   };
 
@@ -1767,16 +1718,18 @@ export default function App() {
     <div className="shell">
       <Sidebar
         activeView={snapshot.activeView}
+        managedRootPath={snapshot.managedRootPath}
         selectedWorkspace={selectedWorkspace}
         selectedSession={selectedSession}
         visibleWorkspaces={visibleWorkspaces}
         threadGroups={threadGroups}
-        linkedWorktreeByWorkspaceId={linkedWorktreeByWorkspaceId}
         wsMenu={wsMenu}
         api={api}
         setSnapshot={setSnapshot}
         updateSnapshot={updateSnapshot}
-        onNewThread={() => openNewThreadSurface(selectedWorkspace?.rootWorkspaceId ?? selectedWorkspace?.id)}
+        onChooseManagedRoot={chooseManagedRoot}
+        onCreateManagedProject={createManagedProject}
+        onNewThread={() => openNewThreadSurface(selectedWorkspace?.id)}
         onSetActiveView={setActiveView}
         onOpenSkills={openSkills}
         onOpenExtensions={openExtensions}
@@ -1786,22 +1739,15 @@ export default function App() {
         onUnarchiveSession={handleUnarchiveSession}
       />
 
-      <main className={`main ${showDiffPanel ? "main--with-diff" : ""}`}>
+      <main className="main">
         <Topbar
           activeView={snapshot.activeView}
-          rootWorkspace={rootWorkspace}
           selectedWorkspace={selectedWorkspace}
           selectedSession={selectedSession}
           selectedSessionTitle={displayedSessionTitle || selectedSession?.title}
-          selectedWorktree={selectedWorktree}
-          activeWorktrees={activeWorktrees}
-          workspaces={snapshot.workspaces}
-          wsMenu={wsMenu}
           api={api}
           setSnapshot={setSnapshot}
           updateSnapshot={updateSnapshot}
-          showDiffPanel={showDiffPanel}
-          onToggleDiffPanel={toggleDiffPanel}
         />
 
         {snapshot.activeView === "new-thread" ? (
@@ -1810,7 +1756,6 @@ export default function App() {
               workspaces={rootWorkspaceOptions}
               selectedWorkspaceId={newThreadRootWorkspaceId || rootWorkspaceOptions[0]?.id || ""}
               runtime={newThreadRuntime}
-              environment={newThreadEnvironment}
               prompt={newThreadPrompt}
               attachments={newThreadAttachments}
               lastError={newThreadComposerError}
@@ -1832,7 +1777,6 @@ export default function App() {
               mentionOptions={newThreadMentionMenu.mentionOptions}
               selectedMentionIndex={newThreadMentionMenu.selectedIndex}
               onChangePrompt={setNewThreadPrompt}
-              onSelectEnvironment={setNewThreadEnvironment}
               onSelectWorkspace={handleSelectNewThreadWorkspace}
               onSetModel={(provider, modelId) => { setNewThreadProvider(provider); setNewThreadModelId(modelId); }}
               onSetThinking={setNewThreadThinkingLevel}
@@ -1867,9 +1811,7 @@ export default function App() {
               <div className="conversation conversation--thread">
                 <div className="chat-header">
                   <div className="chat-header__eyebrow">
-                    {selectedWorkspace.kind === "worktree"
-                      ? `${rootWorkspace?.name ?? selectedWorkspace.name} · ${selectedWorktree?.name ?? selectedWorkspace.branchName ?? "Worktree"}`
-                      : `${selectedWorkspace.name} · Local`}
+                    {selectedWorkspace.name}
                   </div>
                   <div className="chat-header__row">
                     <h1 className="chat-header__title">{displayedSessionTitle}</h1>
@@ -1927,7 +1869,7 @@ export default function App() {
               onSetThinking={handleSetSessionThinking}
               modelOnboarding={selectedSessionModelOnboarding}
               onOpenModelSettings={(section) =>
-                openSettings(selectedWorkspace?.rootWorkspaceId ?? selectedWorkspace?.id, section)
+                openSettings(selectedWorkspace?.id, section)
               }
               onSubmit={submitComposerDraft}
               runningLabel={runningLabel}
@@ -1973,7 +1915,7 @@ export default function App() {
                 <button
                   className="button button--primary"
                   type="button"
-                  onClick={() => openNewThreadSurface(selectedWorkspace?.rootWorkspaceId ?? selectedWorkspace?.id)}
+                  onClick={() => openNewThreadSurface(selectedWorkspace?.id)}
                 >
                   New thread
                 </button>
@@ -1990,13 +1932,6 @@ export default function App() {
           </section>
         )}
 
-        {showDiffPanel && selectedWorkspace ? (
-          <DiffPanel
-            workspaceId={selectedWorkspace.id}
-            api={api}
-            sessionStatus={selectedSession?.status}
-          />
-        ) : null}
       </main>
     </div>
   );

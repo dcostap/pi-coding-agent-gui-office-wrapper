@@ -15,10 +15,8 @@ import type {
   ComposerAttachment,
   ComposerImageAttachment,
   CreateSessionInput,
-  CreateWorktreeInput,
   DesktopAppState,
   NotificationPreferences,
-  RemoveWorktreeInput,
   SelectedTranscriptRecord,
   StartThreadInput,
   WorkspaceSessionTarget,
@@ -95,9 +93,17 @@ contextBridge.exposeInMainWorld("piApp", {
     };
   },
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
+  setManagedRootPath: (managedRootPath: string) =>
+    ipcRenderer.invoke(desktopIpc.setManagedRootPath, managedRootPath) as Promise<DesktopAppState>,
+  pickManagedRoot: () => ipcRenderer.invoke(desktopIpc.pickManagedRoot) as Promise<DesktopAppState>,
+  createManagedProject: (projectName: string) =>
+    ipcRenderer.invoke(desktopIpc.createManagedProject, projectName) as Promise<DesktopAppState>,
+  importWorkspacePath: (workspacePath: string) =>
+    ipcRenderer.invoke(desktopIpc.importWorkspacePath, workspacePath) as Promise<DesktopAppState>,
+  pickImportFolder: () => ipcRenderer.invoke(desktopIpc.pickImportFolder) as Promise<DesktopAppState>,
   addWorkspacePath: (workspacePath: string) =>
-    ipcRenderer.invoke(desktopIpc.addWorkspacePath, workspacePath) as Promise<DesktopAppState>,
-  pickWorkspace: () => ipcRenderer.invoke(desktopIpc.pickWorkspace) as Promise<DesktopAppState>,
+    ipcRenderer.invoke(desktopIpc.importWorkspacePath, workspacePath) as Promise<DesktopAppState>,
+  pickWorkspace: () => ipcRenderer.invoke(desktopIpc.pickImportFolder) as Promise<DesktopAppState>,
   selectWorkspace: (workspaceId: string) =>
     ipcRenderer.invoke(desktopIpc.selectWorkspace, workspaceId) as Promise<DesktopAppState>,
   renameWorkspace: (workspaceId: string, displayName: string) =>
@@ -108,10 +114,6 @@ contextBridge.exposeInMainWorld("piApp", {
     ipcRenderer.invoke(desktopIpc.reorderWorkspaces, workspaceOrder) as Promise<DesktopAppState>,
   openWorkspaceInFinder: (workspaceId: string) =>
     ipcRenderer.invoke(desktopIpc.openWorkspaceInFinder, workspaceId) as Promise<void>,
-  createWorktree: (input: CreateWorktreeInput) =>
-    ipcRenderer.invoke(desktopIpc.createWorktree, input) as Promise<DesktopAppState>,
-  removeWorktree: (input: RemoveWorktreeInput) =>
-    ipcRenderer.invoke(desktopIpc.removeWorktree, input) as Promise<DesktopAppState>,
   openSkillInFinder: (workspaceId: string, filePath: string) =>
     ipcRenderer.invoke(desktopIpc.openSkillInFinder, workspaceId, filePath) as Promise<void>,
   openExtensionInFinder: (workspaceId: string, filePath: string) =>
@@ -201,12 +203,6 @@ contextBridge.exposeInMainWorld("piApp", {
     }>,
   listWorkspaceFiles: (workspaceId: string) =>
     ipcRenderer.invoke(desktopIpc.listWorkspaceFiles, workspaceId) as Promise<string[]>,
-  getChangedFiles: (workspaceId: string) =>
-    ipcRenderer.invoke(desktopIpc.getChangedFiles, workspaceId) as Promise<{ path: string; status: "added" | "modified" | "deleted" | "untracked" }[]>,
-  getFileDiff: (workspaceId: string, filePath: string) =>
-    ipcRenderer.invoke(desktopIpc.getFileDiff, workspaceId, filePath) as Promise<string>,
-  stageFile: (workspaceId: string, filePath: string) =>
-    ipcRenderer.invoke(desktopIpc.stageFile, workspaceId, filePath) as Promise<void>,
   toggleWindowMaximize: () => ipcRenderer.invoke(desktopIpc.toggleWindowMaximize) as Promise<void>,
   openExternal: (url: string) => ipcRenderer.invoke(desktopIpc.openExternal, url) as Promise<void>,
   getThemeMode: () => ipcRenderer.invoke(desktopIpc.getThemeMode) as Promise<"system" | "light" | "dark">,

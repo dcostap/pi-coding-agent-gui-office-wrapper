@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ClipboardEvent, type DragEvent, type KeyboardEvent, type RefObject } from "react";
 import type { RuntimeSnapshot } from "@pi-gui/session-driver/runtime-types";
-import type { ComposerAttachment, NewThreadEnvironment, WorkspaceRecord } from "./desktop-state";
+import type { ComposerAttachment, WorkspaceRecord } from "./desktop-state";
 import { ArrowUpIcon, PiLogoMark, PlusIcon } from "./icons";
 import {
   MODEL_OPTIONS_EMPTY_TITLE,
@@ -18,7 +18,6 @@ interface NewThreadViewProps {
   readonly workspaces: readonly WorkspaceRecord[];
   readonly selectedWorkspaceId: string;
   readonly runtime?: RuntimeSnapshot;
-  readonly environment: NewThreadEnvironment;
   readonly prompt: string;
   readonly attachments: readonly ComposerAttachment[];
   readonly lastError?: string;
@@ -40,7 +39,6 @@ interface NewThreadViewProps {
   readonly mentionOptions: readonly string[];
   readonly selectedMentionIndex: number;
   readonly onChangePrompt: (prompt: string) => void;
-  readonly onSelectEnvironment: (environment: NewThreadEnvironment) => void;
   readonly onSelectWorkspace: (workspaceId: string) => void;
   readonly onSetModel: (provider: string, modelId: string) => void;
   readonly onSetThinking: (level: string) => void;
@@ -61,7 +59,6 @@ export function NewThreadView({
   workspaces,
   selectedWorkspaceId,
   runtime,
-  environment,
   prompt,
   attachments,
   lastError,
@@ -83,7 +80,6 @@ export function NewThreadView({
   mentionOptions,
   selectedMentionIndex,
   onChangePrompt,
-  onSelectEnvironment,
   onSelectWorkspace,
   onSetModel,
   onSetThinking,
@@ -121,8 +117,8 @@ export function NewThreadView({
       <section className="canvas canvas--empty">
         <div className="empty-panel">
           <div className="session-header__eyebrow">New thread</div>
-          <h1>Open a folder to begin</h1>
-          <p>Select a repository from the sidebar first, then start a local or worktree-backed thread.</p>
+          <h1>Create or import a project to begin</h1>
+          <p>Select a project from the sidebar first, then start a thread.</p>
         </div>
       </section>
     );
@@ -196,14 +192,12 @@ export function NewThreadView({
               footer={(
                 <NewThreadComposerFooter
                   runtime={runtime}
-                  environment={environment}
                   provider={provider}
                   modelId={modelId}
                   thinkingLevel={thinkingLevel}
                   modelOnboarding={modelOnboarding}
                   hasContent={Boolean(prompt.trim() || attachments.length > 0)}
                   fileInputRef={fileInputRef}
-                  onSelectEnvironment={onSelectEnvironment}
                   onSetModel={onSetModel}
                   onSetThinking={onSetThinking}
                   onAddAttachments={onAddAttachments}
@@ -220,14 +214,12 @@ export function NewThreadView({
 
 interface NewThreadComposerFooterProps {
   readonly runtime?: RuntimeSnapshot;
-  readonly environment: NewThreadEnvironment;
   readonly provider: string | undefined;
   readonly modelId: string | undefined;
   readonly thinkingLevel: string | undefined;
   readonly modelOnboarding: ModelOnboardingState;
   readonly hasContent: boolean;
   readonly fileInputRef: RefObject<HTMLInputElement | null>;
-  readonly onSelectEnvironment: (environment: NewThreadEnvironment) => void;
   readonly onSetModel: (provider: string, modelId: string) => void;
   readonly onSetThinking: (level: string) => void;
   readonly onAddAttachments: (files: File[]) => void;
@@ -236,91 +228,70 @@ interface NewThreadComposerFooterProps {
 
 function NewThreadComposerFooter({
   runtime,
-  environment,
   provider,
   modelId,
   thinkingLevel,
   modelOnboarding,
   hasContent,
   fileInputRef,
-  onSelectEnvironment,
   onSetModel,
   onSetThinking,
   onAddAttachments,
   onSubmit,
 }: NewThreadComposerFooterProps) {
   return (
-    <>
-      <div className="composer__footer">
-        <div className="composer__footer-row">
-          <div className="composer__hint new-thread__hint">
-            <div className="new-thread__environment-group">
-              <button
-                className={`new-thread__environment ${environment === "local" ? "new-thread__environment--active" : ""}`}
-                type="button"
-                onClick={() => onSelectEnvironment("local")}
-              >
-                <span>Local</span>
-              </button>
-              <button
-                className={`new-thread__environment ${environment === "worktree" ? "new-thread__environment--active" : ""}`}
-                type="button"
-                onClick={() => onSelectEnvironment("worktree")}
-              >
-                <span>Worktree</span>
-              </button>
-            </div>
-            <span className="new-thread__hint-separator">·</span>
-            <ModelSelector
-              runtime={runtime}
-              provider={provider}
-              modelId={modelId}
-              thinkingLevel={thinkingLevel}
-              dropdownPlacement="below"
-              showEmptyModelControl
-              unselectedModelLabel={modelOnboarding.unselectedModelLabel}
-              emptyModelLabel={MODEL_OPTIONS_EMPTY_TITLE}
-              emptyModelTitle={modelOnboarding.emptyModelTitle}
-              emptyModelDescription={modelOnboarding.emptyModelDescription}
-              onSetModel={onSetModel}
-              onSetThinking={onSetThinking}
-            />
-          </div>
+    <div className="composer__footer">
+      <div className="composer__footer-row">
+        <div className="composer__hint new-thread__hint">
+          <ModelSelector
+            runtime={runtime}
+            provider={provider}
+            modelId={modelId}
+            thinkingLevel={thinkingLevel}
+            dropdownPlacement="below"
+            showEmptyModelControl
+            unselectedModelLabel={modelOnboarding.unselectedModelLabel}
+            emptyModelLabel={MODEL_OPTIONS_EMPTY_TITLE}
+            emptyModelTitle={modelOnboarding.emptyModelTitle}
+            emptyModelDescription={modelOnboarding.emptyModelDescription}
+            onSetModel={onSetModel}
+            onSetThinking={onSetThinking}
+          />
+        </div>
 
-          <div className="composer__actions">
-            <input
-              ref={fileInputRef}
-              hidden
-              type="file"
-              multiple
-              onChange={(event) => {
-                const files = Array.from(event.target.files ?? []);
-                if (files.length > 0) {
-                  onAddAttachments(files);
-                }
-                event.currentTarget.value = "";
-              }}
-            />
-            <button
-              aria-label="Attach files"
-              className="icon-button composer__attach"
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <PlusIcon />
-            </button>
-            <button
-              aria-label="Start thread"
-              className="button button--primary button--cta-icon"
-              type="button"
-              disabled={!hasContent || modelOnboarding.requiresModelSelection}
-              onClick={onSubmit}
-            >
-              <ArrowUpIcon />
-            </button>
-          </div>
+        <div className="composer__actions">
+          <input
+            ref={fileInputRef}
+            hidden
+            type="file"
+            multiple
+            onChange={(event) => {
+              const files = Array.from(event.target.files ?? []);
+              if (files.length > 0) {
+                onAddAttachments(files);
+              }
+              event.currentTarget.value = "";
+            }}
+          />
+          <button
+            aria-label="Attach files"
+            className="icon-button composer__attach"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <PlusIcon />
+          </button>
+          <button
+            aria-label="Start thread"
+            className="button button--primary button--cta-icon"
+            type="button"
+            disabled={!hasContent || modelOnboarding.requiresModelSelection}
+            onClick={onSubmit}
+          >
+            <ArrowUpIcon />
+          </button>
         </div>
       </div>
-    </>
+    </div>
   );
 }

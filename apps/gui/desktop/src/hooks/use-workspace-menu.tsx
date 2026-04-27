@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type MouseEvent as ReactMouseEvent, type RefObject, type SetStateAction } from "react";
-import type { DesktopAppState, WorkspaceRecord, WorktreeRecord } from "../desktop-state";
+import type { DesktopAppState, WorkspaceRecord } from "../desktop-state";
 import type { PiDesktopApi } from "../ipc";
 
 interface UseWorkspaceMenuParams {
@@ -19,12 +19,9 @@ export interface WorkspaceMenuState {
   readonly setWorkspaceRenameDraft: Dispatch<SetStateAction<string>>;
   readonly expandedArchivedByWorkspace: Record<string, boolean>;
   readonly collapsedWorkspaces: Record<string, boolean>;
-  readonly environmentMenuOpen: boolean;
-  readonly setEnvironmentMenuOpen: Dispatch<SetStateAction<boolean>>;
   readonly workspaceMenuWrapRef: RefObject<HTMLSpanElement | null>;
   readonly workspaceRenamePanelRef: RefObject<HTMLFormElement | null>;
   readonly workspaceRenameInputRef: RefObject<HTMLInputElement | null>;
-  readonly environmentMenuRef: RefObject<HTMLDivElement | null>;
   readonly openWorkspaceMenu: (workspaceId: string) => void;
   readonly closeWorkspaceMenu: () => void;
   readonly startRename: (workspace: WorkspaceRecord) => void;
@@ -34,9 +31,6 @@ export interface WorkspaceMenuState {
   readonly toggleArchived: (workspaceId: string, open: boolean) => void;
   readonly toggleWorkspaceCollapsed: (workspaceId: string) => void;
   readonly expandWorkspace: (workspaceId: string) => void;
-  readonly createWorktree: (workspaceId: string, fromSessionWorkspaceId?: string, fromSessionId?: string) => void;
-  readonly removeWorktree: (workspaceId: string, worktree: WorktreeRecord) => void;
-  readonly selectWorkspace: (workspaceId: string) => void;
   readonly runWorkspaceMenuAction: (event: ReactMouseEvent<HTMLElement>, action: () => void) => void;
 }
 
@@ -48,12 +42,10 @@ export function useWorkspaceMenu(params: UseWorkspaceMenuParams): WorkspaceMenuS
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState("");
   const [expandedArchivedByWorkspace, setExpandedArchivedByWorkspace] = useState<Record<string, boolean>>({});
   const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Record<string, boolean>>({});
-  const [environmentMenuOpen, setEnvironmentMenuOpen] = useState(false);
 
   const workspaceMenuWrapRef = useRef<HTMLSpanElement | null>(null);
   const workspaceRenamePanelRef = useRef<HTMLFormElement | null>(null);
   const workspaceRenameInputRef = useRef<HTMLInputElement | null>(null);
-  const environmentMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Focus/select rename input when rename starts
   useEffect(() => {
@@ -75,11 +67,9 @@ export function useWorkspaceMenu(params: UseWorkspaceMenuParams): WorkspaceMenuS
       }
       const menuContains = workspaceMenuWrapRef.current?.contains(target) ?? false;
       const renamePanelContains = workspaceRenamePanelRef.current?.contains(target) ?? false;
-      const environmentMenuContains = environmentMenuRef.current?.contains(target) ?? false;
-      if (!menuContains && !renamePanelContains && !environmentMenuContains) {
+      if (!menuContains && !renamePanelContains) {
         setWorkspaceMenuId(null);
         setWorkspaceRenameId(null);
-        setEnvironmentMenuOpen(false);
       }
     };
 
@@ -87,7 +77,6 @@ export function useWorkspaceMenu(params: UseWorkspaceMenuParams): WorkspaceMenuS
       if (event.key === "Escape") {
         setWorkspaceMenuId(null);
         setWorkspaceRenameId(null);
-        setEnvironmentMenuOpen(false);
       }
     };
 
@@ -158,36 +147,6 @@ export function useWorkspaceMenu(params: UseWorkspaceMenuParams): WorkspaceMenuS
     });
   };
 
-  const createWorktree = (workspaceId: string, fromSessionWorkspaceId?: string, fromSessionId?: string) => {
-    setWorkspaceMenuId(null);
-    setEnvironmentMenuOpen(false);
-    if (!api) {
-      return;
-    }
-    void updateSnapshot(api, setSnapshot, () =>
-      api.createWorktree({ workspaceId, fromSessionWorkspaceId, fromSessionId }),
-    );
-  };
-
-  const removeWorktree = (workspaceId: string, worktree: WorktreeRecord) => {
-    const confirmed = window.confirm(`Remove worktree ${worktree.name}? This removes the git worktree from disk.`);
-    setEnvironmentMenuOpen(false);
-    if (!confirmed || !api) {
-      return;
-    }
-    void updateSnapshot(api, setSnapshot, () =>
-      api.removeWorktree({ workspaceId, worktreeId: worktree.id }),
-    );
-  };
-
-  const selectWorkspace = (workspaceId: string) => {
-    setEnvironmentMenuOpen(false);
-    if (!api) {
-      return;
-    }
-    void updateSnapshot(api, setSnapshot, () => api.selectWorkspace(workspaceId));
-  };
-
   const runWorkspaceMenuAction = (
     event: ReactMouseEvent<HTMLElement>,
     action: () => void,
@@ -205,12 +164,9 @@ export function useWorkspaceMenu(params: UseWorkspaceMenuParams): WorkspaceMenuS
     setWorkspaceRenameDraft,
     expandedArchivedByWorkspace,
     collapsedWorkspaces,
-    environmentMenuOpen,
-    setEnvironmentMenuOpen,
     workspaceMenuWrapRef,
     workspaceRenamePanelRef,
     workspaceRenameInputRef,
-    environmentMenuRef,
     openWorkspaceMenu,
     closeWorkspaceMenu,
     startRename,
@@ -220,9 +176,6 @@ export function useWorkspaceMenu(params: UseWorkspaceMenuParams): WorkspaceMenuS
     toggleArchived,
     toggleWorkspaceCollapsed,
     expandWorkspace,
-    createWorktree,
-    removeWorktree,
-    selectWorkspace,
     runWorkspaceMenuAction,
   };
 }

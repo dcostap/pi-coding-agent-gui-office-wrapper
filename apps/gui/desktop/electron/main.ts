@@ -15,7 +15,6 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { DesktopAppStore } from "./app-store";
-import { getChangedFiles, getFileDiff, stageFile } from "./app-store-diff";
 import { listWorkspaceFiles } from "./app-store-files";
 import { MAIN_DEV_RELOAD_MARKER } from "./dev-reload-main-probe";
 import { NotificationManager } from "./notification-manager";
@@ -33,8 +32,6 @@ import type {
   ComposerFileAttachment,
   ComposerImageAttachment,
   CreateSessionInput,
-  CreateWorktreeInput,
-  RemoveWorktreeInput,
   StartThreadInput,
   WorkspaceSessionTarget,
 } from "../src/desktop-state";
@@ -135,7 +132,7 @@ function createWindow(): BrowserWindow {
     const platformModifier = process.platform === "darwin" ? input.meta : input.control;
     if (platformModifier && !input.shift && lowerKey === "o") {
       event.preventDefault();
-      void pickWorkspaceViaDialog();
+      void pickImportFolderViaDialog();
       return;
     }
 
@@ -207,21 +204,45 @@ function canPublishToWindow(window: BrowserWindow): boolean {
   return !window.isDestroyed() && !window.webContents.isDestroyed() && !window.webContents.isCrashed();
 }
 
-async function pickWorkspaceViaDialog(): Promise<DesktopAppState> {
+async function pickManagedRootViaDialog(): Promise<DesktopAppState> {
   const window = mainWindow && canPublishToWindow(mainWindow) ? mainWindow : undefined;
   const result = window
     ? await dialog.showOpenDialog(window, {
-        properties: ["openDirectory"],
-        title: "Open workspace folder",
+        properties: ["openDirectory", "createDirectory"],
+        title: "Choose OfficeAgent managed root",
       })
     : await dialog.showOpenDialog({
-        properties: ["openDirectory"],
-        title: "Open workspace folder",
+        properties: ["openDirectory", "createDirectory"],
+        title: "Choose OfficeAgent managed root",
       });
   if (result.canceled || result.filePaths.length === 0) {
     return store.getState();
   }
-  const nextState = await store.addWorkspace(result.filePaths[0] as string);
+  return store.setManagedRootPath(result.filePaths[0] as string);
+}
+
+async function pickImportFolderViaDialog(): Promise<DesktopAppState> {
+  const window = mainWindow && canPublishToWindow(mainWindow) ? mainWindow : undefined;
+  if (!store.getManagedRootPath()) {
+    const rootState = await pickManagedRootViaDialog();
+    if (!store.getManagedRootPath()) {
+      return rootState;
+    }
+  }
+
+  const result = window
+    ? await dialog.showOpenDialog(window, {
+        properties: ["openDirectory"],
+        title: "Import folder into OfficeAgent",
+      })
+    : await dialog.showOpenDialog({
+        properties: ["openDirectory"],
+        title: "Import folder into OfficeAgent",
+      });
+  if (result.canceled || result.filePaths.length === 0) {
+    return store.getState();
+  }
+  const nextState = await store.importWorkspacePath(result.filePaths[0] as string);
   if (!nextState.selectedWorkspaceId) {
     return nextState;
   }
@@ -303,10 +324,10 @@ function installApplicationMenu(): void {
       submenu: [
         {
           id: OPEN_FOLDER_MENU_ITEM_ID,
-          label: "Open Folder…",
+          label: "Import Folder…",
           accelerator: "Command+O",
           click: () => {
-            void pickWorkspaceViaDialog();
+            void pickImportFolderViaDialog();
           },
         },
         { type: "separator" },
@@ -412,8 +433,13 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle(desktopIpc.stateRequest, () => store.getState());
   ipcMain.handle(desktopIpc.selectedTranscriptRequest, () => store.getSelectedTranscript());
-  ipcMain.handle(desktopIpc.addWorkspacePath, (_event, workspacePath: string) => store.addWorkspace(workspacePath));
-  ipcMain.handle(desktopIpc.pickWorkspace, () => pickWorkspaceViaDialog());
+  ipcMain.handle(desktopIpc.setManagedRootPath, (_event, managedRootPath: string) => store.setManagedRootPath(managedRootPath));
+  ipcMain.handle(desktopIpc.pickManagedRoot, () => pickManagedRootViaDialog());
+  ipcMain.handle(desktopIpc.createManagedProject, (_event, projectName: string) => store.createManagedProject(projectName));
+  ipcMain.handle(desktopIpc.importWorkspacePath, (_event, workspacePath: string) => store.importWorkspacePath(workspacePath));
+  ipcMain.handle(desktopIpc.pickImportFolder, () => pickImportFolderViaDialog());
+  ipcMain.handle(desktopIpc.addWorkspacePath, (_event, workspacePath: string) => store.importWorkspacePath(workspacePath));
+  ipcMain.handle(desktopIpc.pickWorkspace, () => pickImportFolderViaDialog());
   ipcMain.handle(desktopIpc.selectWorkspace, (_event, workspaceId: string) => store.selectWorkspace(workspaceId));
   ipcMain.handle(desktopIpc.renameWorkspace, (_event, workspaceId: string, displayName: string) =>
     store.renameWorkspace(workspaceId, displayName),
@@ -427,12 +453,6 @@ app.whenReady().then(async () => {
     }
     await shell.openPath(workspacePath);
   });
-  ipcMain.handle(desktopIpc.createWorktree, (_event, input: CreateWorktreeInput) =>
-    store.createWorktree(input),
-  );
-  ipcMain.handle(desktopIpc.removeWorktree, (_event, input: RemoveWorktreeInput) =>
-    store.removeWorktree(input),
-  );
   ipcMain.handle(desktopIpc.syncCurrentWorkspace, () => store.syncCurrentWorkspace());
   ipcMain.handle(desktopIpc.selectSession, (_event, target: WorkspaceSessionTarget) =>
     store.selectSession(target),
@@ -570,27 +590,6 @@ app.whenReady().then(async () => {
       return [];
     }
     return listWorkspaceFiles(workspacePath);
-  });
-  ipcMain.handle(desktopIpc.getChangedFiles, async (_event, workspaceId: string) => {
-    const workspacePath = store.getWorkspacePath(workspaceId);
-    if (!workspacePath) {
-      return [];
-    }
-    return getChangedFiles(workspacePath);
-  });
-  ipcMain.handle(desktopIpc.getFileDiff, async (_event, workspaceId: string, filePath: string) => {
-    const workspacePath = store.getWorkspacePath(workspaceId);
-    if (!workspacePath) {
-      return "";
-    }
-    return getFileDiff(workspacePath, filePath);
-  });
-  ipcMain.handle(desktopIpc.stageFile, async (_event, workspaceId: string, filePath: string) => {
-    const workspacePath = store.getWorkspacePath(workspaceId);
-    if (!workspacePath) {
-      throw new Error(`Unknown workspace: ${workspaceId}`);
-    }
-    await stageFile(workspacePath, filePath);
   });
   ipcMain.handle(desktopIpc.toggleWindowMaximize, (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);

@@ -9,3 +9,5 @@ apps/*/.env.*
 apps/gui/desktop/out/
 apps/gui/desktop/release/
 packages/*/dist/
+native/**/target/
+apps/gui/desktop/build/native/windows-sandbox-helper/*.exe

@@ -1,6 +1,7 @@
 import type { BrowserWindow } from "electron";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { copyFile, lstat, mkdir, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import {
   applyHostUiRequestToExtensionUiState,
   type GenerateThreadTitleOptions,
@@ -10,7 +11,12 @@ import {
   type PiSdkDriverConfig,
   sessionKey,
 } from "@pi-gui/pi-sdk-driver";
-import type { SessionCatalogEntry } from "@pi-gui/catalogs";
+import {
+  createOfficeAgentProject,
+  ensureOfficeAgentManagedRoot,
+  getOfficeAgentProjectsDir,
+} from "@office-agent/runtime";
+import type { SessionCatalogEntry, WorkspaceCatalogEntry } from "@pi-gui/catalogs";
 import type {
   NavigateSessionTreeOptions,
   NavigateSessionTreeResult,
@@ -41,11 +47,9 @@ import {
   type ModelSettingsScopeMode,
   createEmptyDesktopAppState,
   type CreateSessionInput,
-  type CreateWorktreeInput,
   type DesktopAppState,
   type NotificationPreferences,
   type QueuedComposerMessage,
-  type RemoveWorktreeInput,
   type SelectedTranscriptRecord,
   type StartThreadInput,
   type TranscriptMessage,
@@ -74,7 +78,6 @@ import {
   serializeCompatibilityByWorkspace,
 } from "./extension-command-compatibility";
 import {
-  buildWorktreeRecords,
   buildWorkspaceRecords,
   cloneComposerAttachment,
   cloneComposerAttachments,
@@ -89,11 +92,10 @@ import {
 import { resolveRepoWorkspaceId } from "../src/workspace-roots";
 import { SessionStateMap, type QueuedComposerEditState } from "./session-state-map";
 import { createEmptyExtensionUiState, serializeExtensionUiState } from "./session-state-map";
-import { GitWorktreeManager } from "./worktree-manager";
 import * as workspace from "./app-store-workspace";
-import * as worktree from "./app-store-worktree";
 import * as composer from "./app-store-composer";
 import { isSessionActivelyViewed } from "./session-visibility";
+import { NEW_THREAD_PLACEHOLDER_TITLE } from "./thread-title-constants";
 
 type StateListener = (state: DesktopAppState) => void;
 type SelectedTranscriptListener = (payload: SelectedTranscriptRecord | null) => void;
@@ -135,7 +137,6 @@ export class DesktopAppStore implements AppStoreInternals {
   private readonly sessionEventListeners = new Set<SessionEventListener>();
   readonly driver: PiSdkDriver;
   readonly catalogStore: JsonCatalogStore;
-  readonly worktreeManager: GitWorktreeManager;
   private readonly uiStateFilePath: string;
   private readonly transcriptStore: JsonFileStore<PersistedTranscriptStoreValue>;
   readonly attachmentStore: JsonFileStore<ComposerAttachment[]>;
@@ -146,6 +147,7 @@ export class DesktopAppStore implements AppStoreInternals {
   private readonly reportedCompatibilityIssuesBySession = new Map<string, Set<string>>();
   private readonly initialWorkspacePaths: readonly string[];
   private readonly getWindow: () => BrowserWindow | null;
+  private managedRootPath = "";
   private persistUiStateTimer: NodeJS.Timeout | undefined;
   private readonly transcriptPersistTimers = new Map<string, NodeJS.Timeout>();
   private initPromise: Promise<void> | undefined;
@@ -164,7 +166,6 @@ export class DesktopAppStore implements AppStoreInternals {
 
     this.driver = new PiSdkDriver(driverOptions);
     this.catalogStore = new JsonCatalogStore({ catalogFilePath });
-    this.worktreeManager = new GitWorktreeManager({ catalogStorage: this.catalogStore });
     this.uiStateFilePath = join(options.userDataDir, "ui-state.json");
     this.transcriptStore = new JsonFileStore<PersistedTranscriptStoreValue>(options.userDataDir, "transcripts");
     this.attachmentStore = new JsonFileStore<ComposerAttachment[]>(options.userDataDir, "attachments");
@@ -184,6 +185,36 @@ export class DesktopAppStore implements AppStoreInternals {
   async getState(): Promise<DesktopAppState> {
     await this.initialize();
     return structuredClone(this.state);
+  }
+
+  getManagedRootPath(): string | undefined {
+    return this.state.managedRootPath || undefined;
+  }
+
+  async setManagedRootPath(rootPath: string): Promise<DesktopAppState> {
+    await this.initialize();
+    const normalizedRootPath = rootPath.trim();
+    if (!normalizedRootPath) {
+      return this.withError("Managed root path cannot be empty.");
+    }
+
+    return this.withErrorHandling(async () => {
+      this.managedRootPath = resolve(normalizedRootPath);
+      await ensureOfficeAgentManagedRoot(this.managedRootPath);
+      return this.refreshState({ clearLastError: true });
+    });
+  }
+
+  async createManagedProject(projectName: string): Promise<DesktopAppState> {
+    await this.initialize();
+    if (!this.managedRootPath) {
+      return this.withError("Choose a managed root before creating a project.");
+    }
+
+    return this.withErrorHandling(async () => {
+      const { projectPath } = await createOfficeAgentProject(this.managedRootPath, projectName);
+      return workspace.addWorkspace(this, projectPath);
+    });
   }
 
   async getSelectedTranscript(): Promise<SelectedTranscriptRecord | null> {
@@ -246,8 +277,34 @@ export class DesktopAppStore implements AppStoreInternals {
 
   /* ── Workspace methods (delegated) ─────────────────────── */
 
+  async importWorkspacePath(path: string): Promise<DesktopAppState> {
+    await this.initialize();
+    const normalizedPath = path.trim();
+    if (!normalizedPath) {
+      return this.emit();
+    }
+
+    const resolvedPath = resolve(normalizedPath);
+    if (!this.managedRootPath) {
+      return this.withError("Choose a managed root before importing a folder.");
+    }
+
+    if (isManagedProjectsPath(this.managedRootPath, resolvedPath)) {
+      return workspace.addWorkspace(this, resolvedPath);
+    }
+
+    if (isPathWithin(this.managedRootPath, resolvedPath)) {
+      return this.withError("Only folders inside the managed projects area can be opened directly.");
+    }
+
+    return this.withErrorHandling(async () => {
+      const importedPath = await importWorkspaceIntoManagedProjects(this.managedRootPath, resolvedPath);
+      return workspace.addWorkspace(this, importedPath);
+    });
+  }
+
   async addWorkspace(path: string): Promise<DesktopAppState> {
-    return workspace.addWorkspace(this, path);
+    return this.importWorkspacePath(path);
   }
 
   getWorkspacePath(workspaceId: string): string | undefined {
@@ -330,16 +387,6 @@ export class DesktopAppStore implements AppStoreInternals {
     return workspace.syncCurrentWorkspace(this);
   }
 
-  /* ── Worktree methods (delegated) ──────────────────────── */
-
-  async createWorktree(input: CreateWorktreeInput): Promise<DesktopAppState> {
-    return worktree.createWorktree(this, input);
-  }
-
-  async removeWorktree(input: RemoveWorktreeInput): Promise<DesktopAppState> {
-    return worktree.removeWorktree(this, input);
-  }
-
   /* ── Composer methods (delegated) ──────────────────────── */
 
   async updateComposerDraft(composerDraft: string): Promise<DesktopAppState> {
@@ -419,7 +466,72 @@ export class DesktopAppStore implements AppStoreInternals {
   /* ── Session / thread methods (delegated) ───────────────── */
 
   async startThread(input: StartThreadInput): Promise<DesktopAppState> {
-    return worktree.startThread(this, input);
+    await this.initialize();
+    const targetWorkspace = this.workspaceRefFromState(input.rootWorkspaceId);
+    if (!targetWorkspace) {
+      return this.withError(`Unknown workspace: ${input.rootWorkspaceId}`);
+    }
+
+    return this.withErrorHandling(async () => {
+      const prompt = input.prompt?.trim() ?? "";
+      const attachments = input.attachments ?? [];
+      const createOptions = (await this.buildCreateSessionOptions(targetWorkspace.workspaceId)) ?? {};
+      const initialModel =
+        input.provider && input.modelId
+          ? { provider: input.provider, modelId: input.modelId }
+          : createOptions.initialModel;
+      const initialThinkingLevel = input.thinkingLevel ?? createOptions.initialThinkingLevel;
+      const session = await this.driver.createSession(targetWorkspace, {
+        ...createOptions,
+        title: NEW_THREAD_PLACEHOLDER_TITLE,
+        ...(initialModel ? { initialModel } : {}),
+        ...(initialThinkingLevel ? { initialThinkingLevel } : {}),
+      });
+      const key = sessionKey(session.ref);
+      this.sessionState.transcriptCache.set(key, []);
+      this.sessionState.loadedTranscriptKeys.add(key);
+      this.updateSessionConfig(session.ref, session.config);
+      const autoTitleAbortController = new AbortController();
+      const pendingAutoTitle = {
+        requestToken: randomUUID(),
+        cancel: () => autoTitleAbortController.abort(),
+      };
+      this.setPendingAutoTitle(session.ref, pendingAutoTitle);
+
+      this.state = {
+        ...this.state,
+        selectedWorkspaceId: session.ref.workspaceId,
+        selectedSessionId: session.ref.sessionId,
+      };
+      const state = await this.refreshState({
+        selectedWorkspaceId: session.ref.workspaceId,
+        selectedSessionId: session.ref.sessionId,
+        composerDraft: "",
+        clearLastError: true,
+        activeView: "threads",
+      });
+
+      if (prompt || attachments.length > 0) {
+        void composer.sendMessageToSession(this, session.ref, prompt, attachments, {
+          rollbackOptimisticMessageOnError: false,
+        }).catch((error) => {
+          void this.withError(error);
+        });
+      }
+      if (prompt) {
+        void generateAndApplyAutoTitle(this, session.ref, targetWorkspace, {
+          prompt,
+          requestToken: pendingAutoTitle.requestToken,
+          signal: autoTitleAbortController.signal,
+          ...(initialModel ? { model: initialModel } : {}),
+          ...(initialThinkingLevel ? { thinkingLevel: initialThinkingLevel } : {}),
+        });
+      } else {
+        this.clearPendingAutoTitle(session.ref);
+      }
+
+      return state;
+    });
   }
 
   async createSession(input: CreateSessionInput): Promise<DesktopAppState> {
@@ -704,8 +816,14 @@ export class DesktopAppStore implements AppStoreInternals {
   private async initializeInternal(): Promise<void> {
     try {
       const persisted = await this.readUiState();
+      this.managedRootPath = persisted.managedRootPath?.trim() ? resolve(persisted.managedRootPath) : "";
+      if (this.managedRootPath) {
+        await ensureOfficeAgentManagedRoot(this.managedRootPath);
+      }
       this.state = {
         ...this.state,
+        managedRootPath: this.managedRootPath,
+        managedProjectsPath: this.managedRootPath ? getOfficeAgentProjectsDir(this.managedRootPath) : "",
         activeView: persisted.activeView ?? this.state.activeView,
         modelSettingsScopeMode: persisted.modelSettingsScopeMode ?? this.state.modelSettingsScopeMode,
         globalModelSettings: persisted.appGlobalModelSettings ?? this.state.globalModelSettings,
@@ -740,11 +858,15 @@ export class DesktopAppStore implements AppStoreInternals {
       const workspacesToSync = new Map<string, string | undefined>();
 
       for (const workspacePath of initialWorkspacePaths) {
-        workspacesToSync.set(workspacePath, undefined);
+        if (isManagedProjectsPath(this.managedRootPath, workspacePath)) {
+          workspacesToSync.set(workspacePath, undefined);
+        }
       }
 
       for (const ws of knownWorkspaces.workspaces) {
-        workspacesToSync.set(ws.path, ws.displayName);
+        if (isManagedProjectsPath(this.managedRootPath, ws.path)) {
+          workspacesToSync.set(ws.path, ws.displayName);
+        }
       }
 
       await Promise.all(
@@ -803,25 +925,25 @@ export class DesktopAppStore implements AppStoreInternals {
     this.refreshStateDepth += 1;
     try {
       const previousSelectedKey = this.currentSelectedSessionKey();
-      const [workspacesSnapshot, sessionsSnapshot] = await Promise.all([
+      const [allWorkspacesSnapshot, allSessionsSnapshot] = await Promise.all([
         this.driver.listWorkspaces(),
         this.driver.listSessions(),
       ]);
-      const worktreeEntries = options.refreshWorktrees
-        ? await worktree.syncAndListWorktrees(this, workspacesSnapshot.workspaces)
-        : (await this.catalogStore.worktrees.listWorktrees()).worktrees;
+      const managedWorkspaceEntries = filterManagedWorkspaceEntries(allWorkspacesSnapshot.workspaces, this.managedRootPath);
+      const managedWorkspaceIds = new Set(managedWorkspaceEntries.map((workspace) => workspace.workspaceId));
+      const managedSessionEntries = allSessionsSnapshot.sessions.filter((session) => managedWorkspaceIds.has(session.workspaceId));
 
-      await this.pruneStaleSessionSubscriptions(sessionsSnapshot.sessions);
-      await this.ensureSubscriptionsForSessions(sessionsSnapshot.sessions);
+      await this.pruneStaleSessionSubscriptions(managedSessionEntries);
+      await this.ensureSubscriptionsForSessions(managedSessionEntries);
 
       const selectedWorkspaceId = resolveSelectedWorkspaceIdFromCatalog(
         options.selectedWorkspaceId ?? this.state.selectedWorkspaceId,
-        workspacesSnapshot.workspaces,
+        managedWorkspaceEntries,
       );
       const selectedSessionId = resolveSelectedSessionIdFromCatalog(
         selectedWorkspaceId,
         options.selectedSessionId ?? this.state.selectedSessionId,
-        sessionsSnapshot.sessions,
+        managedSessionEntries,
       );
 
       if (selectedWorkspaceId && selectedSessionId) {
@@ -834,15 +956,14 @@ export class DesktopAppStore implements AppStoreInternals {
       }
 
       const workspaces = buildWorkspaceRecords(
-        workspacesSnapshot.workspaces,
-        worktreeEntries,
-        sessionsSnapshot.sessions,
+        managedWorkspaceEntries,
+        [],
+        managedSessionEntries,
         this.sessionState.transcriptCache,
         this.sessionState.runningSinceBySession,
         this.sessionState.sessionConfigBySession,
         this.sessionState.lastViewedAtBySession,
       );
-      const worktreesByWorkspace = buildWorktreeRecords(workspacesSnapshot.workspaces, worktreeEntries);
       const liveWorkspaceIds = new Set(workspaces.map((w) => w.id));
       for (const wsId of this.runtimeByWorkspace.keys()) {
         if (!liveWorkspaceIds.has(wsId)) {
@@ -856,13 +977,13 @@ export class DesktopAppStore implements AppStoreInternals {
       }
 
       if (selectedWorkspaceId && !this.runtimeByWorkspace.has(selectedWorkspaceId)) {
-        await this.ensureRuntimeLoaded(selectedWorkspaceId, workspacesSnapshot.workspaces);
+        await this.ensureRuntimeLoaded(selectedWorkspaceId, managedWorkspaceEntries);
       }
-      const secondaryWorkspacesToLoad = workspacesSnapshot.workspaces
+      const secondaryWorkspacesToLoad = managedWorkspaceEntries
         .filter((workspace) => workspace.workspaceId !== selectedWorkspaceId)
         .filter((workspace) => !this.runtimeByWorkspace.has(workspace.workspaceId));
       const secondaryRuntimeLoads = await Promise.allSettled(
-        secondaryWorkspacesToLoad.map((workspace) => this.ensureRuntimeLoaded(workspace.workspaceId, workspacesSnapshot.workspaces)),
+        secondaryWorkspacesToLoad.map((workspace) => this.ensureRuntimeLoaded(workspace.workspaceId, managedWorkspaceEntries)),
       );
       secondaryRuntimeLoads.forEach((result, index) => {
         if (result.status === "fulfilled") {
@@ -879,8 +1000,8 @@ export class DesktopAppStore implements AppStoreInternals {
         pruneCompatibilityForRuntimeSnapshot(this.extensionCommandCompatibilityByWorkspace, runtime);
       }
       const liveGlobalModelSettings = await this.loadLiveGlobalModelSettings(
-        workspacesSnapshot.workspaces,
-        selectedWorkspaceId || workspacesSnapshot.workspaces[0]?.workspaceId,
+        managedWorkspaceEntries,
+        selectedWorkspaceId || managedWorkspaceEntries[0]?.workspaceId,
       );
       const globalModelSettings =
         this.state.modelSettingsScopeMode === "per-repo" && hasStoredModelSettings(this.state.globalModelSettings)
@@ -891,11 +1012,11 @@ export class DesktopAppStore implements AppStoreInternals {
         hasStoredModelSettings(globalModelSettings) &&
         !modelSettingsEqual(globalModelSettings, liveGlobalModelSettings)
       ) {
-        await this.restoreGlobalModelSettings(globalModelSettings, workspacesSnapshot.workspaces, selectedWorkspaceId);
+        await this.restoreGlobalModelSettings(globalModelSettings, managedWorkspaceEntries, selectedWorkspaceId);
       }
       const scopedModelSettingsByWorkspace =
         this.state.modelSettingsScopeMode === "per-repo"
-          ? await this.loadScopedModelSettingsByWorkspace(workspaces, workspacesSnapshot.workspaces, globalModelSettings)
+          ? await this.loadScopedModelSettingsByWorkspace(workspaces, managedWorkspaceEntries, globalModelSettings)
           : undefined;
       const runtimeByWorkspace = this.serializeEffectiveRuntimeState(workspaces, scopedModelSettingsByWorkspace);
 
@@ -903,8 +1024,9 @@ export class DesktopAppStore implements AppStoreInternals {
       const composerDraftSync = this.resolveComposerDraftSync(selectedWorkspaceId, selectedSessionId, options);
       this.state = {
         ...this.state,
+        managedRootPath: this.managedRootPath,
+        managedProjectsPath: this.managedRootPath ? getOfficeAgentProjectsDir(this.managedRootPath) : "",
         workspaces,
-        worktreesByWorkspace,
         selectedWorkspaceId,
         selectedSessionId,
         activeView,
@@ -1629,6 +1751,7 @@ export class DesktopAppStore implements AppStoreInternals {
       this.persistUiStateTimer = undefined;
     }
     const payload: PersistedUiState = {
+      managedRootPath: this.managedRootPath || undefined,
       selectedWorkspaceId: this.state.selectedWorkspaceId || undefined,
       selectedSessionId: this.state.selectedSessionId || undefined,
       activeView: this.state.activeView,
@@ -2329,6 +2452,119 @@ function formatCapabilityLabel(capability: string): string {
       return "header UI";
     default:
       return capability.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  }
+}
+
+function filterManagedWorkspaceEntries(
+  workspaces: readonly WorkspaceCatalogEntry[],
+  managedRootPath: string,
+): WorkspaceCatalogEntry[] {
+  if (!managedRootPath) {
+    return [];
+  }
+  return workspaces.filter((workspace) => isManagedProjectsPath(managedRootPath, workspace.path));
+}
+
+async function importWorkspaceIntoManagedProjects(managedRootPath: string, sourcePath: string): Promise<string> {
+  const sourceDirectoryPath = await realpath(sourcePath);
+  const sourceStats = await lstat(sourceDirectoryPath);
+  if (!sourceStats.isDirectory()) {
+    throw new Error(`Expected a folder to import: ${sourceDirectoryPath}`);
+  }
+
+  const sourceName = basename(sourceDirectoryPath) || "imported-project";
+  const { projectPath } = await createOfficeAgentProject(managedRootPath, sourceName, { onExists: "suffix" });
+
+  try {
+    await copyDirectoryTree(sourceDirectoryPath, projectPath);
+    return projectPath;
+  } catch (error) {
+    await rm(projectPath, { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function copyDirectoryTree(sourceDir: string, targetDir: string): Promise<void> {
+  await mkdir(targetDir, { recursive: true });
+  const entries = await readdir(sourceDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const sourcePath = join(sourceDir, entry.name);
+    const targetPath = join(targetDir, entry.name);
+    const sourceStats = await lstat(sourcePath);
+
+    if (sourceStats.isSymbolicLink()) {
+      throw new Error(`Import does not support symbolic links or junctions yet: ${sourcePath}`);
+    }
+    if (sourceStats.isDirectory()) {
+      await copyDirectoryTree(sourcePath, targetPath);
+      continue;
+    }
+    if (sourceStats.isFile()) {
+      await copyFile(sourcePath, targetPath);
+      continue;
+    }
+
+    throw new Error(`Import does not support special filesystem entries yet: ${sourcePath}`);
+  }
+}
+
+function isManagedProjectsPath(managedRootPath: string, pathValue: string): boolean {
+  if (!managedRootPath) {
+    return false;
+  }
+  return isPathWithin(getOfficeAgentProjectsDir(managedRootPath), pathValue);
+}
+
+function isPathWithin(parentPath: string, childPath: string): boolean {
+  const relativePath = relative(resolve(parentPath), resolve(childPath));
+  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
+}
+
+async function generateAndApplyAutoTitle(
+  store: DesktopAppStore,
+  sessionRef: { workspaceId: string; sessionId: string },
+  workspace: WorkspaceRef,
+  options: {
+    readonly prompt: string;
+    readonly requestToken: string;
+    readonly signal: AbortSignal;
+    readonly model?: { provider: string; modelId: string };
+    readonly thinkingLevel?: string;
+  },
+): Promise<void> {
+  const clearMatchingPendingTitle = () => {
+    const pendingAutoTitle = store.getPendingAutoTitle(sessionRef);
+    if (pendingAutoTitle?.requestToken === options.requestToken) {
+      store.clearPendingAutoTitle(sessionRef);
+    }
+  };
+
+  try {
+    const generatedTitle = await store.driver.generateThreadTitle(workspace, {
+      prompt: options.prompt,
+      signal: options.signal,
+      ...(options.model ? { model: options.model } : {}),
+      ...(options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
+    });
+    if (!generatedTitle) {
+      clearMatchingPendingTitle();
+      return;
+    }
+    const pendingAutoTitle = store.getPendingAutoTitle(sessionRef);
+    const currentSession = store.sessionFromState(sessionRef);
+    if (
+      !pendingAutoTitle ||
+      pendingAutoTitle.requestToken !== options.requestToken ||
+      currentSession?.title !== NEW_THREAD_PLACEHOLDER_TITLE
+    ) {
+      return;
+    }
+
+    store.clearPendingAutoTitle(sessionRef);
+    await store.driver.renameSession(sessionRef, generatedTitle);
+  } catch {
+    clearMatchingPendingTitle();
   }
 }
 

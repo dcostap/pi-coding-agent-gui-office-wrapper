@@ -13,8 +13,8 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { AppView, SessionRecord, WorkspaceRecord, WorktreeRecord } from "./desktop-state";
-import { ArchiveIcon, ChevronDownIcon, ExtensionIcon, FolderIcon, PlusIcon, RestoreIcon, SettingsIcon, SkillIcon, WorktreeIcon } from "./icons";
+import type { AppView, SessionRecord, WorkspaceRecord } from "./desktop-state";
+import { ArchiveIcon, ChevronDownIcon, ExtensionIcon, FolderIcon, PlusIcon, RestoreIcon, SettingsIcon, SkillIcon } from "./icons";
 import type { PiDesktopApi } from "./ipc";
 import { formatRelativeTime } from "./string-utils";
 import type { WorkspaceMenuState } from "./hooks/use-workspace-menu";
@@ -24,11 +24,11 @@ import type { DesktopAppState } from "./desktop-state";
 
 interface SidebarProps {
   readonly activeView: AppView;
+  readonly managedRootPath: string;
   readonly selectedWorkspace: WorkspaceRecord | undefined;
   readonly selectedSession: SessionRecord | undefined;
   readonly visibleWorkspaces: readonly WorkspaceRecord[];
   readonly threadGroups: readonly ThreadGroup[];
-  readonly linkedWorktreeByWorkspaceId: Map<string, WorktreeRecord>;
   readonly wsMenu: WorkspaceMenuState;
   readonly api: PiDesktopApi;
   readonly setSnapshot: Dispatch<SetStateAction<DesktopAppState | null>>;
@@ -37,6 +37,8 @@ interface SidebarProps {
     setSnapshot: Dispatch<SetStateAction<DesktopAppState | null>>,
     action: () => Promise<DesktopAppState>,
   ) => Promise<DesktopAppState>;
+  readonly onChooseManagedRoot: () => void;
+  readonly onCreateManagedProject: () => void;
   readonly onNewThread: () => void;
   readonly onSetActiveView: (view: AppView) => void;
   readonly onOpenSkills: (workspaceId?: string) => void;
@@ -50,15 +52,17 @@ interface SidebarProps {
 export function Sidebar(props: SidebarProps) {
   const {
     activeView,
+    managedRootPath,
     selectedWorkspace,
     selectedSession,
     visibleWorkspaces,
     threadGroups,
-    linkedWorktreeByWorkspaceId,
     wsMenu,
     api,
     setSnapshot,
     updateSnapshot,
+    onChooseManagedRoot,
+    onCreateManagedProject,
     onNewThread,
     onSetActiveView,
     onOpenSkills,
@@ -91,8 +95,7 @@ export function Sidebar(props: SidebarProps) {
     return closest ? [{ id: closest.id, data: { droppableContainer: args.droppableContainers.find((c) => String(c.id) === closest!.id)! } }] : [];
   };
 
-  const rootGroups = threadGroups.filter((g) => g.rootWorkspace.kind === "primary");
-  const orphanGroups = threadGroups.filter((g) => g.rootWorkspace.kind !== "primary");
+  const rootGroups = threadGroups;
   const rootGroupIds = rootGroups.map((g) => g.rootWorkspace.id);
   const canDrag = rootGroups.length > 1;
 
@@ -142,7 +145,7 @@ export function Sidebar(props: SidebarProps) {
           <button
             className="sidebar__nav-item"
             type="button"
-            onClick={() => onOpenSkills(selectedWorkspace?.rootWorkspaceId ?? selectedWorkspace?.id)}
+            onClick={() => onOpenSkills(selectedWorkspace?.id)}
           >
             <SkillIcon />
             <span>Skills</span>
@@ -150,7 +153,7 @@ export function Sidebar(props: SidebarProps) {
           <button
             className="sidebar__nav-item"
             type="button"
-            onClick={() => onOpenExtensions(selectedWorkspace?.rootWorkspaceId ?? selectedWorkspace?.id)}
+            onClick={() => onOpenExtensions(selectedWorkspace?.id)}
           >
             <ExtensionIcon />
             <span>Extensions</span>
@@ -158,7 +161,7 @@ export function Sidebar(props: SidebarProps) {
           <button
             className="sidebar__nav-item"
             type="button"
-            onClick={() => onOpenSettings(selectedWorkspace?.rootWorkspaceId ?? selectedWorkspace?.id)}
+            onClick={() => onOpenSettings(selectedWorkspace?.id)}
           >
             <SettingsIcon />
             <span>Settings</span>
@@ -171,11 +174,25 @@ export function Sidebar(props: SidebarProps) {
           <span>Threads</span>
           <div className="section__tools">
             <button
-              aria-label="Open folder"
+              aria-label={managedRootPath ? "Create project" : "Choose OfficeAgent root"}
               className="icon-button"
               type="button"
               onClick={() => {
-                void updateSnapshot(api, setSnapshot, () => api.pickWorkspace());
+                if (managedRootPath) {
+                  onCreateManagedProject();
+                  return;
+                }
+                onChooseManagedRoot();
+              }}
+            >
+              <PlusIcon />
+            </button>
+            <button
+              aria-label="Import folder"
+              className="icon-button"
+              type="button"
+              onClick={() => {
+                void updateSnapshot(api, setSnapshot, () => api.pickImportFolder());
               }}
             >
               <FolderIcon />
@@ -185,17 +202,36 @@ export function Sidebar(props: SidebarProps) {
 
         {visibleWorkspaces.length === 0 ? (
           <div className="empty-state" data-testid="empty-state">
-            <h2>No folders yet</h2>
-            <p>Open a project folder to start building a workspace and session list.</p>
+            <h2>{managedRootPath ? "No projects yet" : "Choose a managed root"}</h2>
+            <p>
+              {managedRootPath
+                ? "Create your first OfficeAgent project inside the managed root, or import a copy of an existing folder into it."
+                : "Choose the OfficeAgent-managed root folder that will contain projects and sandbox state."}
+            </p>
             <button
               className="button button--primary"
               type="button"
               onClick={() => {
-                void updateSnapshot(api, setSnapshot, () => api.pickWorkspace());
+                if (managedRootPath) {
+                  onCreateManagedProject();
+                  return;
+                }
+                onChooseManagedRoot();
               }}
             >
-              Open first folder
+              {managedRootPath ? "Create first project" : "Choose managed root"}
             </button>
+            {managedRootPath ? (
+              <button
+                className="button"
+                type="button"
+                onClick={() => {
+                  void updateSnapshot(api, setSnapshot, () => api.pickImportFolder());
+                }}
+              >
+                Import folder
+              </button>
+            ) : null}
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={headerCollision} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -208,22 +244,6 @@ export function Sidebar(props: SidebarProps) {
                     canDrag={canDrag}
                     selectedWorkspace={selectedWorkspace}
                     selectedSession={selectedSession}
-                    linkedWorktreeByWorkspaceId={linkedWorktreeByWorkspaceId}
-                    wsMenu={wsMenu}
-                    api={api}
-                    onArchiveSession={onArchiveSession}
-                    onSelectSession={onSelectSession}
-                    onUnarchiveSession={onUnarchiveSession}
-                  />
-                ))}
-                {orphanGroups.map((group) => (
-                  <WorkspaceGroupContent
-                    key={group.rootWorkspace.id}
-                    group={group}
-                    canDrag={false}
-                    selectedWorkspace={selectedWorkspace}
-                    selectedSession={selectedSession}
-                    linkedWorktreeByWorkspaceId={linkedWorktreeByWorkspaceId}
                     wsMenu={wsMenu}
                     api={api}
                     onArchiveSession={onArchiveSession}
@@ -241,7 +261,6 @@ export function Sidebar(props: SidebarProps) {
                     canDrag={false}
                     selectedWorkspace={selectedWorkspace}
                     selectedSession={selectedSession}
-                    linkedWorktreeByWorkspaceId={linkedWorktreeByWorkspaceId}
                     wsMenu={wsMenu}
                     api={api}
                     onArchiveSession={onArchiveSession}
@@ -265,7 +284,6 @@ interface WorkspaceGroupProps {
   readonly canDrag: boolean;
   readonly selectedWorkspace: WorkspaceRecord | undefined;
   readonly selectedSession: SessionRecord | undefined;
-  readonly linkedWorktreeByWorkspaceId: Map<string, WorktreeRecord>;
   readonly wsMenu: WorkspaceMenuState;
   readonly api: PiDesktopApi;
   readonly onArchiveSession: (target: { workspaceId: string; sessionId: string }) => void;
@@ -315,7 +333,6 @@ function WorkspaceGroupContent(
     group: { rootWorkspace, threads, archivedThreads },
     selectedWorkspace,
     selectedSession,
-    linkedWorktreeByWorkspaceId,
     wsMenu,
     api,
     onArchiveSession,
@@ -324,10 +341,7 @@ function WorkspaceGroupContent(
     dragHandleProps,
   } = props;
 
-  const workspaceActive =
-    rootWorkspace.id === selectedWorkspace?.id ||
-    rootWorkspace.id === selectedWorkspace?.rootWorkspaceId;
-  const linkedWorktree = linkedWorktreeByWorkspaceId.get(rootWorkspace.id);
+  const workspaceActive = rootWorkspace.id === selectedWorkspace?.id;
   const archivedSectionOpen = wsMenu.expandedArchivedByWorkspace[rootWorkspace.id] ?? false;
   const isCollapsed = wsMenu.collapsedWorkspaces[rootWorkspace.id] ?? false;
 
@@ -377,29 +391,6 @@ function WorkspaceGroupContent(
               >
                 Open folder
               </button>
-              {linkedWorktree ? (
-                <button
-                  className="workspace-menu__item workspace-menu__item--danger"
-                  type="button"
-                  onClick={(event) =>
-                    wsMenu.runWorkspaceMenuAction(event, () =>
-                      wsMenu.removeWorktree(linkedWorktree.rootWorkspaceId || rootWorkspace.id, linkedWorktree),
-                    )
-                  }
-                >
-                  Remove worktree
-                </button>
-              ) : (
-                <button
-                  className="workspace-menu__item"
-                  type="button"
-                  onClick={(event) =>
-                    wsMenu.runWorkspaceMenuAction(event, () => wsMenu.createWorktree(rootWorkspace.id))
-                  }
-                >
-                  Create permanent worktree
-                </button>
-              )}
               <button
                 className="workspace-menu__item"
                 type="button"
@@ -566,11 +557,6 @@ function ThreadSessionRow({
         </span>
       </button>
       <span className="session-row__trailing">
-        {thread.environment.kind === "worktree" ? (
-          <span className="session-row__workspace-icon" aria-hidden="true" title="Worktree">
-            <WorktreeIcon />
-          </span>
-        ) : null}
         <span className="session-row__time">{formatRelativeTime(thread.session.updatedAt)}</span>
         <button
           aria-label={`${archived ? "Restore" : "Archive"} ${thread.session.title}`}

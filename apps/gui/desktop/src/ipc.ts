@@ -9,11 +9,9 @@ import type {
   ComposerAttachment,
   ComposerImageAttachment,
   CreateSessionInput,
-  CreateWorktreeInput,
   DesktopAppState,
   ModelSettingsScopeMode,
   NotificationPreferences,
-  RemoveWorktreeInput,
   SelectedTranscriptRecord,
   StartThreadInput,
   WorkspaceSessionTarget,
@@ -34,6 +32,11 @@ export const desktopIpc = {
   appCommand: "pi-gui:app-command",
   workspacePicked: "pi-gui:workspace-picked",
   clipboardImagePasted: "pi-gui:clipboard-image-pasted",
+  setManagedRootPath: "pi-gui:set-managed-root-path",
+  pickManagedRoot: "pi-gui:pick-managed-root",
+  createManagedProject: "pi-gui:create-managed-project",
+  importWorkspacePath: "pi-gui:import-workspace-path",
+  pickImportFolder: "pi-gui:pick-import-folder",
   addWorkspacePath: "pi-gui:add-workspace-path",
   pickWorkspace: "pi-gui:pick-workspace",
   selectWorkspace: "pi-gui:select-workspace",
@@ -41,8 +44,6 @@ export const desktopIpc = {
   removeWorkspace: "pi-gui:remove-workspace",
   reorderWorkspaces: "pi-gui:reorder-workspaces",
   openWorkspaceInFinder: "pi-gui:open-workspace-in-finder",
-  createWorktree: "pi-gui:create-worktree",
-  removeWorktree: "pi-gui:remove-worktree",
   openSkillInFinder: "pi-gui:open-skill-in-finder",
   openExtensionInFinder: "pi-gui:open-extension-in-finder",
   syncCurrentWorkspace: "pi-gui:sync-current-workspace",
@@ -86,9 +87,6 @@ export const desktopIpc = {
   navigateSessionTree: "pi-gui:navigate-session-tree",
   toggleWindowMaximize: "pi-gui:toggle-window-maximize",
   listWorkspaceFiles: "pi-gui:list-workspace-files",
-  getChangedFiles: "pi-gui:get-changed-files",
-  getFileDiff: "pi-gui:get-file-diff",
-  stageFile: "pi-gui:stage-file",
   getThemeMode: "pi-gui:get-theme-mode",
   getResolvedTheme: "pi-gui:get-resolved-theme",
   setThemeMode: "pi-gui:set-theme-mode",
@@ -145,6 +143,11 @@ export interface PiDesktopApi {
   onWorkspacePicked(listener: (workspaceId: string) => void): () => void;
   onClipboardImagePasted(listener: (attachment: ComposerImageAttachment) => void): () => void;
   getPathForFile(file: File): string;
+  setManagedRootPath(path: string): Promise<DesktopAppState>;
+  pickManagedRoot(): Promise<DesktopAppState>;
+  createManagedProject(projectName: string): Promise<DesktopAppState>;
+  importWorkspacePath(path: string): Promise<DesktopAppState>;
+  pickImportFolder(): Promise<DesktopAppState>;
   addWorkspacePath(path: string): Promise<DesktopAppState>;
   pickWorkspace(): Promise<DesktopAppState>;
   selectWorkspace(workspaceId: string): Promise<DesktopAppState>;
@@ -152,8 +155,6 @@ export interface PiDesktopApi {
   removeWorkspace(workspaceId: string): Promise<DesktopAppState>;
   reorderWorkspaces(workspaceOrder: readonly string[]): Promise<DesktopAppState>;
   openWorkspaceInFinder(workspaceId: string): Promise<void>;
-  createWorktree(input: CreateWorktreeInput): Promise<DesktopAppState>;
-  removeWorktree(input: RemoveWorktreeInput): Promise<DesktopAppState>;
   openSkillInFinder(workspaceId: string, filePath: string): Promise<void>;
   openExtensionInFinder(workspaceId: string, filePath: string): Promise<void>;
   syncCurrentWorkspace(): Promise<DesktopAppState>;
@@ -221,9 +222,6 @@ export interface PiDesktopApi {
     options?: NavigateSessionTreeOptions,
   ): Promise<{ readonly state: DesktopAppState; readonly result: NavigateSessionTreeResult }>;
   listWorkspaceFiles(workspaceId: string): Promise<string[]>;
-  getChangedFiles(workspaceId: string): Promise<{ path: string; status: "added" | "modified" | "deleted" | "untracked" }[]>;
-  getFileDiff(workspaceId: string, filePath: string): Promise<string>;
-  stageFile(workspaceId: string, filePath: string): Promise<void>;
   toggleWindowMaximize(): Promise<void>;
   openExternal(url: string): Promise<void>;
   getThemeMode(): Promise<"system" | "light" | "dark">;
