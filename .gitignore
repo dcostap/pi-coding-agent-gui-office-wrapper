@@ -11,3 +11,6 @@ apps/gui/desktop/release/
 packages/*/dist/
 native/**/target/
 apps/gui/desktop/build/native/windows-sandbox-helper/*.exe
+apps/gui/desktop/build/runtime/git-bash/v1/*
+!apps/gui/desktop/build/runtime/git-bash/v1/.gitkeep
+apps/gui/desktop/build/runtime-cache/

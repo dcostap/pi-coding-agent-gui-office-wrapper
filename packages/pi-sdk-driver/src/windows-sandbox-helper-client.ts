@@ -1,9 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { access, mkdir, readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { access, cp, mkdir, readFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import type { BashOperations } from "@mariozechner/pi-coding-agent";
-import type { OfficeAgentManagedSessionPaths } from "@office-agent/runtime";
+import {
+  getOfficeAgentStagedGitBashCandidatePaths,
+  getOfficeAgentStagedGitBashDir,
+  OFFICE_AGENT_SANDBOX_BASH_PATH_ENV_NAME,
+  OFFICE_AGENT_STAGED_GIT_BASH_DIR_ENV_NAME,
+  type OfficeAgentManagedSessionPaths,
+} from "@office-agent/runtime";
 
 export interface WindowsSandboxLaunchRequest {
   readonly kind: "launch";
@@ -40,6 +47,17 @@ export interface OfficeAgentSandboxBashOptions {
   readonly env: NodeJS.ProcessEnv;
 }
 
+export type OfficeAgentSandboxShellBackend = "cmd" | "powershell" | "git-bash";
+
+export interface OfficeAgentSandboxShellConfig {
+  readonly shell: string;
+  readonly args: readonly string[];
+  readonly readOnlyGrantPaths: readonly string[];
+  readonly backend: OfficeAgentSandboxShellBackend;
+  readonly kind: "bash-path-override" | "staged-git-bash" | "cmd-fallback";
+  readonly runtimeDir?: string;
+}
+
 export function createOfficeAgentSandboxBashOperations(
   options: OfficeAgentSandboxBashOptions,
 ): BashOperations {
@@ -49,7 +67,7 @@ export function createOfficeAgentSandboxBashOperations(
         throw new Error("OfficeAgent sandboxed bash is currently only implemented on Windows.");
       }
 
-      const shellConfig = getWindowsSandboxShellConfig();
+      const shellConfig = await ensureOfficeAgentSandboxShellConfig(options.managedRootDir);
       const runId = randomUUID();
       await mkdir(options.sessionPaths.logsDir, { recursive: true });
       const stdoutPath = join(options.sessionPaths.logsDir, `bash-${runId}.stdout.log`);
@@ -70,11 +88,7 @@ export function createOfficeAgentSandboxBashOperations(
         cwd,
         managedRoot: options.managedRootDir,
         sessionDir: options.sessionPaths.sessionDir,
-        env: normalizeEnv({
-          ...process.env,
-          ...options.env,
-          ...execOptions.env,
-        }),
+        env: createSandboxEnvironment(shellConfig, options.env, execOptions.env),
         readOnlyPaths: shellConfig.readOnlyGrantPaths,
         writablePaths: [options.managedRootDir, options.sessionPaths.sessionDir],
         stdoutPath,
@@ -106,6 +120,74 @@ export function createOfficeAgentSandboxBashOperations(
   };
 }
 
+export async function ensureOfficeAgentSandboxShellConfig(managedRootDir: string): Promise<OfficeAgentSandboxShellConfig> {
+  const current = resolveOfficeAgentSandboxShellConfig(managedRootDir);
+  if (current.kind !== "cmd-fallback") {
+    return current;
+  }
+
+  const bundledRuntimeDir = findBundledGitBashRuntimeDir();
+  if (!bundledRuntimeDir) {
+    return current;
+  }
+
+  const targetRuntimeDir = getOfficeAgentStagedGitBashDir(managedRootDir);
+  await mkdir(dirname(targetRuntimeDir), { recursive: true });
+  await cp(bundledRuntimeDir, targetRuntimeDir, {
+    recursive: true,
+    force: true,
+    errorOnExist: false,
+  });
+
+  return resolveOfficeAgentSandboxShellConfig(managedRootDir);
+}
+
+export function resolveOfficeAgentSandboxShellConfig(managedRootDir: string): OfficeAgentSandboxShellConfig {
+  const directOverride = process.env[OFFICE_AGENT_SANDBOX_BASH_PATH_ENV_NAME]?.trim();
+  if (directOverride) {
+    const runtimeDir = inferRuntimeDirFromBashPath(directOverride);
+    return {
+      shell: directOverride,
+      args: ["-c"],
+      readOnlyGrantPaths: getRuntimeReadOnlyGrantPaths(directOverride),
+      backend: "git-bash",
+      kind: "bash-path-override",
+      ...(runtimeDir ? { runtimeDir } : {}),
+    };
+  }
+
+  const stagedGitBashEnabled = process.env.OFFICE_AGENT_ENABLE_STAGED_GIT_BASH === "1";
+  const stagedOverrideDir = process.env[OFFICE_AGENT_STAGED_GIT_BASH_DIR_ENV_NAME]?.trim();
+  if (stagedOverrideDir && stagedGitBashEnabled) {
+    const stagedOverride = resolveStagedGitBashConfig(stagedOverrideDir);
+    if (stagedOverride) {
+      return stagedOverride;
+    }
+    throw new Error(
+      `${OFFICE_AGENT_STAGED_GIT_BASH_DIR_ENV_NAME} is set but no bash.exe was found under ${stagedOverrideDir}`,
+    );
+  }
+
+  if (stagedGitBashEnabled) {
+    const defaultStagedDir = getOfficeAgentStagedGitBashDir(managedRootDir);
+    const defaultStaged = resolveStagedGitBashConfig(defaultStagedDir);
+    if (defaultStaged) {
+      return defaultStaged;
+    }
+  }
+
+  // Temporary development fallback. The product target is to stage OfficeAgent-controlled
+  // Git Bash under the managed root so the model-facing `bash` tool is actually Bash.
+  const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+  return {
+    shell: join(systemRoot, "System32", "cmd.exe"),
+    args: ["/d", "/s", "/c"],
+    readOnlyGrantPaths: [],
+    backend: "cmd",
+    kind: "cmd-fallback",
+  };
+}
+
 export async function invokeWindowsSandboxHelper(
   request: WindowsSandboxLaunchRequest | { readonly kind: "selfTest"; readonly requestId?: string },
 ): Promise<WindowsSandboxHelperResponse> {
@@ -124,6 +206,38 @@ export async function resolveWindowsSandboxHelperPath(): Promise<string> {
     }
   }
   throw new Error(`OfficeAgent Windows sandbox helper was not found. Tried: ${candidates.join(", ")}`);
+}
+
+function resolveStagedGitBashConfig(runtimeDir: string): OfficeAgentSandboxShellConfig | undefined {
+  const shell = getOfficeAgentStagedGitBashCandidatePaths(runtimeDir).find((candidate) => existsSync(candidate));
+  if (!shell) {
+    return undefined;
+  }
+  return {
+    shell,
+    args: ["-c"],
+    readOnlyGrantPaths: [runtimeDir],
+    backend: "git-bash",
+    kind: "staged-git-bash",
+    runtimeDir,
+  };
+}
+
+function findBundledGitBashRuntimeDir(): string | undefined {
+  if (process.env.OFFICE_AGENT_ENABLE_STAGED_GIT_BASH !== "1") {
+    return undefined;
+  }
+  const override = process.env.OFFICE_AGENT_BUNDLED_GIT_BASH_DIR?.trim();
+  const resourcesPathValue = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  const resourcesPath = typeof resourcesPathValue === "string" ? resourcesPathValue : undefined;
+  const candidates = [
+    ...(override ? [override] : []),
+    ...(resourcesPath ? [join(resourcesPath, "runtime", "git-bash", "v1")] : []),
+    join(process.cwd(), "build", "runtime", "git-bash", "v1"),
+    join(process.cwd(), "apps", "gui", "desktop", "build", "runtime", "git-bash", "v1"),
+    resolve("apps", "gui", "desktop", "build", "runtime", "git-bash", "v1"),
+  ];
+  return candidates.find((candidate) => resolveStagedGitBashConfig(candidate) !== undefined);
 }
 
 function candidateHelperPaths(): string[] {
@@ -174,45 +288,98 @@ function invokeHelperExecutable(
   });
 }
 
-function getWindowsSandboxShellConfig(): {
-  readonly shell: string;
-  readonly args: readonly string[];
-  readonly readOnlyGrantPaths: readonly string[];
-} {
-  const override = process.env.OFFICE_AGENT_SANDBOX_BASH_PATH?.trim();
-  if (override) {
-    return { shell: override, args: ["-c"], readOnlyGrantPaths: getRuntimeReadOnlyGrantPaths(override) };
-  }
-
-  // First bridge: use the Windows system shell because it is AppContainer-compatible on
-  // stock Windows. Git Bash in Program Files currently fails under AppContainer on
-  // developer machines where OfficeAgent cannot grant ACLs to its installation tree.
-  const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
-  return {
-    shell: join(systemRoot, "System32", "cmd.exe"),
-    args: ["/d", "/s", "/c"],
-    readOnlyGrantPaths: [],
-  };
-}
-
 function getRuntimeReadOnlyGrantPaths(shell: string): string[] {
-  const normalized = shell.replaceAll("/", "\\");
-  const gitBinSuffix = "\\Git\\bin\\bash.exe";
-  const lower = normalized.toLowerCase();
-  if (lower.endsWith(gitBinSuffix.toLowerCase())) {
-    return [normalized.slice(0, -gitBinSuffix.length + "\\Git".length)];
-  }
-  return [shell];
+  const runtimeDir = inferRuntimeDirFromBashPath(shell);
+  return runtimeDir ? [runtimeDir] : [shell];
 }
 
-function normalizeEnv(env: NodeJS.ProcessEnv): Record<string, string> {
-  const normalized: Record<string, string> = {};
-  for (const [key, value] of Object.entries(env)) {
-    if (value !== undefined) {
-      normalized[key] = value;
+function inferRuntimeDirFromBashPath(shell: string): string | undefined {
+  const normalized = shell.replaceAll("/", "\\");
+  const lower = normalized.toLowerCase();
+  for (const suffix of ["\\bin\\bash.exe", "\\usr\\bin\\bash.exe"]) {
+    if (lower.endsWith(suffix)) {
+      return normalized.slice(0, -suffix.length);
     }
   }
-  return normalized;
+  return dirname(shell);
+}
+
+function createSandboxEnvironment(
+  shellConfig: OfficeAgentSandboxShellConfig,
+  sessionEnv: NodeJS.ProcessEnv,
+  commandEnv: NodeJS.ProcessEnv | undefined,
+): Record<string, string> {
+  const systemRoot = firstDefined(process.env.SystemRoot, process.env.SYSTEMROOT, "C:\\Windows");
+  const comSpec = firstDefined(process.env.ComSpec, process.env.COMSPEC, join(systemRoot, "System32", "cmd.exe"));
+  const pathEntries = [
+    ...(shellConfig.runtimeDir ? [join(shellConfig.runtimeDir, "bin"), join(shellConfig.runtimeDir, "usr", "bin")] : []),
+    join(systemRoot, "System32"),
+    systemRoot,
+  ];
+
+  const env: Record<string, string> = {
+    SystemRoot: systemRoot,
+    SYSTEMROOT: systemRoot,
+    ComSpec: comSpec,
+    COMSPEC: comSpec,
+    PATHEXT: firstDefined(process.env.PATHEXT, ".COM;.EXE;.BAT;.CMD"),
+    Path: pathEntries.join(";"),
+    PATH: pathEntries.join(";"),
+  };
+
+  copyEnvKeys(env, sessionEnv, [
+    "HOME",
+    "USERPROFILE",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "TEMP",
+    "TMP",
+    "npm_config_cache",
+    "NPM_CONFIG_CACHE",
+    "npm_config_prefix",
+    "NPM_CONFIG_PREFIX",
+    "PIP_CACHE_DIR",
+    "PYTHONUSERBASE",
+    "OFFICE_AGENT_SESSION_DIR",
+    "OFFICE_AGENT_SESSION_LOGS_DIR",
+  ]);
+  copyEnvKeys(env, commandEnv, [
+    "HOME",
+    "USERPROFILE",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "TEMP",
+    "TMP",
+    "npm_config_cache",
+    "NPM_CONFIG_CACHE",
+    "npm_config_prefix",
+    "NPM_CONFIG_PREFIX",
+    "PIP_CACHE_DIR",
+    "PYTHONUSERBASE",
+    "OFFICE_AGENT_SESSION_DIR",
+    "OFFICE_AGENT_SESSION_LOGS_DIR",
+  ]);
+  return env;
+}
+
+function copyEnvKeys(target: Record<string, string>, source: NodeJS.ProcessEnv | undefined, keys: readonly string[]): void {
+  if (!source) {
+    return;
+  }
+  for (const key of keys) {
+    const value = source[key];
+    if (value !== undefined) {
+      target[key] = value;
+    }
+  }
+}
+
+function firstDefined(...values: Array<string | undefined>): string {
+  const value = values.find((entry) => entry !== undefined && entry.length > 0);
+  if (value === undefined) {
+    throw new Error("Expected at least one defined value.");
+  }
+  return value;
 }
 
 async function readFileIfExists(path: string): Promise<Buffer> {

@@ -18,6 +18,10 @@ extraResources:
     to: windows-sandbox-helper
     filter:
       - "**/*"
+  - from: build/runtime/git-bash
+    to: runtime/git-bash
+    filter:
+      - "**/*"
 
 asar: true
 asarUnpack:

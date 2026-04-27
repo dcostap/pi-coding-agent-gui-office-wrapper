@@ -1,19 +1,20 @@
-# Future Sandboxing Notes
+# Sandboxing Notes
 
 Date: 2026-04-21
 Project: `C:\Projects\office-gui-for-agentic-ai`
 
 ## Status
 
-This is **future work**, not part of the current demo build.
+This file tracks OfficeAgent's Windows sandboxing design, implementation progress, accepted risks, and remaining gaps.
 
-Current OfficeAgent behavior is still:
+Current OfficeAgent behavior now includes a real AppContainer/Job Object primitive for managed `bash` command execution, but it is **not** a complete untrusted-project sandbox yet.
 
-- gateway-side model control on A
-- best-effort client behavior on B
-- no OS-backed local execution sandbox yet
+Known high-level gaps remain:
 
-That is acceptable for the current prototype and boss demo, but it is **not** the final local safety model we eventually want.
+- file tools still run in the trusted host with path checks
+- extensions/packages are not restricted yet by current product decision
+- the Bash/runtime story is staged but not bundled yet
+- no persistent sandbox worker protocol exists yet
 
 ---
 
@@ -1515,10 +1516,62 @@ Managed-root product work has now started in the repo.
 - first bridge therefore defaults to AppContainer-compatible `cmd.exe` for the tool execution transport unless `OFFICE_AGENT_SANDBOX_BASH_PATH` is explicitly set
 - this preserves the model-facing `bash` tool seam and OS boundary, but full Git Bash compatibility remains an open v1 workflow issue
 - AppContainer may rewrite `%TEMP%` for launched processes to an AppContainer package temp path under the managed session profile, e.g. `<session>/profile/AppData/Local/Packages/<profile>/AC/Temp`; this still stays under the managed root but differs from the explicit `TEMP` value supplied by the broker
-- likely follow-up options:
-  - ship/copy a minimal shell/runtime under the OfficeAgent-managed root or app resources with correct ACLs
-  - launch a dedicated sandbox worker from OfficeAgent-controlled resources instead of arbitrary system/developer shells
-  - keep `cmd.exe`/PowerShell as Windows fallback for npm/Python workflows while documenting command semantics
+- current product decision: OfficeAgent should ship/stage its own Bash-compatible runtime so the `bash` tool works for every Windows user without relying on a machine-level Git install
+- recommended direction: stage a vetted portable Git-for-Windows/MSYS2 runtime under an OfficeAgent-controlled path, grant the AppContainer SID read/execute access to that staged runtime, and point sandboxed `bash` at its `bash.exe`
+- avoid relying on `C:\Program Files\Git` for sandboxed execution; non-admin portable installs cannot assume ACL control there
+
+### Landed staged Bash runtime selection foundation
+
+- added managed runtime layout helpers in `@office-agent/runtime`:
+  - `getOfficeAgentRuntimeDir(...)`
+  - `getOfficeAgentStagedGitBashDir(...)`
+  - `getOfficeAgentStagedBashPath(...)`
+  - `getOfficeAgentStagedGitBashCandidatePaths(...)`
+- managed root creation now ensures `<managed-root>/.officeagent/runtime/`
+- sandbox bash bridge now resolves shell in this order:
+  1. direct `OFFICE_AGENT_SANDBOX_BASH_PATH` override
+  2. `OFFICE_AGENT_STAGED_GIT_BASH_DIR` override containing `bin/bash.exe`, `usr/bin/bash.exe`, or `bash.exe`
+  3. default staged runtime at `<managed-root>/.officeagent/runtime/git-bash/v1/`
+  4. temporary `cmd.exe` fallback
+- staged Git Bash runtime dirs are passed to the Rust helper as read/execute grants
+- this prepares the product path where OfficeAgent ships/stages a vetted portable Git-for-Windows/MSYS2 runtime instead of relying on machine-level Git Bash
+- added desktop staging script `apps/gui/desktop/scripts/stage-portable-git-bash.mjs`
+- packaging now runs `build:portable-git-bash` before Windows `electron-builder`
+- staging script supports:
+  - `OFFICE_AGENT_PORTABLE_GIT_ARCHIVE=<path-to-PortableGit-*.7z.exe>` for offline/local builds
+  - `OFFICE_AGENT_DOWNLOAD_PORTABLE_GIT=1` for download-based builds using the default Git for Windows PortableGit archive
+  - optional `OFFICE_AGENT_PORTABLE_GIT_SHA256` verification
+- staged package resource path is `apps/gui/desktop/build/runtime/git-bash/v1/`, packaged to `resources/runtime/git-bash/v1/`
+- at runtime, the pi-sdk-driver can copy a packaged/bundled Git Bash runtime into `<managed-root>/.officeagent/runtime/git-bash/v1/` before launching sandboxed bash
+- 2026-04-27 validation update: PortableGit downloaded and staged successfully, but `bash.exe` failed under AppContainer with `NtCreateDirectoryObject(\\BaseNamedObjects\\msys-2.0S5-...): 0xC0000022`
+- this indicates MSYS2/Git Bash needs named-object behavior that our current AppContainer launch does not permit
+- staged Git Bash use is now gated behind `OFFICE_AGENT_ENABLE_STAGED_GIT_BASH=1` while we investigate; default smoke remains on the `cmd.exe` fallback so the rest of the AppContainer primitive stays testable
+- likely next investigation: AppContainer named object namespace support (`GetAppContainerNamedObjectPath` / BaseNamedObjects shadowing) or a non-MSYS Bash-compatible/runtime alternative
+
+### Landed honest Windows command-tool framing
+
+- current v1 command backend is `cmd.exe` because it is the backend proven by the AppContainer smoke path
+- Pi compatibility is preserved by keeping the internal tool name `bash` for now
+- the managed-workspace command tool now presents itself as `Windows shell` and explicitly says it runs Windows `cmd.exe` commands, not Bash
+- model-facing description/guidelines now tell the agent to use Windows command syntax and avoid Bash-only syntax unless a real Bash backend is explicitly available
+- this is the first step toward an eventual `exec` / `process` command model without risking immediate Pi/UI/transcript breakage
+
+### Landed sandbox env allowlist
+
+- sandboxed bash launch no longer receives arbitrary merged `process.env`
+- environment is now constructed from an explicit allowlist plus managed session redirects
+- intentionally excluded from sandbox command env:
+  - OfficeAgent gateway token
+  - arbitrary provider/API credentials
+  - arbitrary host environment variables
+- smoke test now checks that the default OfficeAgent gateway token is not visible inside the sandbox command environment
+
+### Accepted temporary risk: extensions/packages not sandbox-limited yet
+
+- current product decision: do not spend implementation time now on disabling/limiting Pi user/project extensions or package resources
+- accepted risk: untrusted project/user extensions or package-loaded JS may still execute in the trusted host process and can bypass the AppContainer command boundary
+- this means current sandboxing work should be described as command/process containment progress, not a complete untrusted-project sandbox
+- revisit before any security-sensitive or adversarial-project release; the likely future policy remains admin-shipped/built-in extensions only for hardened sandbox mode
 
 ### Landed standalone sandbox smoke test harness
 
@@ -1529,6 +1582,7 @@ Managed-root product work has now started in the repo.
   - helper `selfTest`
   - AppContainer-backed command writes/reads inside managed project
   - temp path remains inside managed root
+  - OfficeAgent gateway token is not visible inside sandbox command env
   - outside-root write attempt does not create the target
   - outside-root read attempt does not leak file contents
   - long-running command is killed by helper timeout/job path and returns `124`

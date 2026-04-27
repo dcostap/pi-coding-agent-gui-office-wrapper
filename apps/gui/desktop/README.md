@@ -85,14 +85,22 @@ pnpm --filter @pi-gui/desktop run test:e2e:all
 ```
 
 - `windows-sandbox`
-  Windows-only OS-enforced sandbox smoke coverage. This lane does not launch the GUI; it builds the runtime packages and Rust helper, creates a temporary managed root, invokes the same sandbox-backed bash bridge used by managed sessions, and verifies inside-root execution, outside-root blocking, redirected temp behavior, and timeout/job cleanup.
+  Windows-only OS-enforced sandbox smoke coverage. This lane does not launch the GUI; it builds the runtime packages and Rust helper, creates a temporary managed root, invokes the same sandbox-backed command bridge used by managed sessions, and verifies inside-root execution, env filtering, outside-root blocking, redirected temp behavior, and timeout/job cleanup. The current v1 command backend is Windows `cmd.exe`, even though the internal Pi compatibility tool name is still `bash`.
 
   ```bash
   npm run sandbox:smoke
   npm run test:sandbox:smoke --workspace @office-agent/gui
   ```
 
-  Set `OFFICE_AGENT_KEEP_SANDBOX_SMOKE_DIR=1` to keep the temporary smoke directories for debugging.
+  Set `OFFICE_AGENT_KEEP_SANDBOX_SMOKE_DIR=1` to keep the temporary smoke directories for debugging. Staged Git Bash testing is currently experimental: set `OFFICE_AGENT_ENABLE_STAGED_GIT_BASH=1` plus `OFFICE_AGENT_STAGED_GIT_BASH_DIR` to a staged portable Git Bash/MSYS2 runtime to exercise the Bash path; otherwise the smoke uses the temporary `cmd.exe` fallback.
+
+  Portable Git Bash staging for Windows packages is prepared by:
+
+  ```bash
+  npm run build:portable-git-bash --workspace @office-agent/gui
+  ```
+
+  By default this script is non-networked and skips if no archive is provided. To stage a runtime, either set `OFFICE_AGENT_PORTABLE_GIT_ARCHIVE` to a downloaded `PortableGit-*.7z.exe`, or set `OFFICE_AGENT_DOWNLOAD_PORTABLE_GIT=1` to download the default Git for Windows portable archive during the build.
 
 For mac-first CI, use:
 

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -35,6 +35,10 @@ try {
   const sessionId = `smoke-${Date.now()}`;
   const sessionPaths = await runtime.ensureOfficeAgentManagedSessionLayout(sessionId, managedRoot);
   const env = runtime.getOfficeAgentManagedSessionEnv(sessionId, process.env, { managedRootDir: managedRoot });
+  const shellConfig = await driver.ensureOfficeAgentSandboxShellConfig(managedRoot);
+  const commandSet = shellConfig.kind === "cmd-fallback"
+    ? createCmdSmokeCommands(outsideRoot)
+    : createBashSmokeCommands(outsideRoot);
   const bash = driver.createOfficeAgentSandboxBashOperations({
     managedRootDir: managedRoot,
     sessionPaths,
@@ -44,34 +48,39 @@ try {
   const selfTest = await driver.invokeWindowsSandboxHelper({ kind: "selfTest", requestId: "sandbox-smoke-self-test" });
   assert(selfTest.ok, `helper selfTest failed: ${JSON.stringify(selfTest)}`);
 
-  const inside = await runSandboxCommand(bash, "cd && echo sandbox-ok> inside.txt && type inside.txt && echo TEMP=%TEMP%", projectDir, env, 20);
+  const inside = await runSandboxCommand(bash, commandSet.inside, projectDir, env, 20);
   assert(inside.exitCode === 0, `inside command failed: ${JSON.stringify(inside)}`);
   assert(inside.output.includes("sandbox-ok"), `inside command did not produce expected output: ${inside.output}`);
   assert(inside.output.toLowerCase().includes(managedRoot.toLowerCase()), `TEMP was not redirected inside the managed root. output=${inside.output}`);
   await access(path.join(projectDir, "inside.txt"));
 
   const outsideWriteTarget = path.join(outsideRoot, "blocked-write.txt");
-  const outsideWrite = await runSandboxCommand(bash, `echo should-not-exist> "${outsideWriteTarget}"`, projectDir, env, 20);
+  const outsideWrite = await runSandboxCommand(bash, commandSet.outsideWrite(outsideWriteTarget), projectDir, env, 20);
   const wroteOutside = await exists(outsideWriteTarget);
   assert(!wroteOutside, `sandbox command unexpectedly wrote outside managed root: ${outsideWriteTarget}; result=${JSON.stringify(outsideWrite)}`);
 
+  const envLeak = await runSandboxCommand(bash, commandSet.envLeak, projectDir, env, 20);
+  assert(!envLeak.output.includes("officeagent-demo-2026"), `sandbox command leaked OfficeAgent gateway token: ${envLeak.output}`);
+
   const outsideSecret = path.join(outsideRoot, "secret.txt");
   await writeFile(outsideSecret, "outside-secret", "utf8");
-  const outsideRead = await runSandboxCommand(bash, `type "${outsideSecret}"`, projectDir, env, 20);
+  const outsideRead = await runSandboxCommand(bash, commandSet.outsideRead(outsideSecret), projectDir, env, 20);
   assert(!outsideRead.output.includes("outside-secret"), `sandbox command unexpectedly read outside managed root: ${outsideRead.output}`);
 
-  const timeout = await runSandboxCommand(bash, "for /l %i in (1,1,1000000000) do @rem", projectDir, env, 1);
+  const timeout = await runSandboxCommand(bash, commandSet.timeout, projectDir, env, 1);
   assert(timeout.exitCode === 124, `timeout command should return 124, got ${JSON.stringify(timeout)}`);
 
   console.log(JSON.stringify({
     ok: true,
     managedRoot,
     projectDir,
+    shell: shellConfig,
     checks: {
       helperSelfTest: true,
       insideWriteAndOutput: true,
       tempRedirectedInsideManagedRoot: true,
       outsideWriteBlocked: true,
+      gatewayTokenNotInSandboxEnv: true,
       outsideReadBlocked: true,
       timeoutKilled: true,
     },
@@ -126,6 +135,35 @@ async function exists(filePath) {
   } catch {
     return false;
   }
+}
+
+function createCmdSmokeCommands() {
+  return {
+    inside: "cd && echo sandbox-ok> inside.txt && type inside.txt && echo TEMP=%TEMP%",
+    outsideWrite: (target) => `echo should-not-exist> "${target}"`,
+    outsideRead: (target) => `type "${target}"`,
+    envLeak: "set OFFICE_AGENT_GATEWAY_TOKEN",
+    timeout: "for /l %i in (1,1,1000000000) do @rem",
+  };
+}
+
+function createBashSmokeCommands() {
+  return {
+    inside: "pwd && echo sandbox-ok > inside.txt && cat inside.txt && echo TEMP=$TEMP && bash --version | head -n 1",
+    outsideWrite: (target) => `echo should-not-exist > "${toMsysPath(target)}"`,
+    outsideRead: (target) => `cat "${toMsysPath(target)}"`,
+    envLeak: "printenv OFFICE_AGENT_GATEWAY_TOKEN || true",
+    timeout: "while true; do :; done",
+  };
+}
+
+function toMsysPath(windowsPath) {
+  const normalized = path.resolve(windowsPath).replaceAll("\\", "/");
+  const driveMatch = /^([A-Za-z]):\/(.*)$/.exec(normalized);
+  if (!driveMatch) {
+    return normalized;
+  }
+  return `/${driveMatch[1].toLowerCase()}/${driveMatch[2]}`;
 }
 
 function npmCommand() {

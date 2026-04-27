@@ -24,6 +24,11 @@ export const OFFICE_AGENT_MANAGED_SESSION_NPM_PREFIX_DIR_NAME = "npm-prefix";
 export const OFFICE_AGENT_MANAGED_SESSION_PIP_CACHE_DIR_NAME = "pip-cache";
 export const OFFICE_AGENT_MANAGED_SESSION_PYTHON_USER_BASE_DIR_NAME = "python-user-base";
 export const OFFICE_AGENT_MANAGED_SESSION_LOGS_DIR_NAME = "logs";
+export const OFFICE_AGENT_MANAGED_RUNTIME_DIR_NAME = "runtime";
+export const OFFICE_AGENT_STAGED_GIT_BASH_RUNTIME_NAME = "git-bash";
+export const OFFICE_AGENT_STAGED_GIT_BASH_VERSION = "v1";
+export const OFFICE_AGENT_STAGED_GIT_BASH_DIR_ENV_NAME = "OFFICE_AGENT_STAGED_GIT_BASH_DIR";
+export const OFFICE_AGENT_SANDBOX_BASH_PATH_ENV_NAME = "OFFICE_AGENT_SANDBOX_BASH_PATH";
 
 export type OfficeAgentClientKind = "gui" | "tui" | "unknown";
 
@@ -116,6 +121,32 @@ export function getOfficeAgentInternalDir(managedRootDir: string = getOfficeAgen
 
 export function getOfficeAgentSessionsDir(managedRootDir: string = getOfficeAgentManagedRootDir()): string {
   return path.join(getOfficeAgentInternalDir(managedRootDir), OFFICE_AGENT_MANAGED_SESSIONS_DIR_NAME);
+}
+
+export function getOfficeAgentRuntimeDir(managedRootDir: string = getOfficeAgentManagedRootDir()): string {
+  return path.join(getOfficeAgentInternalDir(managedRootDir), OFFICE_AGENT_MANAGED_RUNTIME_DIR_NAME);
+}
+
+export function getOfficeAgentStagedGitBashDir(
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+  version: string = OFFICE_AGENT_STAGED_GIT_BASH_VERSION,
+): string {
+  return path.join(getOfficeAgentRuntimeDir(managedRootDir), OFFICE_AGENT_STAGED_GIT_BASH_RUNTIME_NAME, version);
+}
+
+export function getOfficeAgentStagedBashPath(
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+  version: string = OFFICE_AGENT_STAGED_GIT_BASH_VERSION,
+): string {
+  return path.join(getOfficeAgentStagedGitBashDir(managedRootDir, version), "bin", "bash.exe");
+}
+
+export function getOfficeAgentStagedGitBashCandidatePaths(gitBashDir: string): readonly string[] {
+  return [
+    path.join(gitBashDir, "bin", "bash.exe"),
+    path.join(gitBashDir, "usr", "bin", "bash.exe"),
+    path.join(gitBashDir, "bash.exe"),
+  ];
 }
 
 export function getOfficeAgentWorkspaceSessionFilesDir(
@@ -213,6 +244,7 @@ export async function ensureOfficeAgentManagedRoot(managedRootDir: string = getO
   await mkdir(getOfficeAgentProjectsDir(managedRootDir), { recursive: true });
   await mkdir(getOfficeAgentInternalDir(managedRootDir), { recursive: true });
   await mkdir(getOfficeAgentSessionsDir(managedRootDir), { recursive: true });
+  await mkdir(getOfficeAgentRuntimeDir(managedRootDir), { recursive: true });
   return managedRootDir;
 }
 

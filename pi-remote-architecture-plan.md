@@ -830,7 +830,7 @@ The architecture is now chosen, but some implementation details remain open.
    - stronger local enforcement only if product needs it later
 
 6. Future local sandboxing direction on B
-   - tracked separately in `future-sandboxing-notes.md`
+   - tracked separately in `sandboxing-notes.md`
    - likely requires OS-backed Windows sandboxing, not cwd-only restrictions
    - should be treated as a later implementation layer, not a blocker for the current gateway-first architecture
 

@@ -41,6 +41,35 @@ export async function createOfficeAgentManagedSessionRuntime(
     ...(options.agentDir ? { agentDir: options.agentDir } : {}),
   });
 
+  const sandboxCommandTool = createBashToolDefinition(cwd, {
+    operations: createOfficeAgentSandboxBashOperations({
+      managedRootDir,
+      sessionPaths,
+      env: sessionEnv,
+    }),
+    spawnHook: (context) => ({
+      ...context,
+      cwd: assertManagedPath(managedRootDir, context.cwd),
+      env: {
+        ...context.env,
+        ...sessionEnv,
+      },
+    }),
+  });
+  sandboxCommandTool.label = "Windows shell";
+  sandboxCommandTool.description = [
+    "Run a Windows cmd.exe command in the sandboxed project directory. This tool is not Bash.",
+    "Use Windows cmd syntax. Prefer native project tools such as npm, npx, node, python, py, git, cargo, dotnet, and package scripts.",
+    "Do not use Bash-only syntax such as export, VAR=value command, $(...), heredocs, /tmp, rm -rf, sed, grep, chmod, or POSIX paths unless OfficeAgent explicitly reports a real Bash backend.",
+    "For complex logic, write a temporary .cmd, .ps1, .js, or .py file inside the project and run it.",
+  ].join(" ");
+  sandboxCommandTool.promptSnippet = "Execute Windows cmd.exe commands in the sandboxed project directory (not Bash).";
+  sandboxCommandTool.promptGuidelines = [
+    "The `bash` tool is currently backed by Windows cmd.exe in OfficeAgent managed workspaces; use Windows command syntax, not Bash syntax.",
+    "Prefer npm scripts, node, python/py, git, cargo, dotnet, and other project tools over shell-specific tricks.",
+    "For multi-step or complex logic, write a temporary .cmd, .ps1, .js, or .py script inside the project and execute it.",
+  ];
+
   const customTools = [
       createReadToolDefinition(cwd, {
         operations: {
@@ -48,21 +77,7 @@ export async function createOfficeAgentManagedSessionRuntime(
           readFile: (absolutePath: string) => readFile(assertManagedPath(managedRootDir, absolutePath)),
         },
       }),
-      createBashToolDefinition(cwd, {
-        operations: createOfficeAgentSandboxBashOperations({
-          managedRootDir,
-          sessionPaths,
-          env: sessionEnv,
-        }),
-        spawnHook: (context) => ({
-          ...context,
-          cwd: assertManagedPath(managedRootDir, context.cwd),
-          env: {
-            ...context.env,
-            ...sessionEnv,
-          },
-        }),
-      }),
+      sandboxCommandTool,
       createEditToolDefinition(cwd, {
         operations: {
           access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
