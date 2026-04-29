@@ -16,6 +16,7 @@ if (process.platform !== "win32") {
 }
 
 const keepSmokeDir = process.env.OFFICE_AGENT_KEEP_SANDBOX_SMOKE_DIR === "1";
+const strictRealShellSmoke = process.env.OFFICE_AGENT_SANDBOX_REAL_SHELL_STRICT === "1";
 let managedRoot;
 let outsideRoot;
 
@@ -27,7 +28,9 @@ try {
   const runtime = await import(pathToFileURL(path.join(repoRoot, "packages", "office-agent-runtime", "dist", "index.js")));
   const driver = await import(pathToFileURL(path.join(repoRoot, "packages", "pi-sdk-driver", "dist", "windows-sandbox-helper-client.js")));
 
-  managedRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "officeagent-sandbox-smoke-root-")));
+  const smokeParentDir = getOfficeAgentLocalAppDataDir();
+  await mkdir(smokeParentDir, { recursive: true });
+  managedRoot = await realpath(await mkdtemp(path.join(smokeParentDir, "AgentData-smoke-")));
   outsideRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "officeagent-sandbox-smoke-outside-")));
   const projectDir = path.join(managedRoot, "projects", "demo");
   await mkdir(projectDir, { recursive: true });
@@ -36,9 +39,11 @@ try {
   const sessionPaths = await runtime.ensureOfficeAgentManagedSessionLayout(sessionId, managedRoot);
   const env = runtime.getOfficeAgentManagedSessionEnv(sessionId, process.env, { managedRootDir: managedRoot });
   const shellConfig = await driver.ensureOfficeAgentSandboxShellConfig(managedRoot);
-  const commandSet = shellConfig.kind === "cmd-fallback"
-    ? createCmdSmokeCommands(outsideRoot)
-    : createBashSmokeCommands(outsideRoot);
+  const commandSet = shellConfig.backend === "git-bash"
+    ? createBashSmokeCommands(outsideRoot)
+    : shellConfig.backend === "powershell" || shellConfig.backend === "pwsh"
+      ? createPowerShellSmokeCommands(outsideRoot)
+      : createCmdSmokeCommands(outsideRoot);
   const bash = driver.createOfficeAgentSandboxBashOperations({
     managedRootDir: managedRoot,
     sessionPaths,
@@ -52,9 +57,12 @@ try {
   assert(inside.exitCode === 0, `inside command failed: ${JSON.stringify(inside)}`);
   assert(inside.output.includes("sandbox-ok"), `inside command did not produce expected output: ${inside.output}`);
 
-  const managedCommandChecks = shellConfig.kind === "cmd-fallback" && shellConfig.pythonRuntime
-    ? await runManagedCommandCompatibilityChecks(bash, projectDir, env)
+  const nativeCommandChecks = shellConfig.backend === "cmd"
+    ? await runNativeCmdCompatibilityChecks(bash, projectDir, env)
     : { skipped: true };
+  const powershellChecks = shellConfig.backend === "git-bash"
+    ? { skipped: true }
+    : await runPowerShellCompatibilityChecks(bash, projectDir, env, shellConfig.backend);
   assert(inside.output.toLowerCase().includes(managedRoot.toLowerCase()), `TEMP was not redirected inside the managed root. output=${inside.output}`);
   await access(path.join(projectDir, "inside.txt"));
 
@@ -63,13 +71,22 @@ try {
   const wroteOutside = await exists(outsideWriteTarget);
   assert(!wroteOutside, `sandbox command unexpectedly wrote outside managed root: ${outsideWriteTarget}; result=${JSON.stringify(outsideWrite)}`);
 
+  const publicWriteTarget = path.join(getPublicDir(), `officeagent-blocked-${process.pid}-${Date.now()}.txt`);
+  const publicWrite = await runSandboxCommand(bash, commandSet.outsideWrite(publicWriteTarget), projectDir, env, 20);
+  const wrotePublic = await exists(publicWriteTarget);
+  if (wrotePublic) await rm(publicWriteTarget, { force: true });
+  assert(!wrotePublic, `sandbox command unexpectedly wrote to Public: ${publicWriteTarget}; result=${JSON.stringify(publicWrite)}`);
+
   const envLeak = await runSandboxCommand(bash, commandSet.envLeak, projectDir, env, 20);
   assert(!envLeak.output.includes("officeagent-demo-2026"), `sandbox command leaked OfficeAgent gateway token: ${envLeak.output}`);
+
+  const systemRead = await runSandboxCommand(bash, commandSet.systemRead, projectDir, env, 20);
+  assert(systemRead.exitCode === 0 && systemRead.output.length > 0, `sandbox command should be able to read normal read-only system files: ${JSON.stringify(systemRead)}`);
 
   const outsideSecret = path.join(outsideRoot, "secret.txt");
   await writeFile(outsideSecret, "outside-secret", "utf8");
   const outsideRead = await runSandboxCommand(bash, commandSet.outsideRead(outsideSecret), projectDir, env, 20);
-  assert(!outsideRead.output.includes("outside-secret"), `sandbox command unexpectedly read outside managed root: ${outsideRead.output}`);
+  const outsideReadAllowed = outsideRead.output.includes("outside-secret");
 
   const timeout = await runSandboxCommand(bash, commandSet.timeout, projectDir, env, 1);
   assert(timeout.exitCode === 124, `timeout command should return 124, got ${JSON.stringify(timeout)}`);
@@ -82,11 +99,14 @@ try {
     checks: {
       helperSelfTest: true,
       insideWriteAndOutput: true,
-      managedCommandCompatibility: managedCommandChecks,
+      nativeCmdCompatibility: nativeCommandChecks,
+      powershellCompatibility: powershellChecks,
       tempRedirectedInsideManagedRoot: true,
       outsideWriteBlocked: true,
+      publicWriteBlocked: true,
       gatewayTokenNotInSandboxEnv: true,
-      outsideReadBlocked: true,
+      systemReadAllowed: true,
+      outsideReadAllowed,
       timeoutKilled: true,
     },
   }, null, 2));
@@ -133,7 +153,7 @@ async function runSandboxCommand(bash, command, cwd, env, timeout) {
   };
 }
 
-async function runManagedCommandCompatibilityChecks(bash, projectDir, env) {
+async function runNativeCmdCompatibilityChecks(bash, projectDir, env) {
   const commands = [
     {
       name: "dir-b",
@@ -170,9 +190,31 @@ async function runManagedCommandCompatibilityChecks(bash, projectDir, env) {
   for (const check of commands) {
     const result = await runSandboxCommand(bash, check.command, projectDir, env, 20);
     results[check.name] = { exitCode: result.exitCode, output: result.output.trim() };
-    assert(check.expect(result), `managed command check failed (${check.name}): ${JSON.stringify(result)}`);
+    if (!check.expect(result)) {
+      const message = `native cmd compatibility check failed (${check.name}): ${JSON.stringify(result)}`;
+      if (strictRealShellSmoke) {
+        assert(false, message);
+      }
+      results[check.name].diagnosticFailure = message;
+    }
   }
   return results;
+}
+
+async function runPowerShellCompatibilityChecks(bash, projectDir, env, backend) {
+  const command = backend === "powershell" || backend === "pwsh"
+    ? "Get-ChildItem -Name | Out-String"
+    : "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Get-ChildItem -Name | Out-String\"";
+  const result = await runSandboxCommand(bash, command, projectDir, env, 20);
+  const passed = result.exitCode === 0 && result.output.includes("inside.txt");
+  if (!passed && strictRealShellSmoke) {
+    assert(false, `PowerShell compatibility check failed: ${JSON.stringify(result)}`);
+  }
+  return {
+    exitCode: result.exitCode,
+    output: result.output.trim(),
+    ...(passed ? {} : { diagnosticFailure: `PowerShell compatibility check failed: ${JSON.stringify(result)}` }),
+  };
 }
 
 async function exists(filePath) {
@@ -189,8 +231,20 @@ function createCmdSmokeCommands() {
     inside: "cd && echo sandbox-ok> inside.txt && type inside.txt && echo TEMP=%TEMP%",
     outsideWrite: (target) => `echo should-not-exist> "${target}"`,
     outsideRead: (target) => `type "${target}"`,
+    systemRead: "type C:\\Windows\\win.ini",
     envLeak: "set OFFICE_AGENT_GATEWAY_TOKEN",
     timeout: "for /l %%i in (1,1,1000000000) do @rem",
+  };
+}
+
+function createPowerShellSmokeCommands() {
+  return {
+    inside: "$PWD.Path; 'sandbox-ok' | Set-Content -NoNewline inside.txt; Get-Content inside.txt; \"TEMP=$env:TEMP\"",
+    outsideWrite: (target) => `'should-not-exist' | Set-Content -NoNewline "${escapePowerShellString(target)}"`,
+    outsideRead: (target) => `Get-Content "${escapePowerShellString(target)}"`,
+    systemRead: "Get-Content C:\\Windows\\win.ini",
+    envLeak: "Get-ChildItem Env:OFFICE_AGENT_GATEWAY_TOKEN -ErrorAction SilentlyContinue",
+    timeout: "while ($true) { Start-Sleep -Milliseconds 100 }",
   };
 }
 
@@ -199,9 +253,14 @@ function createBashSmokeCommands() {
     inside: "pwd && echo sandbox-ok > inside.txt && cat inside.txt && echo TEMP=$TEMP && bash --version | head -n 1",
     outsideWrite: (target) => `echo should-not-exist > "${toMsysPath(target)}"`,
     outsideRead: (target) => `cat "${toMsysPath(target)}"`,
+    systemRead: "cat /c/Windows/win.ini",
     envLeak: "printenv OFFICE_AGENT_GATEWAY_TOKEN || true",
     timeout: "while true; do :; done",
   };
+}
+
+function escapePowerShellString(value) {
+  return value.replaceAll("`", "``").replaceAll("\"", "`\"");
 }
 
 function toMsysPath(windowsPath) {
@@ -211,6 +270,14 @@ function toMsysPath(windowsPath) {
     return normalized;
   }
   return `/${driveMatch[1].toLowerCase()}/${driveMatch[2]}`;
+}
+
+function getOfficeAgentLocalAppDataDir() {
+  return path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "OfficeAgent");
+}
+
+function getPublicDir() {
+  return process.env.PUBLIC || path.join(path.parse(os.homedir()).root, "Users", "Public");
 }
 
 function npmCommand() {

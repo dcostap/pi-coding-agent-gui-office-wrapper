@@ -1916,3 +1916,288 @@ If we let agents run richer shells, these gaps become more visible. The answer i
 ### Updated conclusion
 
 The sandbox should not be a small, OfficeAgent-invented command language. It should be a Windows sandboxed process boundary. Agents should be free to run normal `cmd`, PowerShell, `pwsh`, and project/toolchain commands. Windows/AppContainer should be the thing that says “access denied”, “not found”, or “this executable cannot run here”. OfficeAgent should focus on making that boundary real, observable, and recoverable rather than preemptively narrowing the agent’s command vocabulary.
+
+### 2026-04-29 implementation update: transparent launch by default
+
+Landed first pass toward the transparent-launch model:
+
+- `packages/pi-sdk-driver/src/windows-sandbox-helper-client.ts`
+  - command scripts now pass the requested command through unchanged by default
+  - the old managed `cmd` command rewrite layer is now behind `OFFICE_AGENT_ENABLE_MANAGED_CMD_SHIMS=1`
+  - added `OFFICE_AGENT_SANDBOX_DEFAULT_SHELL=powershell|windows-powershell|pwsh` selection
+  - PowerShell backends write the requested command to a `.ps1` file and launch real `powershell.exe`/`pwsh.exe` with non-interactive flags
+- `packages/pi-sdk-driver/src/office-agent-managed-runtime.ts`
+  - prompt/tool wording now describes a Windows AppContainer sandbox exec, not a fake OfficeAgent shell
+  - model guidance now allows `cmd.exe`, `powershell.exe`, `pwsh.exe`, and normal project/toolchain commands
+- `apps/gui/desktop/scripts/smoke-windows-sandbox.mjs`
+  - smoke now records native `cmd` and PowerShell compatibility diagnostics
+  - `OFFICE_AGENT_SANDBOX_REAL_SHELL_STRICT=1` makes those diagnostics hard failures
+
+Validation:
+
+- `npm run build --workspace @pi-gui/pi-sdk-driver` passes
+- `cargo build --manifest-path native/windows-sandbox-helper/Cargo.toml` passes
+- `npm run sandbox:smoke` passes in non-strict mode
+
+Important finding from the smoke run:
+
+- transparent launch works for basic `cmd` execution such as `echo`, `type`, inside-root writes, outside-root denial, env filtering, and timeout/job cleanup
+- native `cmd` built-ins such as `dir /b` still return `Acceso denegado` under AppContainer on this machine
+- Windows PowerShell `Get-ChildItem` also fails while initializing/defaulting the filesystem drive, reporting denied/missing `C:\`
+
+This confirms the architectural point: the fake command layer is no longer default, but AppContainer compatibility for real Windows shell built-ins is still a real sandbox-engine problem. The next fix should be at the sandbox/process environment layer, not by silently reintroducing OfficeAgent command emulation.
+
+### 2026-04-29 follow-up: ancestor read/traverse ACL experiment
+
+We investigated the natural next fix: grant the AppContainer SID non-inherited metadata/traverse access on the parent chain and/or drive root, while keeping real read/write confined to the managed root.
+
+Target rights were intentionally narrower than read-only content access:
+
+- `FILE_TRAVERSE`
+- `FILE_READ_ATTRIBUTES`
+- `READ_CONTROL`
+- `SYNCHRONIZE`
+- no `FILE_LIST_DIRECTORY`
+- no `FILE_READ_DATA`
+- no write/delete/create rights
+
+Findings:
+
+- granting this kind of access to `C:\Users\...\AppData\Local\Temp` completed quickly
+- attempting to apply the same ACL update to `C:\Users\...\AppData\Local` hung inside the native ACL update path on this machine and caused the helper request watchdog to fire
+- granting only the drive root / top-level ancestor was safe but did not fix `dir`/PowerShell because the full path/provider chain still lacks enough access
+- therefore we did **not** leave broad parent-chain ACL granting enabled by default
+
+Conclusion:
+
+- the idea is directionally correct, but mutating ACLs on existing profile/system ancestor folders from a non-admin portable helper is not currently safe enough to do synchronously per command/session
+- if we want this approach, we need a safer grant strategy, probably one of:
+  - provision the managed root in a location where OfficeAgent owns the needed ancestor chain
+  - apply parent-chain grants once during trusted setup with explicit progress/error handling
+  - use a helper/elevated/admin-installed component for machine/profile-level ACL preparation
+  - avoid shell provider paths that require `C:\`/profile ancestor access, if possible
+
+The current landed code keeps the transparent launch model and diagnostic smoke behavior, but does not enable unsafe ancestor ACL mutation by default.
+
+### 2026-04-29 low-integrity pivot and Public OfficeAgentData root
+
+We pivoted from the strict AppContainer read-confined model to a compatibility-first Windows model:
+
+- commands run as the same Windows user at Low integrity
+- normal Windows shell/tool behavior is preserved much better than AppContainer
+- OfficeAgentData/session/project dirs get a Low mandatory label so Low-integrity children can write there
+- outside OfficeAgentData stays normal integrity, so Low-integrity children should be blocked from writes by MIC
+
+Important discovery:
+
+- `%USERPROFILE%\OfficeAgentData` is **not** a good default for Low integrity on this machine
+- Low-integrity children can read/list `C:\Users` and `C:\Users\Public`, but they cannot list/read inside `C:\Users\<user>` even when running as that user
+- this means a Low-integrity command launched with cwd under `%USERPROFILE%\OfficeAgentData` still gets `Acceso denegado` for normal operations
+- moving the managed root under `C:\Users\Public\OfficeAgentData\<user-key>` fixes the practical command behavior without requiring ACL mutations on the user's profile directory
+
+Current default-root decision:
+
+- default managed root is now `%PUBLIC%\OfficeAgentData\<domain_user>`
+- first-run GUI state auto-provisions this default managed root if no persisted root exists
+- the managed-root picker opens at the same default path
+- sandbox smoke now creates temporary roots as `%PUBLIC%\OfficeAgentData-smoke-*`
+- existing persisted roots are still respected for now, but roots under `%USERPROFILE%` may not work well with Low-integrity command execution
+
+Implementation work landed:
+
+- helper protocol supports `sandboxMode: "appContainer" | "lowIntegrity"`
+- helper default is now `lowIntegrity`
+- TypeScript command bridge defaults to `lowIntegrity`; `OFFICE_AGENT_SANDBOX_MODE=appcontainer` opts back into strict AppContainer
+- Low-integrity launch path uses a duplicated primary token with `TokenIntegrityLevel = Low`
+- managed root/session/writable paths get Low mandatory labels
+- Job Object cleanup and stdout/stderr capture remain in place
+- command scripts are used again for `cmd`/PowerShell so normal quoting works; this is still a transparent shell launch, not command emulation
+- OfficeAgent read tool now allows broad reads, while write/edit remain confined to the managed root
+
+Validation after moving smoke roots to `%PUBLIC%`:
+
+- `dir /b` works
+- `type inside.txt` works
+- redirection/write inside project works
+- `mkdir`, quoted paths, `copy`, `move`, `del`, and `rmdir` work in native `cmd`
+- PowerShell `Get-ChildItem` works when invoked through the command runner
+- writes outside the managed area are blocked in smoke
+- command env still does not expose the OfficeAgent gateway token
+- timeout/job cleanup still works
+- reading normal system files such as `C:\Windows\win.ini` works
+
+Important limitation / product wording:
+
+- this is now a **write containment** model, not a strict confidentiality/read containment model
+- Low-integrity commands can read many normal system/public files
+- on this machine, Low-integrity commands still cannot read the user's private profile folders such as `C:\Users\<user>\Desktop`; Windows denies those independently
+- therefore the honest product claim is: agents run real Windows commands with reduced integrity, can modify OfficeAgentData, and are blocked from modifying normal user/system locations; reads outside OfficeAgentData are allowed where Windows permits them
+
+## 2026-04-29 implementation update: private-profile roots tested
+
+We attempted to move the default managed root from the working Public-based root to a private per-user profile root.
+
+Tested candidates:
+
+- `%USERPROFILE%\AppData\LocalLow\OfficeAgentData`
+- `%USERPROFILE%\OfficeAgentData`
+
+Result:
+
+- `%USERPROFILE%\AppData\LocalLow\...` still failed for the current Low Integrity launch model on this machine.
+- The failure reproduced even though the folder showed a Low mandatory label and inherited the current user's Full Control ACE.
+- Low Integrity child processes could start with cwd under the LocalLow tree, but direct filesystem operations against `LocalLow`, the managed root, and the project folder returned `ERROR_ACCESS_DENIED`.
+- Therefore LocalLow cannot currently be treated as a confirmed working fix for real `cmd`/PowerShell UX.
+
+Observed LocalLow failure examples:
+
+```text
+cwd=Ok("C:\\Users\\Dario Costa\\AppData\\LocalLow\\OfficeAgentData-smoke-...\\projects\\demo")
+metadata(projectDir)=ERROR_ACCESS_DENIED
+read_dir(projectDir)=ERROR_ACCESS_DENIED
+write(projectDir\\probe-write.txt)=ERROR_ACCESS_DENIED
+cmd inside smoke: Acceso denegado.
+```
+
+We also prototyped a Windows `CreateRestrictedToken(..., WRITE_RESTRICTED, ...)` path because it is conceptually closer to the desired policy:
+
+- normal user-profile reads
+- writes require both the user's normal DACL access and an OfficeAgent-granted restricting SID
+- no Low Integrity traversal wall
+
+However the first prototype is **not enabled by default** because child processes failed during startup (`0xC0000142` / `0xC0000022`) before command code ran. It needs deeper Windows token/object namespace work before it can replace the Low Integrity model.
+
+Current confirmed passing model remains:
+
+- default sandbox mode: Low Integrity
+- default managed root: `%PUBLIC%\OfficeAgentData\<domain_user>`
+- commands: real `cmd.exe` / PowerShell / tools, launched through the native helper
+- write policy: writes inside the managed root work; writes outside are blocked by MIC
+- read policy: reads are allowed where Windows permits
+
+Smoke status after this investigation:
+
+```text
+npm run sandbox:smoke  # passes
+npm run build --workspace @office-agent/gui  # passes
+```
+
+Decision impact:
+
+- If private-profile storage is mandatory, we need either:
+  1. a working write-restricted-token implementation, or
+  2. a different Windows-native broker/worker design.
+- We should not claim LocalLow works until the startup self-test passes on the target machine.
+
+## 2026-04-29 implementation update: write-restricted private root is now active
+
+OfficeAgent has moved to a single Windows command sandbox model:
+
+```text
+Command token: Medium Integrity restricted token
+Restriction:   CreateRestrictedToken(..., WRITE_RESTRICTED, ...)
+Data root:     %LOCALAPPDATA%\OfficeAgent\AgentData
+Shell UX:      real cmd.exe / PowerShell / tools
+Reads:         normal user reads where Windows permits
+Writes:        allowed only where the OfficeAgent restricting SID is granted
+```
+
+The previous active Low Integrity/AppContainer product paths were removed from the helper protocol and launch dispatch. The helper now always uses the write-restricted model for launch requests.
+
+Important implementation details:
+
+- The managed root default is now `%LOCALAPPDATA%\OfficeAgent\AgentData`.
+- The native helper creates a deterministic OfficeAgent restricting SID from the managed-root path.
+- Before launch, the helper grants that restricting SID writable access on:
+  - managed root
+  - session dir
+  - command cwd/writable paths
+  - stdout/stderr parent dirs
+- The restricted token includes:
+  - the OfficeAgent root restricting SID
+  - the current logon SID
+  - Everyone SID
+- The logon/Everyone SIDs were needed for real shell/PowerShell startup compatibility. Without them, cmd/PowerShell startup hit access-denied / DLL-init style failures.
+- The token default DACL is set so child-created IPC/pipes/default objects are usable under the restricted token.
+- `STARTUPINFO.lpDesktop` is set to `winsta0\default`, following the Codex lesson that PowerShell can fail with `STATUS_DLL_INIT_FAILED` if a restricted-token launch has no desktop.
+- The process remains Medium Integrity; no Low mandatory labels are applied.
+- Command execution remains a real shell/script launch, not command emulation.
+- Managed cmd shims are no longer active; command rewriting is removed from the command path.
+
+Validated:
+
+```text
+cargo build --manifest-path native/windows-sandbox-helper/Cargo.toml
+npm run build --workspace @office-agent/runtime
+npm run build --workspace @pi-gui/pi-sdk-driver
+npm run build:sandbox-helper --workspace @office-agent/gui
+OFFICE_AGENT_STRICT_REAL_SHELL_SMOKE=1 npm run sandbox:smoke
+npm run build --workspace @office-agent/gui
+```
+
+Smoke now uses `%LOCALAPPDATA%\OfficeAgent\AgentData-smoke-*` and confirms:
+
+- real cmd backend works
+- `dir /b` works
+- redirection works
+- inside writes work
+- copy/move/del/mkdir/rmdir work
+- quoted paths work
+- PowerShell `Get-ChildItem` works
+- TEMP is redirected inside managed root
+- writes outside managed root are blocked for the tested outside targets
+- normal system reads work
+- outside reads are allowed where Windows permits
+- gateway token is not visible in sandbox env
+- timeout/job cleanup works
+
+Security wording remains important:
+
+```text
+This is write containment, not read confinement.
+Agents may read files outside AgentData where Windows permits.
+Network remains allowed.
+The correct user promise is: agents can modify only OfficeAgent AgentData, not that agents can only see OfficeAgent AgentData.
+```
+
+## 2026-04-29 implementation update: PowerShell-first command context
+
+OfficeAgent now resolves the managed command backend in this order:
+
+```text
+1. `pwsh.exe` on PATH, if installed
+2. built-in Windows PowerShell (`powershell.exe`)
+3. `cmd.exe` as last fallback
+```
+
+Overrides remain available through `OFFICE_AGENT_SANDBOX_DEFAULT_SHELL=pwsh|powershell|windows-powershell|cmd` and `OFFICE_AGENT_SANDBOX_PWSH_PATH` for explicit `pwsh` location.
+
+The runtime now injects the actual loaded command backend into the agent context using supported Pi mechanisms:
+
+- tool `promptGuidelines` for the OfficeAgent command tool
+- `DefaultResourceLoader.appendSystemPromptOverride` for managed sessions
+
+The injected context explicitly says that the tool named `bash` is OfficeAgent Windows shell exec and reports the actual backend, executable path, and invocation style. Example content:
+
+```text
+The tool named `bash` is currently OfficeAgent Windows shell exec, not necessarily GNU Bash.
+Actual backend: pwsh (C:\Program Files\PowerShell\7\pwsh.exe).
+Commands are launched as: pwsh.exe -NoLogo -NoProfile -NonInteractive -File <script.ps1>.
+Use PowerShell syntax by default. Use cmd.exe /d /q /c "..." when cmd semantics are needed.
+```
+
+This should avoid the previous GUI confusion where the model saw a tool named `bash`, the actual backend was `cmd.exe`, and bare `pwd` failed even though `pwd` works in PowerShell.
+
+Validated:
+
+```text
+npm run build --workspace @pi-gui/pi-sdk-driver
+OFFICE_AGENT_STRICT_REAL_SHELL_SMOKE=1 npm run sandbox:smoke
+npm run build --workspace @office-agent/gui
+```
+
+Smoke confirmed the default backend on this machine is now:
+
+```text
+C:\Program Files\PowerShell\7\pwsh.exe
+```

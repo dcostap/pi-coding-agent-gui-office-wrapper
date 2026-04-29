@@ -122,7 +122,7 @@ export function getOfficeAgentAgentDir(appDataDir: string = getOfficeAgentAppDat
 }
 
 export function getOfficeAgentManagedRootDir(appDataDir: string = getOfficeAgentAppDataDir()): string {
-  return path.join(appDataDir, "workspace");
+  return path.join(appDataDir, "AgentData");
 }
 
 export function getOfficeAgentProjectsDir(managedRootDir: string = getOfficeAgentManagedRootDir()): string {
@@ -476,6 +476,7 @@ function encodeOfficeAgentPathSegment(value: string): string {
 function getLocalAppDataDir(): string {
   return process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 }
+
 
 async function officeAgentPathExists(pathValue: string): Promise<boolean> {
   try {

@@ -31,8 +31,6 @@ export interface WindowsSandboxLaunchRequest {
   readonly managedRoot: string;
   readonly sessionDir: string;
   readonly env?: Readonly<Record<string, string>>;
-  readonly readOnlyPaths?: readonly string[];
-  readonly optionalReadOnlyPaths?: readonly string[];
   readonly writablePaths?: readonly string[];
   readonly stdoutPath?: string;
   readonly stderrPath?: string;
@@ -56,16 +54,16 @@ export interface OfficeAgentSandboxBashOptions {
   readonly managedRootDir: string;
   readonly sessionPaths: OfficeAgentManagedSessionPaths;
   readonly env: NodeJS.ProcessEnv;
+  readonly shellConfig?: OfficeAgentSandboxShellConfig;
 }
 
-export type OfficeAgentSandboxShellBackend = "cmd" | "powershell" | "git-bash";
+export type OfficeAgentSandboxShellBackend = "cmd" | "powershell" | "pwsh" | "git-bash";
 
 export interface OfficeAgentManagedToolRuntimeConfig {
   readonly runtimeId: string;
   readonly runtimeDir: string;
   readonly executable: string;
   readonly pathEntries: readonly string[];
-  readonly readOnlyGrantPaths: readonly string[];
   readonly environment?: Readonly<Record<string, string>>;
   readonly version?: string;
 }
@@ -73,12 +71,10 @@ export interface OfficeAgentManagedToolRuntimeConfig {
 export interface OfficeAgentSandboxShellConfig {
   readonly shell: string;
   readonly args: readonly string[];
-  readonly readOnlyGrantPaths: readonly string[];
-  readonly optionalReadOnlyGrantPaths: readonly string[];
   readonly inheritedHostPathEntries: readonly string[];
   readonly prependPathEntries: readonly string[];
   readonly backend: OfficeAgentSandboxShellBackend;
-  readonly kind: "bash-path-override" | "staged-git-bash" | "cmd-fallback";
+  readonly kind: "bash-path-override" | "staged-git-bash" | "cmd-fallback" | "windows-powershell" | "pwsh";
   readonly runtimeDir?: string;
   readonly pythonRuntime?: OfficeAgentManagedToolRuntimeConfig;
   readonly uvRuntime?: OfficeAgentManagedToolRuntimeConfig;
@@ -93,7 +89,7 @@ export function createOfficeAgentSandboxBashOperations(
         throw new Error("OfficeAgent sandboxed bash is currently only implemented on Windows.");
       }
 
-      const shellConfig = await ensureOfficeAgentSandboxShellConfig(options.managedRootDir);
+      const shellConfig = options.shellConfig ?? await ensureOfficeAgentSandboxShellConfig(options.managedRootDir);
       const runId = randomUUID();
       await mkdir(options.sessionPaths.logsDir, { recursive: true });
       const stdoutPath = join(options.sessionPaths.logsDir, `bash-${runId}.stdout.log`);
@@ -101,15 +97,7 @@ export function createOfficeAgentSandboxBashOperations(
       const timeoutMs = execOptions.timeout && execOptions.timeout > 0
         ? Math.ceil(execOptions.timeout * 1000)
         : undefined;
-      const commandScriptPath = shellConfig.backend === "cmd"
-        ? join(options.sessionPaths.sessionDir, `bash-${runId}.cmd`)
-        : undefined;
-      if (commandScriptPath) {
-        await writeFile(commandScriptPath, `@echo off\r\n${rewriteCmdManagedCommands(command, shellConfig)}\r\n`, "utf8");
-      }
-      const launchArgs = commandScriptPath
-        ? ["/d", "/q", "/c", commandScriptPath]
-        : [...shellConfig.args, command];
+      const commandLaunch = await prepareSandboxCommandLaunch(command, shellConfig, options.sessionPaths.sessionDir, runId);
 
       if (execOptions.signal?.aborted) {
         throw new Error("aborted");
@@ -119,14 +107,12 @@ export function createOfficeAgentSandboxBashOperations(
         kind: "launch",
         requestId: runId,
         executable: shellConfig.shell,
-        args: launchArgs,
+        args: commandLaunch.args,
         cwd,
         managedRoot: options.managedRootDir,
         sessionDir: options.sessionPaths.sessionDir,
-        env: createSandboxEnvironment(shellConfig, options.env, execOptions.env),
-        readOnlyPaths: shellConfig.readOnlyGrantPaths,
-        optionalReadOnlyPaths: shellConfig.optionalReadOnlyGrantPaths,
-        writablePaths: [cwd, options.sessionPaths.sessionDir],
+        env: createSandboxEnvironment(shellConfig, options.env, execOptions.env, cwd),
+        writablePaths: [cwd, options.sessionPaths.sessionDir, ...commandLaunch.writableScriptPaths],
         stdoutPath,
         stderrPath,
         ...(timeoutMs ? { timeoutMs } : {}),
@@ -178,134 +164,61 @@ export async function ensureOfficeAgentSandboxShellConfig(managedRootDir: string
   return ensureOfficeAgentManagedToolRuntimes(current, managedRootDir);
 }
 
-const MANAGED_CMD_COMMANDS = new Map<string, string>([
-  ["dir", "dir"],
-  ["where", "where"],
-  ["copy", "copy"],
-  ["move", "move"],
-  ["del", "del"],
-  ["erase", "del"],
-  ["mkdir", "mkdir"],
-  ["md", "mkdir"],
-  ["rmdir", "rmdir"],
-  ["rd", "rmdir"],
-]);
-
-function rewriteCmdManagedCommands(command: string, shellConfig: OfficeAgentSandboxShellConfig): string {
-  if (shellConfig.backend !== "cmd" || !shellConfig.pythonRuntime) {
-    return command;
-  }
-  const python = shellConfig.pythonRuntime.executable;
-  const managedShim = shellConfig.pythonRuntime.environment?.OFFICE_AGENT_CMD_MANAGED_SHIM;
-  if (!managedShim) {
-    return command;
+async function prepareSandboxCommandLaunch(
+  command: string,
+  shellConfig: OfficeAgentSandboxShellConfig,
+  sessionDir: string,
+  runId: string,
+): Promise<{ args: string[]; writableScriptPaths: string[] }> {
+  if (shellConfig.backend === "cmd") {
+    const commandScriptPath = join(sessionDir, `bash-${runId}.cmd`);
+    await writeFile(commandScriptPath, `@echo off\r\n${command}\r\n`, "utf8");
+    return { args: ["/d", "/q", "/c", commandScriptPath], writableScriptPaths: [commandScriptPath] };
   }
 
-  const lines = command.split(/(\r?\n)/);
-  return lines.map((part) => part.includes("\n") ? part : rewriteCmdManagedCommandsInLine(part, python, managedShim)).join("");
+  if (shellConfig.backend === "powershell" || shellConfig.backend === "pwsh") {
+    const commandScriptPath = join(sessionDir, `bash-${runId}.ps1`);
+    await writeFile(commandScriptPath, `${command}\r\n`, "utf8");
+    return { args: [...shellConfig.args, commandScriptPath], writableScriptPaths: [commandScriptPath] };
+  }
+
+  return { args: [...shellConfig.args, command], writableScriptPaths: [] };
 }
 
-function rewriteCmdManagedCommandsInLine(line: string, python: string, managedShim: string): string {
-  let result = "";
-  let index = 0;
-  let atCommandStart = true;
-  let quote: '"' | "'" | undefined;
-
-  while (index < line.length) {
-    const char = line[index] ?? "";
-    if (quote) {
-      result += char;
-      if (char === quote) {
-        quote = undefined;
-      }
-      index += 1;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-      result += char;
-      index += 1;
-      continue;
-    }
-    if (atCommandStart) {
-      const rewritten = tryRewriteManagedCommandAt(line, index, python, managedShim);
-      if (rewritten) {
-        result += rewritten.prefix;
-        result += rewritten.replacement;
-        index = rewritten.nextIndex;
-        atCommandStart = false;
-        continue;
-      }
-    }
-    result += char;
-    if (char === "&" || char === "|") {
-      atCommandStart = true;
-      if (line[index + 1] === char) {
-        result += line[index + 1] ?? "";
-        index += 2;
-      } else {
-        index += 1;
-      }
-      continue;
-    }
-    atCommandStart = atCommandStart && /\s/.test(char);
-    index += 1;
-  }
-  return result;
-}
-
-function tryRewriteManagedCommandAt(
-  line: string,
-  startIndex: number,
-  python: string,
-  managedShim: string,
-): { prefix: string; replacement: string; nextIndex: number } | undefined {
-  let index = startIndex;
-  let prefix = "";
-  while (index < line.length && /\s/.test(line[index] ?? "")) {
-    prefix += line[index] ?? "";
-    index += 1;
-  }
-  if (line[index] === "@") {
-    prefix += "@";
-    index += 1;
-    while (index < line.length && /\s/.test(line[index] ?? "")) {
-      prefix += line[index] ?? "";
-      index += 1;
-    }
-  }
-
-  const wordStart = index;
-  while (index < line.length && !/[\s&|<>()]/.test(line[index] ?? "")) {
-    index += 1;
-  }
-  if (wordStart === index) {
-    return undefined;
-  }
-
-  const commandWord = line.slice(wordStart, index);
-  const managedCommand = MANAGED_CMD_COMMANDS.get(commandWord.toLowerCase());
-  if (!managedCommand) {
-    return undefined;
-  }
-
-  return {
-    prefix,
-    replacement: `"${python}" "${managedShim}" ${managedCommand}`,
-    nextIndex: index,
-  };
-}
 
 export function resolveOfficeAgentSandboxShellConfig(managedRootDir: string): OfficeAgentSandboxShellConfig {
   const inheritedHostPathEntries = getInheritedHostPathEntries();
+  const defaultShell = process.env.OFFICE_AGENT_SANDBOX_DEFAULT_SHELL?.trim().toLowerCase();
+  const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+  const windowsPowerShellPath = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const pwshOnPath = findExecutableOnPath("pwsh.exe");
+
+  if (defaultShell === "powershell" || defaultShell === "windows-powershell") {
+    return createWindowsPowerShellShellConfig(windowsPowerShellPath, inheritedHostPathEntries);
+  }
+
+  if (defaultShell === "pwsh") {
+    return createPwshShellConfig(resolvePwshPath(), inheritedHostPathEntries);
+  }
+
+  if (defaultShell === "cmd") {
+    return createCmdShellConfig(systemRoot, inheritedHostPathEntries);
+  }
+
+  if (pwshOnPath) {
+    return createPwshShellConfig(pwshOnPath, inheritedHostPathEntries);
+  }
+
+  if (existsSync(windowsPowerShellPath)) {
+    return createWindowsPowerShellShellConfig(windowsPowerShellPath, inheritedHostPathEntries);
+  }
+
   const directOverride = process.env[OFFICE_AGENT_SANDBOX_BASH_PATH_ENV_NAME]?.trim();
   if (directOverride) {
     const runtimeDir = inferRuntimeDirFromBashPath(directOverride);
     return withHostPathCompatibility({
       shell: directOverride,
       args: ["-c"],
-      readOnlyGrantPaths: getRuntimeReadOnlyGrantPaths(directOverride),
-      optionalReadOnlyGrantPaths: [],
       inheritedHostPathEntries,
       prependPathEntries: [],
       backend: "git-bash",
@@ -336,17 +249,63 @@ export function resolveOfficeAgentSandboxShellConfig(managedRootDir: string): Of
 
   // Temporary development fallback. The product target is to stage OfficeAgent-controlled
   // Git Bash under the managed root so the model-facing `bash` tool is actually Bash.
-  const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+  return createCmdShellConfig(systemRoot, inheritedHostPathEntries);
+}
+
+function createPwshShellConfig(shell: string, inheritedHostPathEntries: readonly string[]): OfficeAgentSandboxShellConfig {
+  return withHostPathCompatibility({
+    shell,
+    args: ["-NoLogo", "-NoProfile", "-NonInteractive", "-File"],
+    inheritedHostPathEntries,
+    prependPathEntries: [],
+    backend: "pwsh",
+    kind: "pwsh",
+  });
+}
+
+function createWindowsPowerShellShellConfig(shell: string, inheritedHostPathEntries: readonly string[]): OfficeAgentSandboxShellConfig {
+  return withHostPathCompatibility({
+    shell,
+    args: ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"],
+    inheritedHostPathEntries,
+    prependPathEntries: [],
+    backend: "powershell",
+    kind: "windows-powershell",
+  });
+}
+
+function createCmdShellConfig(systemRoot: string, inheritedHostPathEntries: readonly string[]): OfficeAgentSandboxShellConfig {
   return withHostPathCompatibility({
     shell: join(systemRoot, "System32", "cmd.exe"),
-    args: ["/d", "/s", "/c"],
-    readOnlyGrantPaths: [],
-    optionalReadOnlyGrantPaths: [],
+    args: ["/d", "/q", "/c"],
     inheritedHostPathEntries,
     prependPathEntries: [],
     backend: "cmd",
     kind: "cmd-fallback",
   });
+}
+
+export function getOfficeAgentSandboxShellPromptContext(shellConfig: OfficeAgentSandboxShellConfig): string {
+  const shellDisplay = `${shellConfig.backend} (${shellConfig.shell})`;
+  const invocation = shellConfig.backend === "cmd"
+    ? `cmd.exe /d /q /c <script.cmd>`
+    : shellConfig.backend === "powershell"
+      ? `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File <script.ps1>`
+      : shellConfig.backend === "pwsh"
+        ? `pwsh.exe -NoLogo -NoProfile -NonInteractive -File <script.ps1>`
+        : `${shellConfig.shell} ${shellConfig.args.join(" ")} <command>`;
+  const syntax = shellConfig.backend === "cmd"
+    ? "Use cmd.exe syntax by default. PowerShell is still callable explicitly with powershell.exe or pwsh.exe when available. Bare PowerShell aliases such as pwd/ls are not native to cmd.exe."
+    : shellConfig.backend === "powershell" || shellConfig.backend === "pwsh"
+      ? "Use PowerShell syntax by default. Bare pwd/ls/Get-ChildItem work in this shell. Use cmd.exe /d /q /c \"...\" when you specifically need cmd semantics."
+      : "Use Bash syntax by default for this Git Bash backend. PowerShell and cmd.exe may still be callable explicitly when available.";
+  return [
+    "## OfficeAgent Windows command runtime",
+    `The tool named \`bash\` is currently OfficeAgent Windows shell exec, not necessarily GNU Bash. Actual backend: ${shellDisplay}.`,
+    `Commands are launched as: ${invocation}.`,
+    syntax,
+    "Commands run as real Windows processes with OfficeAgent write containment. They can modify only the OfficeAgent AgentData/managed project tree. Reads outside may succeed or fail according to normal Windows permissions.",
+  ].join("\n");
 }
 
 export async function invokeWindowsSandboxHelper(
@@ -369,6 +328,24 @@ export async function resolveWindowsSandboxHelperPath(): Promise<string> {
   throw new Error(`OfficeAgent Windows sandbox helper was not found. Tried: ${candidates.join(", ")}`);
 }
 
+function resolvePwshPath(): string {
+  const override = process.env.OFFICE_AGENT_SANDBOX_PWSH_PATH?.trim();
+  if (override) {
+    return override;
+  }
+  return findExecutableOnPath("pwsh.exe") ?? "pwsh.exe";
+}
+
+function findExecutableOnPath(fileName: string): string | undefined {
+  for (const pathEntry of getInheritedHostPathEntries()) {
+    const candidate = join(pathEntry, fileName);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
 function resolveStagedGitBashConfig(runtimeDir: string): OfficeAgentSandboxShellConfig | undefined {
   const shell = getOfficeAgentStagedGitBashCandidatePaths(runtimeDir).find((candidate) => existsSync(candidate));
   if (!shell) {
@@ -377,8 +354,6 @@ function resolveStagedGitBashConfig(runtimeDir: string): OfficeAgentSandboxShell
   return withHostPathCompatibility({
     shell,
     args: ["-c"],
-    readOnlyGrantPaths: [runtimeDir],
-    optionalReadOnlyGrantPaths: [],
     inheritedHostPathEntries: getInheritedHostPathEntries(),
     prependPathEntries: [],
     backend: "git-bash",
@@ -498,11 +473,6 @@ async function ensureOfficeAgentManagedToolRuntimes(
 
   return withHostPathCompatibility({
     ...config,
-    readOnlyGrantPaths: [
-      ...config.readOnlyGrantPaths,
-      ...(pythonRuntime?.readOnlyGrantPaths ?? []),
-      ...(uvRuntime?.readOnlyGrantPaths ?? []),
-    ],
     prependPathEntries: [
       ...(pythonRuntime?.pathEntries ?? []),
       ...(uvRuntime?.pathEntries ?? []),
@@ -546,7 +516,6 @@ async function ensureOfficeAgentPythonRuntime(managedRootDir: string): Promise<O
   await mkdir(shimsDir, { recursive: true });
   const pythonShim = join(shimsDir, "python-shim.py");
   const pipShim = join(shimsDir, "pip-shim.py");
-  const managedCmdShim = join(shimsDir, "cmd-managed-shim.py");
   const siteCustomize = join(shimsDir, "sitecustomize.py");
   await Promise.all([
     writeCmdShim(join(shimsDir, "python.cmd"), `@echo off\r\n"${pythonExe}" "${pythonShim}" %*\r\n`),
@@ -588,205 +557,6 @@ async function ensureOfficeAgentPythonRuntime(managedRootDir: string): Promise<O
         "if args[:1] == ['install'] and not os.environ.get('VIRTUAL_ENV'):",
         "    args = ['install', '--user', *args[1:]]",
         "raise SystemExit(subprocess.call([PYTHON_EXE, '-m', 'pip', *args]))",
-        "",
-      ].join("\n"),
-      "utf8",
-    ),
-    writeFile(
-      managedCmdShim,
-      [
-        "import glob",
-        "import os",
-        "import shutil",
-        "import sys",
-        "",
-        "COMMAND = (sys.argv[1:2] or [''])[0].lower()",
-        "ARGS = sys.argv[2:]",
-        "",
-        "def _error(message, code=1):",
-        "    print(message, file=sys.stderr)",
-        "    raise SystemExit(code)",
-        "",
-        "def _expand(path):",
-        "    return glob.glob(path) if any(ch in path for ch in '*?[') else [path]",
-        "",
-        "def _existing_matches(patterns):",
-        "    matches = []",
-        "    for pattern in patterns:",
-        "        expanded = _expand(pattern)",
-        "        if not expanded or (len(expanded) == 1 and any(ch in pattern for ch in '*?[') and not os.path.exists(expanded[0])):",
-        "            continue",
-        "        matches.extend(expanded)",
-        "    return matches",
-        "",
-        "def _cmd_dir(args):",
-        "    bare = False",
-        "    targets = []",
-        "    for arg in args:",
-        "        lower = arg.lower()",
-        "        if lower in ('/b', '-b'):",
-        "            bare = True",
-        "        elif lower.startswith('/a') or lower in ('/d', '/w'):",
-        "            continue",
-        "        else:",
-        "            targets.append(arg)",
-        "    targets = targets or ['.']",
-        "    exit_code = 0",
-        "    for target in targets:",
-        "        matches = _expand(target)",
-        "        if any(ch in target for ch in '*?['):",
-        "            matches = [match for match in matches if os.path.exists(match)]",
-        "        if not matches:",
-        "            print(f'File Not Found: {target}', file=sys.stderr)",
-        "            exit_code = 1",
-        "            continue",
-        "        for match in matches:",
-        "            try:",
-        "                if os.path.isdir(match):",
-        "                    for name in os.listdir(match):",
-        "                        print(name if bare else os.path.join(match, name))",
-        "                elif os.path.exists(match):",
-        "                    print(os.path.basename(match) if bare else match)",
-        "                else:",
-        "                    print(f'File Not Found: {match}', file=sys.stderr)",
-        "                    exit_code = 1",
-        "            except OSError as exc:",
-        "                print(f'Access denied: {match}: {exc}', file=sys.stderr)",
-        "                exit_code = 1",
-        "    raise SystemExit(exit_code)",
-        "",
-        "def _cmd_where(args):",
-        "    exit_code = 0",
-        "    for name in args or ['']:",
-        "        matches = []",
-        "        for path_entry in os.environ.get('PATH', '').split(os.pathsep):",
-        "            if not path_entry:",
-        "                continue",
-        "            found = shutil.which(name, path=path_entry)",
-        "            if found and found not in matches:",
-        "                matches.append(found)",
-        "        if matches:",
-        "            print('\\n'.join(matches))",
-        "        else:",
-        "            print(f'INFO: Could not find files for the given pattern(s): {name}', file=sys.stderr)",
-        "            exit_code = 1",
-        "    raise SystemExit(exit_code)",
-        "",
-        "def _cmd_mkdir(args):",
-        "    if not args:",
-        "        _error('The syntax of the command is incorrect.')",
-        "    exit_code = 0",
-        "    for path in args:",
-        "        try:",
-        "            os.makedirs(path, exist_ok=True)",
-        "        except OSError as exc:",
-        "            print(f'Access denied: {path}: {exc}', file=sys.stderr)",
-        "            exit_code = 1",
-        "    raise SystemExit(exit_code)",
-        "",
-        "def _cmd_rmdir(args):",
-        "    recursive = False",
-        "    targets = []",
-        "    for arg in args:",
-        "        lower = arg.lower()",
-        "        if lower == '/s':",
-        "            recursive = True",
-        "        elif lower == '/q':",
-        "            continue",
-        "        else:",
-        "            targets.append(arg)",
-        "    if not targets:",
-        "        _error('The syntax of the command is incorrect.')",
-        "    exit_code = 0",
-        "    for target in targets:",
-        "        try:",
-        "            if recursive:",
-        "                shutil.rmtree(target)",
-        "            else:",
-        "                os.rmdir(target)",
-        "        except OSError as exc:",
-        "            print(f'Access denied: {target}: {exc}', file=sys.stderr)",
-        "            exit_code = 1",
-        "    raise SystemExit(exit_code)",
-        "",
-        "def _cmd_del(args):",
-        "    targets = [arg for arg in args if not arg.startswith('/') and not arg.startswith('-')]",
-        "    if not targets:",
-        "        _error('The syntax of the command is incorrect.')",
-        "    matches = _existing_matches(targets)",
-        "    if not matches:",
-        "        _error('File Not Found')",
-        "    exit_code = 0",
-        "    for target in matches:",
-        "        try:",
-        "            if os.path.isdir(target):",
-        "                print(f'Access denied: {target}: is a directory', file=sys.stderr)",
-        "                exit_code = 1",
-        "            else:",
-        "                os.unlink(target)",
-        "        except OSError as exc:",
-        "            print(f'Access denied: {target}: {exc}', file=sys.stderr)",
-        "            exit_code = 1",
-        "    raise SystemExit(exit_code)",
-        "",
-        "def _copy_one(src, dst):",
-        "    if os.path.isdir(dst):",
-        "        dst = os.path.join(dst, os.path.basename(src))",
-        "    shutil.copy2(src, dst)",
-        "    print(f'        1 file(s) copied.')",
-        "",
-        "def _cmd_copy(args):",
-        "    filtered = [arg for arg in args if not arg.startswith('/') and not arg.startswith('-')]",
-        "    if len(filtered) < 2:",
-        "        _error('The syntax of the command is incorrect.')",
-        "    sources = _existing_matches(filtered[:-1])",
-        "    dest = filtered[-1]",
-        "    if len(sources) > 1 and not os.path.isdir(dest):",
-        "        _error('The destination must be a directory when copying multiple files.')",
-        "    exit_code = 0",
-        "    for src in sources:",
-        "        try:",
-        "            _copy_one(src, dest)",
-        "        except OSError as exc:",
-        "            print(f'Access denied: {src}: {exc}', file=sys.stderr)",
-        "            exit_code = 1",
-        "    raise SystemExit(exit_code)",
-        "",
-        "def _cmd_move(args):",
-        "    filtered = [arg for arg in args if not arg.startswith('/') and not arg.startswith('-')]",
-        "    if len(filtered) < 2:",
-        "        _error('The syntax of the command is incorrect.')",
-        "    sources = _existing_matches(filtered[:-1])",
-        "    dest = filtered[-1]",
-        "    if len(sources) > 1 and not os.path.isdir(dest):",
-        "        _error('The destination must be a directory when moving multiple files.')",
-        "    exit_code = 0",
-        "    for src in sources:",
-        "        try:",
-        "            final_dest = os.path.join(dest, os.path.basename(src)) if os.path.isdir(dest) else dest",
-        "            shutil.move(src, final_dest)",
-        "            print(f'{src} -> {final_dest}')",
-        "        except OSError as exc:",
-        "            print(f'Access denied: {src}: {exc}', file=sys.stderr)",
-        "            exit_code = 1",
-        "    raise SystemExit(exit_code)",
-        "",
-        "if COMMAND == 'dir':",
-        "    _cmd_dir(ARGS)",
-        "elif COMMAND == 'where':",
-        "    _cmd_where(ARGS)",
-        "elif COMMAND == 'mkdir':",
-        "    _cmd_mkdir(ARGS)",
-        "elif COMMAND == 'rmdir':",
-        "    _cmd_rmdir(ARGS)",
-        "elif COMMAND == 'del':",
-        "    _cmd_del(ARGS)",
-        "elif COMMAND == 'copy':",
-        "    _cmd_copy(ARGS)",
-        "elif COMMAND == 'move':",
-        "    _cmd_move(ARGS)",
-        "else:",
-        "    _error(f'OfficeAgent managed command is not supported: {COMMAND}')",
         "",
       ].join("\n"),
       "utf8",
@@ -900,10 +670,8 @@ async function ensureOfficeAgentPythonRuntime(managedRootDir: string): Promise<O
     runtimeDir: targetDir,
     executable: pythonExe,
     pathEntries: [shimsDir, targetDir, scriptsDir],
-    readOnlyGrantPaths: [targetDir, shimsDir],
     environment: {
       PYTHONPATH: shimsDir,
-      OFFICE_AGENT_CMD_MANAGED_SHIM: managedCmdShim,
     },
     ...(version ? { version } : {}),
   };
@@ -982,7 +750,7 @@ async function ensureOfficeAgentUvRuntime(managedRootDir: string): Promise<Offic
         "        if rest and rest[0] == 'python':",
         "            _call([_venv_python() or PYTHON_EXE, *rest[1:]])",
         "    print('OfficeAgent sandbox supports a managed uv subset: uv --version, uv python find, uv venv, uv pip ..., and uv run python ...', file=sys.stderr)",
-        "    print('This uv subcommand is not enabled in the strict AppContainer sandbox yet.', file=sys.stderr)",
+        "    print('This uv subcommand is not enabled in the OfficeAgent managed runtime yet.', file=sys.stderr)",
         "    raise SystemExit(2)",
         "_run(ARGS)",
         "",
@@ -1004,7 +772,6 @@ async function ensureOfficeAgentUvRuntime(managedRootDir: string): Promise<Offic
     runtimeDir: targetDir,
     executable: uvExe,
     pathEntries: [shimsDir, targetDir],
-    readOnlyGrantPaths: [targetDir, shimsDir],
     ...(version ? { version } : {}),
   };
 }
@@ -1103,15 +870,7 @@ async function writeCurrentRuntimeManifest(pathValue: string, manifest: Record<s
 }
 
 function withHostPathCompatibility(config: OfficeAgentSandboxShellConfig): OfficeAgentSandboxShellConfig {
-  const required = uniquePaths(config.readOnlyGrantPaths);
-  return {
-    ...config,
-    readOnlyGrantPaths: required,
-    optionalReadOnlyGrantPaths: uniquePaths([
-      ...config.optionalReadOnlyGrantPaths,
-      ...config.inheritedHostPathEntries,
-    ]).filter((path) => !containsPath(required, path)),
-  };
+  return config;
 }
 
 function getInheritedHostPathEntries(): string[] {
@@ -1180,11 +939,6 @@ function uniquePaths(paths: readonly string[]): string[] {
   return result;
 }
 
-function containsPath(paths: readonly string[], candidate: string): boolean {
-  const candidateKey = normalize(candidate).toLowerCase();
-  return paths.some((path) => normalize(path).toLowerCase() === candidateKey);
-}
-
 function getEnvCaseInsensitive(source: NodeJS.ProcessEnv, key: string): string | undefined {
   const direct = source[key];
   if (direct !== undefined) {
@@ -1192,11 +946,6 @@ function getEnvCaseInsensitive(source: NodeJS.ProcessEnv, key: string): string |
   }
   const actualKey = Object.keys(source).find((candidate) => candidate.toLowerCase() === key.toLowerCase());
   return actualKey ? source[actualKey] : undefined;
-}
-
-function getRuntimeReadOnlyGrantPaths(shell: string): string[] {
-  const runtimeDir = inferRuntimeDirFromBashPath(shell);
-  return runtimeDir ? [runtimeDir] : [shell];
 }
 
 function inferRuntimeDirFromBashPath(shell: string): string | undefined {
@@ -1214,10 +963,13 @@ function createSandboxEnvironment(
   shellConfig: OfficeAgentSandboxShellConfig,
   sessionEnv: NodeJS.ProcessEnv,
   commandEnv: NodeJS.ProcessEnv | undefined,
+  cwd: string,
 ): Record<string, string> {
   const systemRoot = firstDefined(getEnvCaseInsensitive(process.env, "SystemRoot"), "C:\\Windows");
   const comSpec = firstDefined(getEnvCaseInsensitive(process.env, "ComSpec"), join(systemRoot, "System32", "cmd.exe"));
+  const cwdDrive = getWindowsDrivePrefix(cwd);
   const env: Record<string, string> = {
+    ...(cwdDrive ? { SystemDrive: cwdDrive, SYSTEMDRIVE: cwdDrive, [`=${cwdDrive}`]: cwd } : {}),
     SystemRoot: systemRoot,
     SYSTEMROOT: systemRoot,
     ComSpec: comSpec,
@@ -1306,6 +1058,11 @@ function createSandboxEnvironment(
   env.Path = pathEntries.join(";");
   env.PATH = pathEntries.join(";");
   return env;
+}
+
+function getWindowsDrivePrefix(pathValue: string): string | undefined {
+  const match = /^([A-Za-z]):/.exec(pathValue);
+  return match ? `${match[1]?.toUpperCase()}:` : undefined;
 }
 
 function getMutableToolPathEntries(

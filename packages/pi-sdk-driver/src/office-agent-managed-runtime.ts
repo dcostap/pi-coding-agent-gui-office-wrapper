@@ -10,16 +10,27 @@ import {
   createEditToolDefinition,
   createReadToolDefinition,
   createWriteToolDefinition,
+  DefaultResourceLoader,
+  SettingsManager,
   type CreateAgentSessionOptions,
 } from "@mariozechner/pi-coding-agent";
-import { createAgentSessionRuntimeWithNpmFallback } from "./npm-package-fallback.js";
-import { createOfficeAgentSandboxBashOperations } from "./windows-sandbox-helper-client.js";
+import {
+  createAgentSessionRuntimeWithNpmFallback,
+  createSettingsManagerWithoutNpmPackages,
+  isGlobalNpmLookupError,
+} from "./npm-package-fallback.js";
+import { getOfficeAgentAppPromptContext } from "./office-agent-prompt-context.js";
+import {
+  createOfficeAgentSandboxBashOperations,
+  ensureOfficeAgentSandboxShellConfig,
+  getOfficeAgentSandboxShellPromptContext,
+} from "./windows-sandbox-helper-client.js";
 
 /**
  * First OfficeAgent-controlled session startup path.
  *
  * This is not the final sandbox boundary. It prepares the same managed-root,
- * per-session env/tool shape that the Rust/AppContainer worker will consume.
+ * per-session env/tool shape that the Rust write-contained worker will consume.
  */
 export async function createOfficeAgentManagedSessionRuntime(
   options: CreateAgentSessionOptions = {},
@@ -36,9 +47,17 @@ export async function createOfficeAgentManagedSessionRuntime(
   }
 
   const sessionPaths = await ensureOfficeAgentManagedSessionLayout(sessionId, managedRootDir);
+  const shellConfig = await ensureOfficeAgentSandboxShellConfig(managedRootDir);
+  const appPromptContext = getOfficeAgentAppPromptContext({ cwd, managedRootDir, sessionId });
+  const shellPromptContext = getOfficeAgentSandboxShellPromptContext(shellConfig);
+  const promptContexts = [appPromptContext, shellPromptContext];
+  const agentDir = options.agentDir;
+  const resourceSetup = options.resourceLoader
+    ? { resourceLoader: options.resourceLoader, settingsManager: options.settingsManager }
+    : await createOfficeAgentResourceLoader(cwd, agentDir, promptContexts, options.settingsManager);
   const sessionEnv = getOfficeAgentManagedSessionEnv(sessionId, process.env, {
     managedRootDir,
-    ...(options.agentDir ? { agentDir: options.agentDir } : {}),
+    ...(agentDir ? { agentDir } : {}),
   });
 
   const sandboxCommandTool = createBashToolDefinition(cwd, {
@@ -46,6 +65,7 @@ export async function createOfficeAgentManagedSessionRuntime(
       managedRootDir,
       sessionPaths,
       env: sessionEnv,
+      shellConfig,
     }),
     spawnHook: (context) => ({
       ...context,
@@ -56,28 +76,28 @@ export async function createOfficeAgentManagedSessionRuntime(
       },
     }),
   });
-  sandboxCommandTool.label = "OfficeAgent Windows shell";
+  sandboxCommandTool.label = "OfficeAgent Windows sandbox exec";
   sandboxCommandTool.description = [
-    "Run a command in the OfficeAgent Windows sandbox shell for the current project. This tool is not Bash.",
-    "The backend uses Windows cmd-style syntax to launch real executables, plus OfficeAgent-managed implementations for common file commands that are unreliable inside AppContainer, including dir, where, copy, move, del, mkdir, and rmdir.",
-    "Use Windows command syntax. Prefer project tools such as npm, npx, node, python, pip, uv, git, cargo, dotnet, and package scripts when they are available in the sandbox.",
-    "Do not assume access to C:\\, user profile folders, Program Files, PowerShell, Git Bash, arbitrary host tools, or POSIX paths.",
-    "For complex logic, write a temporary .cmd, .js, or .py file inside the project and run it.",
+    "Run a command with OfficeAgent's Windows write-contained execution model for the current project. OfficeAgent launches real Windows processes; it does not provide a fake shell command language.",
+    "You may use normal Windows commands and tools such as cmd.exe, powershell.exe, pwsh.exe, npm, npx, node, python, pip, uv, git, cargo, dotnet, and package scripts when they are available.",
+    "The OS enforces write containment. Commands can modify the OfficeAgent managed project/root; reads outside the root may succeed or fail according to normal Windows permissions.",
+    "Host tools visible on PATH may be tried when available. Prefer OfficeAgent-staged/project-local tools for reproducibility.",
+    "For complex logic, write a temporary .cmd, .ps1, .js, or .py file inside the project and run it.",
   ].join(" ");
-  sandboxCommandTool.promptSnippet = "Execute OfficeAgent Windows sandbox shell commands in the current project directory (cmd-style syntax, not Bash).";
+  sandboxCommandTool.promptSnippet = "Execute normal Windows commands with OfficeAgent write containment for the current project.";
   sandboxCommandTool.promptGuidelines = [
-    "The `bash` tool is currently an OfficeAgent Windows sandbox shell in managed workspaces; use Windows/cmd-style syntax, not Bash syntax.",
-    "Common file commands such as dir, where, copy, move, del, mkdir, and rmdir are supported in project paths even when native cmd.exe built-ins are unreliable under AppContainer.",
-    "Prefer npm scripts, node, python, pip, uv, git, cargo, dotnet, and other project tools over shell-specific tricks.",
-    "Do not assume access to C:\\, user profile folders, Program Files, PowerShell, Git Bash, arbitrary host tools, /tmp, rm -rf, chmod, or POSIX paths.",
-    "For multi-step or complex logic, write a temporary .cmd, .js, or .py script inside the project and execute it.",
+    shellPromptContext,
+    "You may use cmd.exe, powershell.exe, pwsh.exe, direct project/toolchain commands, and package scripts. OfficeAgent should not be treated as a fake shell with its own command vocabulary.",
+    "Prefer commands that operate within the current project/managed root. Writes outside the managed root should fail; reads outside may succeed or fail according to Windows permissions.",
+    "Host tools on PATH may be tried when available. Prefer npm scripts, node, python, pip, uv, git, cargo, dotnet, and other project-local/staged tools over host-specific assumptions.",
+    "For multi-step or complex logic, write a temporary .cmd, .ps1, .js, or .py script inside the project and execute it.",
   ];
 
   const customTools = [
       createReadToolDefinition(cwd, {
         operations: {
-          access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
-          readFile: (absolutePath: string) => readFile(assertManagedPath(managedRootDir, absolutePath)),
+          access: (absolutePath: string) => access(absolutePath),
+          readFile: (absolutePath: string) => readFile(absolutePath),
         },
       }),
       sandboxCommandTool,
@@ -104,11 +124,48 @@ export async function createOfficeAgentManagedSessionRuntime(
   const managedOptions: CreateAgentSessionOptions = {
     ...options,
     cwd,
+    ...(resourceSetup.settingsManager ? { settingsManager: resourceSetup.settingsManager } : {}),
+    resourceLoader: resourceSetup.resourceLoader,
     tools: [],
     customTools,
   };
 
   return withScopedProcessEnv(sessionEnv, () => createAgentSessionRuntimeWithNpmFallback(managedOptions));
+}
+
+async function createOfficeAgentResourceLoader(
+  cwd: string,
+  agentDir: string | undefined,
+  promptContexts: readonly string[],
+  providedSettingsManager: SettingsManager | undefined,
+): Promise<{ resourceLoader: DefaultResourceLoader; settingsManager: SettingsManager }> {
+  const settingsManager = providedSettingsManager ?? SettingsManager.create(cwd, agentDir);
+  const resourceLoader = new DefaultResourceLoader({
+    cwd,
+    ...(agentDir ? { agentDir } : {}),
+    settingsManager,
+    appendSystemPromptOverride: (base) => [...base, ...promptContexts],
+  });
+  try {
+    await resourceLoader.reload();
+    return { resourceLoader, settingsManager };
+  } catch (error) {
+    if (!isGlobalNpmLookupError(error)) {
+      throw error;
+    }
+    const fallbackSettingsManager = createSettingsManagerWithoutNpmPackages(settingsManager);
+    if (!fallbackSettingsManager) {
+      throw error;
+    }
+    const fallbackResourceLoader = new DefaultResourceLoader({
+      cwd,
+      ...(agentDir ? { agentDir } : {}),
+      settingsManager: fallbackSettingsManager,
+      appendSystemPromptOverride: (base) => [...base, ...promptContexts],
+    });
+    await fallbackResourceLoader.reload();
+    return { resourceLoader: fallbackResourceLoader, settingsManager: fallbackSettingsManager };
+  }
 }
 
 function assertManagedPath(managedRootDir: string, pathValue: string): string {

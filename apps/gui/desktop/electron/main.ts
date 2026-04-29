@@ -38,6 +38,7 @@ import type {
 import type { SessionDriverEvent } from "@pi-gui/session-driver";
 import type { GenerateThreadTitleOptions } from "@pi-gui/pi-sdk-driver";
 import type { WorkspaceRef } from "@pi-gui/session-driver";
+import { getOfficeAgentManagedRootDir } from "@office-agent/runtime";
 
 const isDev = Boolean(process.env.ELECTRON_RENDERER_URL);
 const windowTestMode = resolveWindowTestMode();
@@ -206,14 +207,17 @@ function canPublishToWindow(window: BrowserWindow): boolean {
 
 async function pickManagedRootViaDialog(): Promise<DesktopAppState> {
   const window = mainWindow && canPublishToWindow(mainWindow) ? mainWindow : undefined;
+  const defaultPath = getOfficeAgentManagedRootDir();
   const result = window
     ? await dialog.showOpenDialog(window, {
         properties: ["openDirectory", "createDirectory"],
         title: "Choose OfficeAgent managed root",
+        defaultPath,
       })
     : await dialog.showOpenDialog({
         properties: ["openDirectory", "createDirectory"],
         title: "Choose OfficeAgent managed root",
+        defaultPath,
       });
   if (result.canceled || result.filePaths.length === 0) {
     return store.getState();

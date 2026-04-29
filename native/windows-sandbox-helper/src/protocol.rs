@@ -26,10 +26,6 @@ pub struct LaunchRequest {
     #[serde(default)]
     pub env: BTreeMap<String, String>,
     #[serde(default)]
-    pub read_only_paths: Vec<String>,
-    #[serde(default)]
-    pub optional_read_only_paths: Vec<String>,
-    #[serde(default)]
     pub writable_paths: Vec<String>,
     pub stdout_path: Option<String>,
     pub stderr_path: Option<String>,

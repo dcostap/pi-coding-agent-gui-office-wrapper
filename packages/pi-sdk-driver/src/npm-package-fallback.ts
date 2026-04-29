@@ -92,6 +92,8 @@ export async function createAgentSessionRuntimeWithNpmFallback(options: CreateAg
         ...(runtimeOptions.sessionStartEvent ? { sessionStartEvent: runtimeOptions.sessionStartEvent } : {}),
         ...(options.authStorage ? { authStorage: options.authStorage } : {}),
         ...(options.modelRegistry ? { modelRegistry: options.modelRegistry } : {}),
+        ...(options.settingsManager ? { settingsManager: options.settingsManager } : {}),
+        ...(options.resourceLoader ? { resourceLoader: options.resourceLoader } : {}),
         ...(!hasExistingEntries && options.model ? { model: options.model } : {}),
         ...(!hasExistingEntries && options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
         ...(options.scopedModels ? { scopedModels: options.scopedModels } : {}),

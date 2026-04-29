@@ -39,19 +39,9 @@ fn validate_launch_request(request: &LaunchRequest) -> Result<(), String> {
         let candidate = canonicalish(path);
         if !candidate.starts_with(&managed_root) {
             return Err(format!(
-                "writable/output path must be inside managedRoot for v1 scaffold: {}",
+                "writable/output path must be inside managedRoot: {}",
                 candidate.display()
             ));
-        }
-    }
-
-    for path in request
-        .read_only_paths
-        .iter()
-        .chain(request.optional_read_only_paths.iter())
-    {
-        if !Path::new(path).is_absolute() {
-            return Err(format!("read-only grant path must be absolute: {path}"));
         }
     }
 
@@ -63,7 +53,6 @@ fn validate_launch_request(request: &LaunchRequest) -> Result<(), String> {
 }
 
 fn canonicalish(path: impl AsRef<Path>) -> PathBuf {
-    // Do not require the path to exist yet; normalize enough for containment validation.
     let raw = path.as_ref();
     if raw.is_absolute() {
         raw.components().collect()
@@ -79,7 +68,7 @@ fn canonicalish(path: impl AsRef<Path>) -> PathBuf {
 #[cfg(windows)]
 fn launch_platform(request: LaunchRequest) -> HelperResponse {
     let request_id = request.request_id.clone();
-    match windows_sandbox::launch_appcontainer(request) {
+    match windows_sandbox::launch_write_restricted(request) {
         Ok(result) => result,
         Err(error) => HelperResponse::err(request_id, "LAUNCH_FAILED", error),
     }
@@ -103,51 +92,50 @@ mod windows_sandbox {
     use std::os::windows::ffi::OsStrExt;
     use std::os::windows::io::AsRawHandle;
     use std::path::Path;
-    use windows::core::{w, PCWSTR, PWSTR};
+    use windows::core::{PCWSTR, PWSTR};
     use windows::Win32::Foundation::{
-        CloseHandle, LocalFree, SetHandleInformation, BOOL, ERROR_ALREADY_EXISTS, HANDLE,
-        HANDLE_FLAG_INHERIT, HLOCAL, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
+        CloseHandle, LocalFree, SetHandleInformation, BOOL, HANDLE, HANDLE_FLAG_INHERIT, HLOCAL,
+        WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
     };
     use windows::Win32::Security::Authorization::{
         BuildTrusteeWithSidW, GetNamedSecurityInfoW, SetEntriesInAclW, SetNamedSecurityInfoW,
         EXPLICIT_ACCESS_W, GRANT_ACCESS, SE_FILE_OBJECT,
     };
-    use windows::Win32::Security::Isolation::{
-        CreateAppContainerProfile, DeriveAppContainerSidFromAppContainerName,
-    };
     use windows::Win32::Security::{
-        DeriveCapabilitySidsFromName, ACL, DACL_SECURITY_INFORMATION, FreeSid, PSID,
-        SECURITY_CAPABILITIES, SID_AND_ATTRIBUTES, SUB_CONTAINERS_AND_OBJECTS_INHERIT,
+        AllocateAndInitializeSid, CopySid, CreateRestrictedToken, FreeSid, GetLengthSid,
+        GetTokenInformation, SetTokenInformation, ACL, CREATE_RESTRICTED_TOKEN_FLAGS,
+        DACL_SECURITY_INFORMATION, PSID, SECURITY_NT_AUTHORITY, SECURITY_WORLD_SID_AUTHORITY,
+        SID_AND_ATTRIBUTES,
+        SUB_CONTAINERS_AND_OBJECTS_INHERIT, TOKEN_ADJUST_DEFAULT, TOKEN_ADJUST_SESSIONID,
+        TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE, TOKEN_GROUPS, TOKEN_QUERY,
+        TokenDefaultDacl, TokenGroups,
     };
     use windows::Win32::Storage::FileSystem::{
         DELETE, FILE_DELETE_CHILD, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
     };
     use windows::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, SetInformationJobObject, TerminateJobObject,
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-        JobObjectExtendedLimitInformation,
+        JobObjectExtendedLimitInformation, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     };
     use windows::Win32::System::Threading::{
-        CreateProcessW, DeleteProcThreadAttributeList, GetExitCodeProcess,
-        InitializeProcThreadAttributeList, ResumeThread, UpdateProcThreadAttribute,
-        WaitForSingleObject, CREATE_NO_WINDOW, CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT,
-        EXTENDED_STARTUPINFO_PRESENT, INFINITE, LPPROC_THREAD_ATTRIBUTE_LIST,
-        PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION,
-        STARTF_USESTDHANDLES, STARTUPINFOEXW,
+        CreateProcessAsUserW, GetCurrentProcess, GetExitCodeProcess, OpenProcessToken, ResumeThread, WaitForSingleObject,
+        CREATE_NO_WINDOW, CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, INFINITE,
+        PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW,
     };
 
-    pub fn launch_appcontainer(request: LaunchRequest) -> Result<HelperResponse, String> {
+    const WRITE_RESTRICTED: u32 = 0x08;
+    const GENERIC_ALL: u32 = 0x1000_0000;
+    const SE_GROUP_LOGON_ID: u32 = 0xC000_0000;
+
+    pub fn launch_write_restricted(request: LaunchRequest) -> Result<HelperResponse, String> {
         std::fs::create_dir_all(&request.session_dir)
             .map_err(|error| format!("failed to create sessionDir: {error}"))?;
 
         let request_id = request.request_id.clone();
-        let profile_name = appcontainer_profile_name(&request.managed_root);
-        let appcontainer_sid = AppContainerSid::create_or_derive(&profile_name)?;
-
-        ensure_appcontainer_profile_dirs(&request, &profile_name, appcontainer_sid.0)?;
-        grant_managed_root_access(&request, appcontainer_sid.0)?;
-
-        let process = unsafe { create_sandboxed_process(&request, appcontainer_sid.0)? };
+        let restricting_sid = RestrictingSid::for_managed_root(&request.managed_root)?;
+        grant_write_restricted_paths(&request, restricting_sid.sid())?;
+        let process = unsafe { create_write_restricted_process(&request, restricting_sid.sid())? };
         let pid = process.process_id;
         let wait_ms = request.timeout_ms.unwrap_or(INFINITE as u64).min(INFINITE as u64) as u32;
 
@@ -167,52 +155,126 @@ mod windows_sandbox {
             return Err("WaitForSingleObject failed".to_string());
         }
 
-        Ok(HelperResponse::ok(
-            request_id,
-            LaunchResult { pid, exit_code },
-        ))
+        Ok(HelperResponse::ok(request_id, LaunchResult { pid, exit_code }))
     }
 
-    unsafe fn create_sandboxed_process(
+    unsafe fn create_write_restricted_process(
         request: &LaunchRequest,
-        appcontainer_sid: PSID,
+        restricting_sid: PSID,
     ) -> Result<SandboxedProcess, String> {
-        let mut capability_sid_storage = CapabilitySidStorage::internet_client()?;
-        let mut security_capabilities = SECURITY_CAPABILITIES {
-            AppContainerSid: appcontainer_sid,
-            Capabilities: capability_sid_storage.attributes.as_mut_ptr(),
-            CapabilityCount: capability_sid_storage.attributes.len() as u32,
-            Reserved: 0,
-        };
+        let token = create_write_restricted_primary_token(restricting_sid)?;
+        let _token_guard = HandleGuard(token);
+        create_token_process(request, token)
+    }
 
-        let mut attribute_list_size = 0usize;
-        let _ = InitializeProcThreadAttributeList(
-            LPPROC_THREAD_ATTRIBUTE_LIST::default(),
-            1,
-            0,
-            &mut attribute_list_size,
-        );
-        if attribute_list_size == 0 {
-            return Err("InitializeProcThreadAttributeList did not report required size".to_string());
+    unsafe fn create_write_restricted_primary_token(restricting_sid: PSID) -> Result<HANDLE, String> {
+        let mut current_token = HANDLE::default();
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_DUPLICATE
+                | TOKEN_ASSIGN_PRIMARY
+                | TOKEN_ADJUST_DEFAULT
+                | TOKEN_ADJUST_SESSIONID
+                | TOKEN_QUERY,
+            &mut current_token,
+        )
+        .map_err(|error| format!("OpenProcessToken failed: {error}"))?;
+        let _current_token_guard = HandleGuard(current_token);
+
+        let mut logon_sid_bytes = get_logon_sid_bytes(current_token)?;
+        let logon_sid = PSID(logon_sid_bytes.as_mut_ptr().cast());
+        let world_sid = WorldSid::new()?;
+        let restricting_sids = [
+            SID_AND_ATTRIBUTES {
+                Sid: restricting_sid,
+                Attributes: 0,
+            },
+            SID_AND_ATTRIBUTES {
+                Sid: logon_sid,
+                Attributes: 0,
+            },
+            SID_AND_ATTRIBUTES {
+                Sid: world_sid.0,
+                Attributes: 0,
+            },
+        ];
+        let mut restricted_token = HANDLE::default();
+        CreateRestrictedToken(
+            current_token,
+            CREATE_RESTRICTED_TOKEN_FLAGS(WRITE_RESTRICTED),
+            None,
+            None,
+            Some(&restricting_sids),
+            &mut restricted_token,
+        )
+        .map_err(|error| format!("CreateRestrictedToken(WRITE_RESTRICTED) failed: {error}"))?;
+
+        if let Err(error) = set_token_default_dacl(restricted_token, &[restricting_sid, logon_sid, world_sid.0]) {
+            let _ = CloseHandle(restricted_token);
+            return Err(error);
         }
 
-        let mut attribute_storage = vec![0u8; attribute_list_size];
-        let attribute_list = LPPROC_THREAD_ATTRIBUTE_LIST(attribute_storage.as_mut_ptr() as *mut c_void);
-        InitializeProcThreadAttributeList(attribute_list, 1, 0, &mut attribute_list_size)
-            .map_err(|error| format!("InitializeProcThreadAttributeList failed: {error}"))?;
+        Ok(restricted_token)
+    }
 
-        let _attribute_guard = ProcThreadAttributeListGuard(attribute_list);
-        UpdateProcThreadAttribute(
-            attribute_list,
-            0,
-            PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES as usize,
-            Some((&mut security_capabilities as *mut SECURITY_CAPABILITIES).cast()),
-            size_of::<SECURITY_CAPABILITIES>(),
-            None,
-            None,
+    unsafe fn set_token_default_dacl(token: HANDLE, sids: &[PSID]) -> Result<(), String> {
+        let entries = sids
+            .iter()
+            .copied()
+            .map(|sid| explicit_access_for_sid(sid, GENERIC_ALL))
+            .collect::<Vec<_>>();
+        let mut new_dacl: *mut ACL = std::ptr::null_mut();
+        let acl_error = SetEntriesInAclW(Some(&entries), None, &mut new_dacl);
+        if acl_error.0 != 0 {
+            return Err(format!("SetEntriesInAclW(TokenDefaultDacl) failed: {}", acl_error.0));
+        }
+        let _acl_guard = LocalMemoryGuard(HLOCAL(new_dacl.cast()));
+        let mut token_dacl = TOKEN_DEFAULT_DACL { DefaultDacl: new_dacl };
+        SetTokenInformation(
+            token,
+            TokenDefaultDacl,
+            (&mut token_dacl as *mut TOKEN_DEFAULT_DACL).cast(),
+            size_of::<TOKEN_DEFAULT_DACL>() as u32,
         )
-        .map_err(|error| format!("UpdateProcThreadAttribute security capabilities failed: {error}"))?;
+        .map_err(|error| format!("SetTokenInformation(TokenDefaultDacl) failed: {error}"))
+    }
 
+    unsafe fn get_logon_sid_bytes(token: HANDLE) -> Result<Vec<u8>, String> {
+        let mut needed = 0u32;
+        let _ = GetTokenInformation(token, TokenGroups, None, 0, &mut needed);
+        if needed == 0 {
+            return Err("GetTokenInformation(TokenGroups) did not report buffer size".to_string());
+        }
+        let mut buffer = vec![0u8; needed as usize];
+        GetTokenInformation(
+            token,
+            TokenGroups,
+            Some(buffer.as_mut_ptr().cast::<c_void>()),
+            needed,
+            &mut needed,
+        )
+        .map_err(|error| format!("GetTokenInformation(TokenGroups) failed: {error}"))?;
+
+        let groups = buffer.as_ptr().cast::<TOKEN_GROUPS>();
+        let group_count = (*groups).GroupCount as usize;
+        let first_group = (*groups).Groups.as_ptr();
+        for index in 0..group_count {
+            let group = *first_group.add(index);
+            if (group.Attributes & SE_GROUP_LOGON_ID) == SE_GROUP_LOGON_ID {
+                let sid_len = GetLengthSid(group.Sid) as u32;
+                let mut sid_bytes = vec![0u8; sid_len as usize];
+                CopySid(sid_len, PSID(sid_bytes.as_mut_ptr().cast()), group.Sid)
+                    .map_err(|error| format!("CopySid(logon SID) failed: {error}"))?;
+                return Ok(sid_bytes);
+            }
+        }
+        Err("current token does not contain a logon SID".to_string())
+    }
+
+    unsafe fn create_token_process(
+        request: &LaunchRequest,
+        token: HANDLE,
+    ) -> Result<SandboxedProcess, String> {
         let stdout_file = request
             .stdout_path
             .as_deref()
@@ -225,16 +287,17 @@ mod windows_sandbox {
             .transpose()?;
         let redirect_stdio = stdout_file.is_some() || stderr_file.is_some();
 
-        let mut startup_info: STARTUPINFOEXW = zeroed();
-        startup_info.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
-        startup_info.lpAttributeList = attribute_list;
+        let mut startup_info: STARTUPINFOW = zeroed();
+        startup_info.cb = size_of::<STARTUPINFOW>() as u32;
+        let mut desktop_w = wide_null("winsta0\\default");
+        startup_info.lpDesktop = PWSTR(desktop_w.as_mut_ptr());
         if redirect_stdio {
-            startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+            startup_info.dwFlags |= STARTF_USESTDHANDLES;
             if let Some(file) = &stdout_file {
-                startup_info.StartupInfo.hStdOutput = HANDLE(file.as_raw_handle().cast());
+                startup_info.hStdOutput = HANDLE(file.as_raw_handle().cast());
             }
             if let Some(file) = &stderr_file {
-                startup_info.StartupInfo.hStdError = HANDLE(file.as_raw_handle().cast());
+                startup_info.hStdError = HANDLE(file.as_raw_handle().cast());
             }
         }
 
@@ -245,13 +308,11 @@ mod windows_sandbox {
 
         let mut process_information: PROCESS_INFORMATION = zeroed();
         let creation_flags = PROCESS_CREATION_FLAGS(
-            EXTENDED_STARTUPINFO_PRESENT.0
-                | CREATE_UNICODE_ENVIRONMENT.0
-                | CREATE_SUSPENDED.0
-                | CREATE_NO_WINDOW.0,
+            CREATE_UNICODE_ENVIRONMENT.0 | CREATE_SUSPENDED.0 | CREATE_NO_WINDOW.0,
         );
 
-        CreateProcessW(
+        CreateProcessAsUserW(
+            token,
             PCWSTR(executable_w.as_ptr()),
             PWSTR(command_line_w.as_mut_ptr()),
             None,
@@ -262,10 +323,10 @@ mod windows_sandbox {
                 .as_ref()
                 .map(|block| block.as_ptr().cast::<c_void>()),
             PCWSTR(cwd_w.as_ptr()),
-            (&startup_info as *const STARTUPINFOEXW).cast(),
+            &startup_info,
             &mut process_information,
         )
-        .map_err(|error| format!("CreateProcessW AppContainer launch failed: {error}"))?;
+        .map_err(|error| format!("CreateProcessAsUserW write-restricted launch failed: {error}"))?;
 
         let job_handle = create_kill_on_close_job()?;
         AssignProcessToJobObject(job_handle, process_information.hProcess)
@@ -320,62 +381,20 @@ mod windows_sandbox {
         Ok(job_handle)
     }
 
-    fn ensure_appcontainer_profile_dirs(
-        request: &LaunchRequest,
-        profile_name: &str,
-        appcontainer_sid: PSID,
-    ) -> Result<(), String> {
-        let Some(local_app_data) = request.env.get("LOCALAPPDATA").or_else(|| request.env.get("LocalAppData")) else {
-            return Ok(());
-        };
-        let packages_dir = Path::new(local_app_data).join("Packages");
-        let package_dir = packages_dir.join(profile_name);
-        let ac_dir = package_dir.join("AC");
-        let package_temp = ac_dir.join("Temp");
-        std::fs::create_dir_all(&package_temp)
-            .map_err(|error| format!("failed to create AppContainer temp dir {}: {error}", package_temp.display()))?;
-        for path in [&packages_dir, &package_dir, &ac_dir, &package_temp] {
-            grant_path_access(
-                &path.to_string_lossy(),
-                appcontainer_sid,
-                writable_access_mask(),
-            )?;
-        }
-        Ok(())
-    }
-
-    fn grant_managed_root_access(request: &LaunchRequest, appcontainer_sid: PSID) -> Result<(), String> {
-        grant_path_access(
-            &request.managed_root,
-            appcontainer_sid,
-            FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0,
-        )?;
-        grant_path_access(
-            &request.session_dir,
-            appcontainer_sid,
-            writable_access_mask(),
-        )?;
+    fn grant_write_restricted_paths(request: &LaunchRequest, restricting_sid: PSID) -> Result<(), String> {
+        grant_path_access(&request.managed_root, restricting_sid, writable_access_mask())?;
+        grant_path_access(&request.session_dir, restricting_sid, writable_access_mask())?;
         for path in &request.writable_paths {
-            grant_path_access(
-                path,
-                appcontainer_sid,
-                writable_access_mask(),
-            )?;
+            grant_path_access(path, restricting_sid, writable_access_mask())?;
         }
-        for path in &request.read_only_paths {
-            grant_path_access(
-                path,
-                appcontainer_sid,
-                FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0,
-            )?;
+        if let Some(path) = &request.stdout_path {
+            if let Some(parent) = Path::new(path).parent() {
+                grant_path_access(&parent.to_string_lossy(), restricting_sid, writable_access_mask())?;
+            }
         }
-        for path in &request.optional_read_only_paths {
-            if Path::new(path).exists() {
-                let _ = grant_path_access(
-                    path,
-                    appcontainer_sid,
-                    FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0,
-                );
+        if let Some(path) = &request.stderr_path {
+            if let Some(parent) = Path::new(path).parent() {
+                grant_path_access(&parent.to_string_lossy(), restricting_sid, writable_access_mask())?;
             }
         }
         Ok(())
@@ -385,7 +404,7 @@ mod windows_sandbox {
         FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0 | FILE_GENERIC_WRITE.0 | DELETE.0 | FILE_DELETE_CHILD.0
     }
 
-    fn grant_path_access(path: &str, appcontainer_sid: PSID, access_mask: u32) -> Result<(), String> {
+    fn grant_path_access(path: &str, sid: PSID, access_mask: u32) -> Result<(), String> {
         if !Path::new(path).exists() {
             std::fs::create_dir_all(path)
                 .map_err(|error| format!("failed to create ACL target {path}: {error}"))?;
@@ -414,7 +433,7 @@ mod windows_sandbox {
             explicit_access.grfAccessPermissions = access_mask;
             explicit_access.grfAccessMode = GRANT_ACCESS;
             explicit_access.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
-            BuildTrusteeWithSidW(&mut explicit_access.Trustee, appcontainer_sid);
+            BuildTrusteeWithSidW(&mut explicit_access.Trustee, sid);
 
             let mut new_dacl: *mut ACL = std::ptr::null_mut();
             let acl_error = SetEntriesInAclW(Some(&[explicit_access]), Some(old_dacl), &mut new_dacl);
@@ -439,59 +458,51 @@ mod windows_sandbox {
         Ok(())
     }
 
-    fn appcontainer_profile_name(managed_root: &str) -> String {
-        format!("officeagent.v1.{:016x}", fnv1a64(managed_root.to_ascii_lowercase().as_bytes()))
-    }
-
-    fn fnv1a64(bytes: &[u8]) -> u64 {
-        let mut hash = 0xcbf29ce484222325u64;
-        for byte in bytes {
-            hash ^= *byte as u64;
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-        hash
+    unsafe fn explicit_access_for_sid(sid: PSID, access_mask: u32) -> EXPLICIT_ACCESS_W {
+        let mut access = EXPLICIT_ACCESS_W::default();
+        access.grfAccessPermissions = access_mask;
+        access.grfAccessMode = GRANT_ACCESS;
+        access.grfInheritance = Default::default();
+        BuildTrusteeWithSidW(&mut access.Trustee, sid);
+        access
     }
 
     fn build_command_line(executable: &str, args: &[String]) -> String {
-        std::iter::once(quote_command_arg_always(executable))
-            .chain(args.iter().map(|arg| quote_command_arg(arg)))
+        std::iter::once(executable)
+            .chain(args.iter().map(String::as_str))
+            .map(quote_windows_arg)
             .collect::<Vec<_>>()
             .join(" ")
     }
 
-    fn quote_command_arg_always(arg: &str) -> String {
-        quote_command_arg_inner(arg, true)
-    }
-
-    fn quote_command_arg(arg: &str) -> String {
-        quote_command_arg_inner(arg, false)
-    }
-
-    fn quote_command_arg_inner(arg: &str, always: bool) -> String {
-        if always || arg.is_empty() || arg.chars().any(|ch| ch.is_whitespace() || ch == '"') {
-            let mut quoted = String::from("\"");
-            let mut backslashes = 0usize;
-            for ch in arg.chars() {
-                match ch {
-                    '\\' => backslashes += 1,
-                    '"' => {
-                        quoted.push_str(&"\\".repeat(backslashes * 2 + 1));
-                        quoted.push('"');
-                        backslashes = 0;
-                    }
-                    _ => {
-                        quoted.push_str(&"\\".repeat(backslashes));
-                        backslashes = 0;
-                        quoted.push(ch);
-                    }
+    fn quote_windows_arg(arg: &str) -> String {
+        if arg.is_empty() {
+            return "\"\"".to_string();
+        }
+        let needs_quotes = arg.chars().any(|ch| ch.is_whitespace() || ch == '"');
+        if !needs_quotes {
+            return arg.to_string();
+        }
+        let mut result = String::from("\"");
+        let mut backslashes = 0;
+        for ch in arg.chars() {
+            match ch {
+                '\\' => backslashes += 1,
+                '"' => {
+                    result.push_str(&"\\".repeat(backslashes * 2 + 1));
+                    result.push('"');
+                    backslashes = 0;
+                }
+                _ => {
+                    result.push_str(&"\\".repeat(backslashes));
+                    backslashes = 0;
+                    result.push(ch);
                 }
             }
-            quoted.push_str(&"\\".repeat(backslashes * 2));
-            quoted.push('"');
-            quoted
-        } else {
-            arg.to_string()
         }
+        result.push_str(&"\\".repeat(backslashes * 2));
+        result.push('"');
+        result
     }
 
     fn build_environment_block(env: &std::collections::BTreeMap<String, String>) -> Option<Vec<u16>> {
@@ -514,86 +525,53 @@ mod windows_sandbox {
             .collect()
     }
 
-    struct CapabilitySidStorage {
-        capability_group_sids: *mut PSID,
-        capability_sids: *mut PSID,
-        attributes: Vec<SID_AND_ATTRIBUTES>,
+    fn restricting_sid_parts(managed_root: &str) -> (u32, u32, u32, u32) {
+        let normalized = managed_root.to_ascii_lowercase();
+        let h1 = fnv1a64(normalized.as_bytes());
+        let h2 = fnv1a64(format!("officeagent:{normalized}").as_bytes());
+        (
+            ((h1 >> 32) as u32) | 1,
+            (h1 as u32) | 1,
+            ((h2 >> 32) as u32) | 1,
+            (h2 as u32) | 1,
+        )
     }
 
-    impl CapabilitySidStorage {
-        fn internet_client() -> Result<Self, String> {
-            let mut capability_group_sids: *mut PSID = std::ptr::null_mut();
-            let mut capability_group_sid_count = 0u32;
-            let mut capability_sids: *mut PSID = std::ptr::null_mut();
-            let mut capability_sid_count = 0u32;
+    fn fnv1a64(bytes: &[u8]) -> u64 {
+        let mut hash = 0xcbf2_9ce4_8422_2325u64;
+        for byte in bytes {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        hash
+    }
+
+    struct WorldSid(PSID);
+
+    impl WorldSid {
+        fn new() -> Result<Self, String> {
+            let mut sid = PSID::default();
             unsafe {
-                DeriveCapabilitySidsFromName(
-                    w!("internetClient"),
-                    &mut capability_group_sids,
-                    &mut capability_group_sid_count,
-                    &mut capability_sids,
-                    &mut capability_sid_count,
+                AllocateAndInitializeSid(
+                    &SECURITY_WORLD_SID_AUTHORITY,
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    &mut sid,
                 )
-                .map_err(|error| format!("DeriveCapabilitySidsFromName(internetClient) failed: {error}"))?;
-
-                let sid_slice = std::slice::from_raw_parts(capability_sids, capability_sid_count as usize);
-                let attributes = sid_slice
-                    .iter()
-                    .map(|sid| SID_AND_ATTRIBUTES {
-                        Sid: *sid,
-                        Attributes: 0x0000_0004,
-                    })
-                    .collect();
-
-                Ok(Self {
-                    capability_group_sids,
-                    capability_sids,
-                    attributes,
-                })
+                .map_err(|error| format!("AllocateAndInitializeSid(Everyone SID) failed: {error}"))?;
             }
+            Ok(Self(sid))
         }
     }
 
-    impl Drop for CapabilitySidStorage {
-        fn drop(&mut self) {
-            unsafe {
-                if !self.capability_group_sids.is_null() {
-                    let _ = LocalFree(HLOCAL(self.capability_group_sids.cast()));
-                }
-                if !self.capability_sids.is_null() {
-                    let _ = LocalFree(HLOCAL(self.capability_sids.cast()));
-                }
-            }
-        }
-    }
-
-    struct AppContainerSid(PSID);
-
-    impl AppContainerSid {
-        fn create_or_derive(profile_name: &str) -> Result<Self, String> {
-            let name_w = wide_null(profile_name);
-            unsafe {
-                match CreateAppContainerProfile(
-                    PCWSTR(name_w.as_ptr()),
-                    w!("OfficeAgent Sandbox"),
-                    w!("OfficeAgent managed workspace sandbox"),
-                    None,
-                ) {
-                    Ok(sid) => Ok(Self(sid)),
-                    Err(error) if error.code() == ERROR_ALREADY_EXISTS.to_hresult() => {
-                        DeriveAppContainerSidFromAppContainerName(PCWSTR(name_w.as_ptr()))
-                            .map(Self)
-                            .map_err(|derive_error| {
-                                format!("DeriveAppContainerSidFromAppContainerName failed: {derive_error}")
-                            })
-                    }
-                    Err(error) => Err(format!("CreateAppContainerProfile failed: {error}")),
-                }
-            }
-        }
-    }
-
-    impl Drop for AppContainerSid {
+    impl Drop for WorldSid {
         fn drop(&mut self) {
             unsafe {
                 let _ = FreeSid(self.0);
@@ -601,24 +579,40 @@ mod windows_sandbox {
         }
     }
 
-    struct LocalMemoryGuard(HLOCAL);
+    struct RestrictingSid(PSID);
 
-    impl Drop for LocalMemoryGuard {
-        fn drop(&mut self) {
-            if !self.0.is_invalid() {
-                unsafe {
-                    let _ = LocalFree(self.0);
-                }
+    impl RestrictingSid {
+        fn for_managed_root(managed_root: &str) -> Result<Self, String> {
+            let (a, b, c, d) = restricting_sid_parts(managed_root);
+            let mut sid = PSID::default();
+            unsafe {
+                AllocateAndInitializeSid(
+                    &SECURITY_NT_AUTHORITY,
+                    5,
+                    21,
+                    a,
+                    b,
+                    c,
+                    d,
+                    0,
+                    0,
+                    0,
+                    &mut sid,
+                )
+                .map_err(|error| format!("AllocateAndInitializeSid(OfficeAgent restricting SID) failed: {error}"))?;
             }
+            Ok(Self(sid))
+        }
+
+        fn sid(&self) -> PSID {
+            self.0
         }
     }
 
-    struct ProcThreadAttributeListGuard(LPPROC_THREAD_ATTRIBUTE_LIST);
-
-    impl Drop for ProcThreadAttributeListGuard {
+    impl Drop for RestrictingSid {
         fn drop(&mut self) {
             unsafe {
-                DeleteProcThreadAttributeList(self.0);
+                let _ = FreeSid(self.0);
             }
         }
     }
@@ -636,6 +630,28 @@ mod windows_sandbox {
                 let _ = CloseHandle(self.thread_handle);
                 let _ = CloseHandle(self.process_handle);
                 let _ = CloseHandle(self.job_handle);
+            }
+        }
+    }
+
+    struct HandleGuard(HANDLE);
+
+    impl Drop for HandleGuard {
+        fn drop(&mut self) {
+            unsafe {
+                let _ = CloseHandle(self.0);
+            }
+        }
+    }
+
+    struct LocalMemoryGuard(HLOCAL);
+
+    impl Drop for LocalMemoryGuard {
+        fn drop(&mut self) {
+            if !self.0.is_invalid() {
+                unsafe {
+                    let _ = LocalFree(self.0);
+                }
             }
         }
     }

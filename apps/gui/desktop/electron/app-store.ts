@@ -14,6 +14,7 @@ import {
 import {
   createOfficeAgentProject,
   ensureOfficeAgentManagedRoot,
+  getOfficeAgentManagedRootDir,
   getOfficeAgentProjectsDir,
 } from "@office-agent/runtime";
 import type { SessionCatalogEntry, WorkspaceCatalogEntry } from "@pi-gui/catalogs";
@@ -816,10 +817,8 @@ export class DesktopAppStore implements AppStoreInternals {
   private async initializeInternal(): Promise<void> {
     try {
       const persisted = await this.readUiState();
-      this.managedRootPath = persisted.managedRootPath?.trim() ? resolve(persisted.managedRootPath) : "";
-      if (this.managedRootPath) {
-        await ensureOfficeAgentManagedRoot(this.managedRootPath);
-      }
+      this.managedRootPath = resolve(persisted.managedRootPath?.trim() || getOfficeAgentManagedRootDir());
+      await ensureOfficeAgentManagedRoot(this.managedRootPath);
       this.state = {
         ...this.state,
         managedRootPath: this.managedRootPath,

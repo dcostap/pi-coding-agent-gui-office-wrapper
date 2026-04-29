@@ -1,17 +1,18 @@
 # OfficeAgent Windows Sandbox Helper
 
-Native helper scaffold for the Windows sandbox launch path.
+Native helper for OfficeAgent's Windows write-contained command launch path.
 
-The helper is intentionally separate from Electron/Node so the final v1 sandbox can use Windows primitives directly:
+The helper is intentionally separate from Electron/Node so command execution can use Windows security primitives directly:
 
-- AppContainer profile / token setup
-- managed-root ACL grants
+- `CreateRestrictedToken(..., WRITE_RESTRICTED, ...)`
+- OfficeAgent-managed-root ACL grants
+- real Windows process launch with `CreateProcessAsUserW`
 - Job Object process-tree lifetime control
-- sandbox worker launch / cancellation
+- stdout/stderr capture and timeout handling
 
-Current status: first AppContainer/Job Object launch implementation. The helper can create/derive an AppContainer profile, grant managed-root ACLs to the AppContainer SID, launch a process with AppContainer security capabilities, attach it to a kill-on-close Job Object, wait for completion, and return pid/exit code.
+Current status: the helper launches real Windows commands using a Medium Integrity write-restricted token. Reads use normal user permissions. Writes require both normal user access and an OfficeAgent restricting SID grant, which is applied only to the managed root/session/writable paths.
 
-This is still a low-level launch primitive, not the completed product sandbox: tool execution has not yet been moved into a sandboxed worker protocol.
+This is write containment, not read confinement.
 
 ## Protocol
 
@@ -23,16 +24,19 @@ Example launch request:
 {
   "kind": "launch",
   "requestId": "example",
-  "executable": "C:\\Program Files\\nodejs\\node.exe",
-  "args": ["worker.js"],
-  "cwd": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\workspace\\projects\\demo",
-  "managedRoot": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\workspace",
-  "sessionDir": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\workspace\\.officeagent\\sessions\\abc",
+  "executable": "C:\\Windows\\System32\\cmd.exe",
+  "args": ["/d", "/q", "/c", "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData\\.officeagent\\sessions\\abc\\command.cmd"],
+  "cwd": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData\\projects\\demo",
+  "managedRoot": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData",
+  "sessionDir": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData\\.officeagent\\sessions\\abc",
+  "writablePaths": [
+    "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData\\projects\\demo"
+  ],
   "env": {
-    "TEMP": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\workspace\\.officeagent\\sessions\\abc\\temp"
+    "TEMP": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData\\.officeagent\\sessions\\abc\\temp"
   },
-  "stdoutPath": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\workspace\\.officeagent\\sessions\\abc\\logs\\stdout.log",
-  "stderrPath": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\workspace\\.officeagent\\sessions\\abc\\logs\\stderr.log",
+  "stdoutPath": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData\\.officeagent\\sessions\\abc\\logs\\stdout.log",
+  "stderrPath": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData\\.officeagent\\sessions\\abc\\logs\\stderr.log",
   "timeoutMs": 300000
 }
 ```
@@ -43,15 +47,17 @@ Example launch request:
 cargo build --manifest-path native/windows-sandbox-helper/Cargo.toml
 ```
 
-Desktop packaging uses `apps/gui/desktop/scripts/build-windows-sandbox-helper.mjs` to copy the release executable into `apps/gui/desktop/build/native/windows-sandbox-helper/`.
+Desktop packaging uses `apps/gui/desktop/scripts/build-windows-sandbox-helper.mjs` to copy the executable into `apps/gui/desktop/build/native/windows-sandbox-helper/`.
 
 ## Current launch behavior
 
-- AppContainer profile name is derived from the managed root.
-- The helper grants the AppContainer SID inherited read/write/execute access to `managedRoot`, `sessionDir`, and writable grant paths.
+- The helper derives a deterministic OfficeAgent restricting SID from `managedRoot`.
+- The helper grants that SID inherited read/write/execute/delete access to `managedRoot`, `sessionDir`, writable paths, and stdout/stderr parent directories.
 - Writable/output paths must remain under `managedRoot`.
-- The helper grants inherited read/execute access to read-only grant paths; these may be outside the managed root for approved runtime executable resources.
-- The process is created suspended with `PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES`.
+- The child token is created with `WRITE_RESTRICTED` and remains Medium Integrity.
+- The token includes the OfficeAgent restricting SID plus the current logon SID and Everyone SID for real shell/PowerShell startup compatibility.
+- The helper sets the token default DACL so child-created IPC/default objects are usable by the restricted token.
+- `STARTUPINFO.lpDesktop` is set to `winsta0\\default`.
 - Optional `stdoutPath` / `stderrPath` files are opened by the helper as inheritable child stdio handles.
 - The process is assigned to a Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` before resume.
 - `CREATE_NO_WINDOW` is used so child stdout/stderr do not pollute the helper's JSON stdout protocol when no explicit output file is provided.
