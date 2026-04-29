@@ -45,7 +45,11 @@ fn validate_launch_request(request: &LaunchRequest) -> Result<(), String> {
         }
     }
 
-    for path in &request.read_only_paths {
+    for path in request
+        .read_only_paths
+        .iter()
+        .chain(request.optional_read_only_paths.iter())
+    {
         if !Path::new(path).is_absolute() {
             return Err(format!("read-only grant path must be absolute: {path}"));
         }
@@ -112,11 +116,11 @@ mod windows_sandbox {
         CreateAppContainerProfile, DeriveAppContainerSidFromAppContainerName,
     };
     use windows::Win32::Security::{
-        ACL, DACL_SECURITY_INFORMATION, FreeSid, PSID, SECURITY_CAPABILITIES,
-        SUB_CONTAINERS_AND_OBJECTS_INHERIT,
+        DeriveCapabilitySidsFromName, ACL, DACL_SECURITY_INFORMATION, FreeSid, PSID,
+        SECURITY_CAPABILITIES, SID_AND_ATTRIBUTES, SUB_CONTAINERS_AND_OBJECTS_INHERIT,
     };
     use windows::Win32::Storage::FileSystem::{
-        FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+        DELETE, FILE_DELETE_CHILD, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
     };
     use windows::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, SetInformationJobObject, TerminateJobObject,
@@ -140,6 +144,7 @@ mod windows_sandbox {
         let profile_name = appcontainer_profile_name(&request.managed_root);
         let appcontainer_sid = AppContainerSid::create_or_derive(&profile_name)?;
 
+        ensure_appcontainer_profile_dirs(&request, &profile_name, appcontainer_sid.0)?;
         grant_managed_root_access(&request, appcontainer_sid.0)?;
 
         let process = unsafe { create_sandboxed_process(&request, appcontainer_sid.0)? };
@@ -172,10 +177,11 @@ mod windows_sandbox {
         request: &LaunchRequest,
         appcontainer_sid: PSID,
     ) -> Result<SandboxedProcess, String> {
+        let mut capability_sid_storage = CapabilitySidStorage::internet_client()?;
         let mut security_capabilities = SECURITY_CAPABILITIES {
             AppContainerSid: appcontainer_sid,
-            Capabilities: std::ptr::null_mut(),
-            CapabilityCount: 0,
+            Capabilities: capability_sid_storage.attributes.as_mut_ptr(),
+            CapabilityCount: capability_sid_storage.attributes.len() as u32,
             Reserved: 0,
         };
 
@@ -314,22 +320,46 @@ mod windows_sandbox {
         Ok(job_handle)
     }
 
+    fn ensure_appcontainer_profile_dirs(
+        request: &LaunchRequest,
+        profile_name: &str,
+        appcontainer_sid: PSID,
+    ) -> Result<(), String> {
+        let Some(local_app_data) = request.env.get("LOCALAPPDATA").or_else(|| request.env.get("LocalAppData")) else {
+            return Ok(());
+        };
+        let packages_dir = Path::new(local_app_data).join("Packages");
+        let package_dir = packages_dir.join(profile_name);
+        let ac_dir = package_dir.join("AC");
+        let package_temp = ac_dir.join("Temp");
+        std::fs::create_dir_all(&package_temp)
+            .map_err(|error| format!("failed to create AppContainer temp dir {}: {error}", package_temp.display()))?;
+        for path in [&packages_dir, &package_dir, &ac_dir, &package_temp] {
+            grant_path_access(
+                &path.to_string_lossy(),
+                appcontainer_sid,
+                writable_access_mask(),
+            )?;
+        }
+        Ok(())
+    }
+
     fn grant_managed_root_access(request: &LaunchRequest, appcontainer_sid: PSID) -> Result<(), String> {
         grant_path_access(
             &request.managed_root,
             appcontainer_sid,
-            FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0 | FILE_GENERIC_WRITE.0,
+            FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0,
         )?;
         grant_path_access(
             &request.session_dir,
             appcontainer_sid,
-            FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0 | FILE_GENERIC_WRITE.0,
+            writable_access_mask(),
         )?;
         for path in &request.writable_paths {
             grant_path_access(
                 path,
                 appcontainer_sid,
-                FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0 | FILE_GENERIC_WRITE.0,
+                writable_access_mask(),
             )?;
         }
         for path in &request.read_only_paths {
@@ -339,7 +369,20 @@ mod windows_sandbox {
                 FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0,
             )?;
         }
+        for path in &request.optional_read_only_paths {
+            if Path::new(path).exists() {
+                let _ = grant_path_access(
+                    path,
+                    appcontainer_sid,
+                    FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0,
+                );
+            }
+        }
         Ok(())
+    }
+
+    fn writable_access_mask() -> u32 {
+        FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0 | FILE_GENERIC_WRITE.0 | DELETE.0 | FILE_DELETE_CHILD.0
     }
 
     fn grant_path_access(path: &str, appcontainer_sid: PSID, access_mask: u32) -> Result<(), String> {
@@ -469,6 +512,59 @@ mod windows_sandbox {
             .encode_wide()
             .chain(std::iter::once(0))
             .collect()
+    }
+
+    struct CapabilitySidStorage {
+        capability_group_sids: *mut PSID,
+        capability_sids: *mut PSID,
+        attributes: Vec<SID_AND_ATTRIBUTES>,
+    }
+
+    impl CapabilitySidStorage {
+        fn internet_client() -> Result<Self, String> {
+            let mut capability_group_sids: *mut PSID = std::ptr::null_mut();
+            let mut capability_group_sid_count = 0u32;
+            let mut capability_sids: *mut PSID = std::ptr::null_mut();
+            let mut capability_sid_count = 0u32;
+            unsafe {
+                DeriveCapabilitySidsFromName(
+                    w!("internetClient"),
+                    &mut capability_group_sids,
+                    &mut capability_group_sid_count,
+                    &mut capability_sids,
+                    &mut capability_sid_count,
+                )
+                .map_err(|error| format!("DeriveCapabilitySidsFromName(internetClient) failed: {error}"))?;
+
+                let sid_slice = std::slice::from_raw_parts(capability_sids, capability_sid_count as usize);
+                let attributes = sid_slice
+                    .iter()
+                    .map(|sid| SID_AND_ATTRIBUTES {
+                        Sid: *sid,
+                        Attributes: 0x0000_0004,
+                    })
+                    .collect();
+
+                Ok(Self {
+                    capability_group_sids,
+                    capability_sids,
+                    attributes,
+                })
+            }
+        }
+    }
+
+    impl Drop for CapabilitySidStorage {
+        fn drop(&mut self) {
+            unsafe {
+                if !self.capability_group_sids.is_null() {
+                    let _ = LocalFree(HLOCAL(self.capability_group_sids.cast()));
+                }
+                if !self.capability_sids.is_null() {
+                    let _ = LocalFree(HLOCAL(self.capability_sids.cast()));
+                }
+            }
+        }
     }
 
     struct AppContainerSid(PSID);

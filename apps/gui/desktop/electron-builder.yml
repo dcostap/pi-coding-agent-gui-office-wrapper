@@ -14,12 +14,22 @@ files:
 extraResources:
   - from: resources/icon.png
     to: icon.png
+  - from: ../../../THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
   - from: build/native/windows-sandbox-helper
     to: windows-sandbox-helper
     filter:
       - "**/*"
   - from: build/runtime/git-bash
     to: runtime/git-bash
+    filter:
+      - "**/*"
+  - from: build/runtime/python
+    to: runtime/python
+    filter:
+      - "**/*"
+  - from: build/runtime/uv
+    to: runtime/uv
     filter:
       - "**/*"
 

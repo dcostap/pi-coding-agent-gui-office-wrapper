@@ -23,10 +23,19 @@ export const OFFICE_AGENT_MANAGED_SESSION_NPM_CACHE_DIR_NAME = "npm-cache";
 export const OFFICE_AGENT_MANAGED_SESSION_NPM_PREFIX_DIR_NAME = "npm-prefix";
 export const OFFICE_AGENT_MANAGED_SESSION_PIP_CACHE_DIR_NAME = "pip-cache";
 export const OFFICE_AGENT_MANAGED_SESSION_PYTHON_USER_BASE_DIR_NAME = "python-user-base";
+export const OFFICE_AGENT_MANAGED_SESSION_UV_CACHE_DIR_NAME = "uv-cache";
+export const OFFICE_AGENT_MANAGED_SESSION_UV_TOOL_DIR_NAME = "uv-tools";
+export const OFFICE_AGENT_MANAGED_SESSION_UV_TOOL_BIN_DIR_NAME = "uv-tools-bin";
+export const OFFICE_AGENT_MANAGED_SESSION_UV_PYTHON_INSTALL_DIR_NAME = "uv-python";
+export const OFFICE_AGENT_MANAGED_SESSION_UV_PYTHON_BIN_DIR_NAME = "uv-python-bin";
 export const OFFICE_AGENT_MANAGED_SESSION_LOGS_DIR_NAME = "logs";
 export const OFFICE_AGENT_MANAGED_RUNTIME_DIR_NAME = "runtime";
 export const OFFICE_AGENT_STAGED_GIT_BASH_RUNTIME_NAME = "git-bash";
 export const OFFICE_AGENT_STAGED_GIT_BASH_VERSION = "v1";
+export const OFFICE_AGENT_STAGED_PYTHON_RUNTIME_NAME = "python";
+export const OFFICE_AGENT_STAGED_UV_RUNTIME_NAME = "uv";
+export const OFFICE_AGENT_PYTHON_RUNTIME_MANIFEST_NAME = "officeagent-python-runtime.json";
+export const OFFICE_AGENT_UV_RUNTIME_MANIFEST_NAME = "officeagent-uv-runtime.json";
 export const OFFICE_AGENT_STAGED_GIT_BASH_DIR_ENV_NAME = "OFFICE_AGENT_STAGED_GIT_BASH_DIR";
 export const OFFICE_AGENT_SANDBOX_BASH_PATH_ENV_NAME = "OFFICE_AGENT_SANDBOX_BASH_PATH";
 
@@ -42,6 +51,11 @@ export interface OfficeAgentManagedSessionPaths {
   readonly npmPrefixDir: string;
   readonly pipCacheDir: string;
   readonly pythonUserBaseDir: string;
+  readonly uvCacheDir: string;
+  readonly uvToolDir: string;
+  readonly uvToolBinDir: string;
+  readonly uvPythonInstallDir: string;
+  readonly uvPythonBinDir: string;
   readonly logsDir: string;
 }
 
@@ -149,6 +163,56 @@ export function getOfficeAgentStagedGitBashCandidatePaths(gitBashDir: string): r
   ];
 }
 
+export function getOfficeAgentPythonRuntimeRootDir(
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): string {
+  return path.join(getOfficeAgentRuntimeDir(managedRootDir), OFFICE_AGENT_STAGED_PYTHON_RUNTIME_NAME);
+}
+
+export function getOfficeAgentPythonRuntimeDir(
+  managedRootDir: string,
+  runtimeId: string,
+): string {
+  return path.join(getOfficeAgentPythonRuntimeRootDir(managedRootDir), runtimeId);
+}
+
+export function getOfficeAgentPythonRuntimeShimsDir(
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): string {
+  return path.join(getOfficeAgentPythonRuntimeRootDir(managedRootDir), "shims");
+}
+
+export function getOfficeAgentPythonRuntimeCurrentManifestPath(
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): string {
+  return path.join(getOfficeAgentPythonRuntimeRootDir(managedRootDir), "current.json");
+}
+
+export function getOfficeAgentUvRuntimeRootDir(
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): string {
+  return path.join(getOfficeAgentRuntimeDir(managedRootDir), OFFICE_AGENT_STAGED_UV_RUNTIME_NAME);
+}
+
+export function getOfficeAgentUvRuntimeDir(
+  managedRootDir: string,
+  runtimeId: string,
+): string {
+  return path.join(getOfficeAgentUvRuntimeRootDir(managedRootDir), runtimeId);
+}
+
+export function getOfficeAgentUvRuntimeShimsDir(
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): string {
+  return path.join(getOfficeAgentUvRuntimeRootDir(managedRootDir), "shims");
+}
+
+export function getOfficeAgentUvRuntimeCurrentManifestPath(
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): string {
+  return path.join(getOfficeAgentUvRuntimeRootDir(managedRootDir), "current.json");
+}
+
 export function getOfficeAgentWorkspaceSessionFilesDir(
   workspacePath: string,
   managedRootDir: string = getOfficeAgentManagedRootDir(),
@@ -185,6 +249,11 @@ export function getOfficeAgentManagedSessionPaths(
     npmPrefixDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_NPM_PREFIX_DIR_NAME),
     pipCacheDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_PIP_CACHE_DIR_NAME),
     pythonUserBaseDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_PYTHON_USER_BASE_DIR_NAME),
+    uvCacheDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_UV_CACHE_DIR_NAME),
+    uvToolDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_UV_TOOL_DIR_NAME),
+    uvToolBinDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_UV_TOOL_BIN_DIR_NAME),
+    uvPythonInstallDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_UV_PYTHON_INSTALL_DIR_NAME),
+    uvPythonBinDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_UV_PYTHON_BIN_DIR_NAME),
     logsDir: path.join(sessionDir, OFFICE_AGENT_MANAGED_SESSION_LOGS_DIR_NAME),
   };
 }
@@ -263,6 +332,11 @@ export async function ensureOfficeAgentManagedSessionLayout(
   await mkdir(paths.npmPrefixDir, { recursive: true });
   await mkdir(paths.pipCacheDir, { recursive: true });
   await mkdir(paths.pythonUserBaseDir, { recursive: true });
+  await mkdir(paths.uvCacheDir, { recursive: true });
+  await mkdir(paths.uvToolDir, { recursive: true });
+  await mkdir(paths.uvToolBinDir, { recursive: true });
+  await mkdir(paths.uvPythonInstallDir, { recursive: true });
+  await mkdir(paths.uvPythonBinDir, { recursive: true });
   await mkdir(paths.logsDir, { recursive: true });
   return paths;
 }
@@ -291,12 +365,22 @@ export function getOfficeAgentManagedSessionEnv(
     LOCALAPPDATA: paths.localAppDataDir,
     TEMP: paths.tempDir,
     TMP: paths.tempDir,
+    TMPDIR: paths.tempDir,
     npm_config_cache: paths.npmCacheDir,
     NPM_CONFIG_CACHE: paths.npmCacheDir,
     npm_config_prefix: paths.npmPrefixDir,
     NPM_CONFIG_PREFIX: paths.npmPrefixDir,
     PIP_CACHE_DIR: paths.pipCacheDir,
     PYTHONUSERBASE: paths.pythonUserBaseDir,
+    UV_CACHE_DIR: paths.uvCacheDir,
+    UV_TOOL_DIR: paths.uvToolDir,
+    UV_TOOL_BIN_DIR: paths.uvToolBinDir,
+    UV_PYTHON_INSTALL_DIR: paths.uvPythonInstallDir,
+    UV_PYTHON_BIN_DIR: paths.uvPythonBinDir,
+    UV_PYTHON_NO_REGISTRY: "1",
+    UV_PYTHON_DOWNLOADS: "manual",
+    UV_LINK_MODE: "copy",
+    UV_NO_MODIFY_PATH: "1",
     OFFICE_AGENT_SESSION_DIR: paths.sessionDir,
     OFFICE_AGENT_SESSION_LOGS_DIR: paths.logsDir,
   };

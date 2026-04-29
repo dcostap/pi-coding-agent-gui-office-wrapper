@@ -56,18 +56,21 @@ export async function createOfficeAgentManagedSessionRuntime(
       },
     }),
   });
-  sandboxCommandTool.label = "Windows shell";
+  sandboxCommandTool.label = "OfficeAgent Windows shell";
   sandboxCommandTool.description = [
-    "Run a Windows cmd.exe command in the sandboxed project directory. This tool is not Bash.",
-    "Use Windows cmd syntax. Prefer native project tools such as npm, npx, node, python, py, git, cargo, dotnet, and package scripts.",
-    "Do not use Bash-only syntax such as export, VAR=value command, $(...), heredocs, /tmp, rm -rf, sed, grep, chmod, or POSIX paths unless OfficeAgent explicitly reports a real Bash backend.",
-    "For complex logic, write a temporary .cmd, .ps1, .js, or .py file inside the project and run it.",
+    "Run a command in the OfficeAgent Windows sandbox shell for the current project. This tool is not Bash.",
+    "The backend uses Windows cmd-style syntax to launch real executables, plus OfficeAgent-managed implementations for common file commands that are unreliable inside AppContainer, including dir, where, copy, move, del, mkdir, and rmdir.",
+    "Use Windows command syntax. Prefer project tools such as npm, npx, node, python, pip, uv, git, cargo, dotnet, and package scripts when they are available in the sandbox.",
+    "Do not assume access to C:\\, user profile folders, Program Files, PowerShell, Git Bash, arbitrary host tools, or POSIX paths.",
+    "For complex logic, write a temporary .cmd, .js, or .py file inside the project and run it.",
   ].join(" ");
-  sandboxCommandTool.promptSnippet = "Execute Windows cmd.exe commands in the sandboxed project directory (not Bash).";
+  sandboxCommandTool.promptSnippet = "Execute OfficeAgent Windows sandbox shell commands in the current project directory (cmd-style syntax, not Bash).";
   sandboxCommandTool.promptGuidelines = [
-    "The `bash` tool is currently backed by Windows cmd.exe in OfficeAgent managed workspaces; use Windows command syntax, not Bash syntax.",
-    "Prefer npm scripts, node, python/py, git, cargo, dotnet, and other project tools over shell-specific tricks.",
-    "For multi-step or complex logic, write a temporary .cmd, .ps1, .js, or .py script inside the project and execute it.",
+    "The `bash` tool is currently an OfficeAgent Windows sandbox shell in managed workspaces; use Windows/cmd-style syntax, not Bash syntax.",
+    "Common file commands such as dir, where, copy, move, del, mkdir, and rmdir are supported in project paths even when native cmd.exe built-ins are unreliable under AppContainer.",
+    "Prefer npm scripts, node, python, pip, uv, git, cargo, dotnet, and other project tools over shell-specific tricks.",
+    "Do not assume access to C:\\, user profile folders, Program Files, PowerShell, Git Bash, arbitrary host tools, /tmp, rm -rf, chmod, or POSIX paths.",
+    "For multi-step or complex logic, write a temporary .cmd, .js, or .py script inside the project and execute it.",
   ];
 
   const customTools = [

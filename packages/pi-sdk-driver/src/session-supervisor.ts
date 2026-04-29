@@ -4,6 +4,8 @@ import {
   ensureOfficeAgentManagedSessionLayout,
   findOfficeAgentManagedRootForPath,
   getOfficeAgentWorkspaceSessionFilesDir,
+  OFFICE_AGENT_MODEL_ID,
+  OFFICE_AGENT_PROVIDER_ID,
 } from "@office-agent/runtime";
 import {
   ModelRegistry,
@@ -400,6 +402,9 @@ export class SessionSupervisor {
           : [],
       );
       const promptText = injectFileAttachmentPreamble(input.text, input.attachments);
+      if (!isQueuedMessage && !isExtensionCommand) {
+        await this.enforceOfficeAgentManagedModel(record, session);
+      }
       if (isQueuedMessage) {
         await this.queuePrompt(session, promptText, input.deliverAs!, images);
       } else {
@@ -480,7 +485,8 @@ export class SessionSupervisor {
       throw new Error(`Session ${sessionKey(record.ref)} is not active.`);
     }
 
-    const model = this.resolveModel(selection.provider, selection.modelId);
+    const normalizedSelection = this.normalizeOfficeAgentManagedModelSelection(record, selection);
+    const model = this.resolveModel(normalizedSelection.provider, normalizedSelection.modelId);
     const auth = await session.modelRegistry.getApiKeyAndHeaders(model);
     if (!auth.ok) {
       throw new Error(auth.error);
@@ -1032,6 +1038,40 @@ export class SessionSupervisor {
       return;
     }
     await session.followUp(text, images ? [...images] : undefined);
+  }
+
+  private normalizeOfficeAgentManagedModelSelection(
+    record: ManagedSessionRecord,
+    selection: SessionModelSelection,
+  ): SessionModelSelection {
+    if (!findOfficeAgentManagedRootForPath(record.workspace.path)) {
+      return selection;
+    }
+    if (selection.provider === OFFICE_AGENT_PROVIDER_ID && selection.modelId === OFFICE_AGENT_MODEL_ID) {
+      return selection;
+    }
+    return { provider: OFFICE_AGENT_PROVIDER_ID, modelId: OFFICE_AGENT_MODEL_ID };
+  }
+
+  private async enforceOfficeAgentManagedModel(record: ManagedSessionRecord, session: AgentSession): Promise<void> {
+    if (!findOfficeAgentManagedRootForPath(record.workspace.path)) {
+      return;
+    }
+    if (session.model?.provider === OFFICE_AGENT_PROVIDER_ID && session.model?.id === OFFICE_AGENT_MODEL_ID) {
+      return;
+    }
+    const model = this.resolveModel(OFFICE_AGENT_PROVIDER_ID, OFFICE_AGENT_MODEL_ID);
+    const auth = await session.modelRegistry.getApiKeyAndHeaders(model);
+    if (!auth.ok) {
+      throw new Error(auth.error);
+    }
+    const previousModel = session.model;
+    await session.setModel(model);
+    await this.emitModelSelection(session, model, previousModel);
+    forcePersistSession(session.sessionManager);
+    record.config = deriveSessionConfig(session.sessionManager);
+    await this.persistSnapshot(record);
+    await this.emit(record, sessionUpdatedEvent(record));
   }
 
   private resolveModel(provider: string, modelId: string) {

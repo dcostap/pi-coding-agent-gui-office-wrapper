@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -27,8 +27,8 @@ try {
   const runtime = await import(pathToFileURL(path.join(repoRoot, "packages", "office-agent-runtime", "dist", "index.js")));
   const driver = await import(pathToFileURL(path.join(repoRoot, "packages", "pi-sdk-driver", "dist", "windows-sandbox-helper-client.js")));
 
-  managedRoot = await mkdtemp(path.join(os.tmpdir(), "officeagent-sandbox-smoke-root-"));
-  outsideRoot = await mkdtemp(path.join(os.tmpdir(), "officeagent-sandbox-smoke-outside-"));
+  managedRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "officeagent-sandbox-smoke-root-")));
+  outsideRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "officeagent-sandbox-smoke-outside-")));
   const projectDir = path.join(managedRoot, "projects", "demo");
   await mkdir(projectDir, { recursive: true });
 
@@ -51,6 +51,10 @@ try {
   const inside = await runSandboxCommand(bash, commandSet.inside, projectDir, env, 20);
   assert(inside.exitCode === 0, `inside command failed: ${JSON.stringify(inside)}`);
   assert(inside.output.includes("sandbox-ok"), `inside command did not produce expected output: ${inside.output}`);
+
+  const managedCommandChecks = shellConfig.kind === "cmd-fallback" && shellConfig.pythonRuntime
+    ? await runManagedCommandCompatibilityChecks(bash, projectDir, env)
+    : { skipped: true };
   assert(inside.output.toLowerCase().includes(managedRoot.toLowerCase()), `TEMP was not redirected inside the managed root. output=${inside.output}`);
   await access(path.join(projectDir, "inside.txt"));
 
@@ -78,6 +82,7 @@ try {
     checks: {
       helperSelfTest: true,
       insideWriteAndOutput: true,
+      managedCommandCompatibility: managedCommandChecks,
       tempRedirectedInsideManagedRoot: true,
       outsideWriteBlocked: true,
       gatewayTokenNotInSandboxEnv: true,
@@ -128,6 +133,48 @@ async function runSandboxCommand(bash, command, cwd, env, timeout) {
   };
 }
 
+async function runManagedCommandCompatibilityChecks(bash, projectDir, env) {
+  const commands = [
+    {
+      name: "dir-b",
+      command: "dir /b",
+      expect: (result) => result.exitCode === 0 && result.output.includes("inside.txt"),
+    },
+    {
+      name: "dir-redirection",
+      command: "dir /b > files.txt && type files.txt",
+      expect: (result) => result.exitCode === 0 && result.output.includes("inside.txt"),
+    },
+    {
+      name: "where-python",
+      command: "where python",
+      expect: (result) => result.exitCode === 0 && result.output.toLowerCase().includes("python"),
+    },
+    {
+      name: "where-missing",
+      command: "where definitely-not-real-officeagent-command",
+      expect: (result) => result.exitCode !== 0,
+    },
+    {
+      name: "copy-move-del-mkdir-rmdir",
+      command: "mkdir a && copy inside.txt a\\copy.txt && move a\\copy.txt a\\moved.txt && type a\\moved.txt && del a\\moved.txt && rmdir a",
+      expect: (result) => result.exitCode === 0 && result.output.includes("sandbox-ok"),
+    },
+    {
+      name: "quoted-paths",
+      command: "mkdir \"space dir\" && copy inside.txt \"space dir\\hello file.txt\" && type \"space dir\\hello file.txt\" && del \"space dir\\hello file.txt\" && rmdir \"space dir\"",
+      expect: (result) => result.exitCode === 0 && result.output.includes("sandbox-ok"),
+    },
+  ];
+  const results = {};
+  for (const check of commands) {
+    const result = await runSandboxCommand(bash, check.command, projectDir, env, 20);
+    results[check.name] = { exitCode: result.exitCode, output: result.output.trim() };
+    assert(check.expect(result), `managed command check failed (${check.name}): ${JSON.stringify(result)}`);
+  }
+  return results;
+}
+
 async function exists(filePath) {
   try {
     await access(filePath);
@@ -143,7 +190,7 @@ function createCmdSmokeCommands() {
     outsideWrite: (target) => `echo should-not-exist> "${target}"`,
     outsideRead: (target) => `type "${target}"`,
     envLeak: "set OFFICE_AGENT_GATEWAY_TOKEN",
-    timeout: "for /l %i in (1,1,1000000000) do @rem",
+    timeout: "for /l %%i in (1,1,1000000000) do @rem",
   };
 }
 

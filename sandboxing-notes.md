@@ -13,7 +13,7 @@ Known high-level gaps remain:
 
 - file tools still run in the trusted host with path checks
 - extensions/packages are not restricted yet by current product decision
-- the Bash/runtime story is staged but not bundled yet
+- the command backend is still `cmd.exe` by default; Python and uv can now be staged/bundled, while Bash/Git compatibility remains research-only
 - no persistent sandbox worker protocol exists yet
 
 ---
@@ -1548,23 +1548,38 @@ Managed-root product work has now started in the repo.
 - staged Git Bash use is now gated behind `OFFICE_AGENT_ENABLE_STAGED_GIT_BASH=1` while we investigate; default smoke remains on the `cmd.exe` fallback so the rest of the AppContainer primitive stays testable
 - likely next investigation: AppContainer named object namespace support (`GetAppContainerNamedObjectPath` / BaseNamedObjects shadowing) or a non-MSYS Bash-compatible/runtime alternative
 
-### Landed honest Windows command-tool framing
+### Landed OfficeAgent Windows sandbox shell framing and managed command layer
 
-- current v1 command backend is `cmd.exe` because it is the backend proven by the AppContainer smoke path
+- current v1 command transport still launches `cmd.exe` because it is the backend proven by the AppContainer smoke path
 - Pi compatibility is preserved by keeping the internal tool name `bash` for now
-- the managed-workspace command tool now presents itself as `Windows shell` and explicitly says it runs Windows `cmd.exe` commands, not Bash
-- model-facing description/guidelines now tell the agent to use Windows command syntax and avoid Bash-only syntax unless a real Bash backend is explicitly available
-- this is the first step toward an eventual `exec` / `process` command model without risking immediate Pi/UI/transcript breakage
+- the managed-workspace command tool now presents itself as `OfficeAgent Windows shell`, not as plain Bash and not as an unrestricted Windows terminal
+- model-facing description/guidelines now tell the agent to use Windows/cmd-style syntax, avoid Bash-only syntax, and not assume access to `C:\`, arbitrary user-profile folders, Program Files, PowerShell, Git Bash, arbitrary host tools, or POSIX paths
+- `cmd.exe` is treated as a launcher/parser while OfficeAgent provides managed implementations for common commands that are unreliable under AppContainer
+- landed managed command compatibility layer currently covers:
+  - `dir`
+  - `where`
+  - `copy`
+  - `move`
+  - `del` / `erase`
+  - `mkdir` / `md`
+  - `rmdir` / `rd`
+- this avoids common AppContainer shell quirks such as native `dir` failing with `Acceso denegado` because it touches denied root/volume metadata even when project directory enumeration is allowed
+- this is the first step toward an eventual `exec` / `process` command model and persistent sandbox worker without risking immediate Pi/UI/transcript breakage
 
-### Landed sandbox env allowlist
+### Landed sandbox env allowlist with host `PATH` compatibility
 
 - sandboxed bash launch no longer receives arbitrary merged `process.env`
 - environment is now constructed from an explicit allowlist plus managed session redirects
+- 2026-04-27 policy update after Codex implementation review: inherit the host `PATH` for developer-tool compatibility, but **do not** inherit the full host environment
+- inherited host `PATH` entries are normalized, de-duped, filtered to existing absolute directories, copied into sandbox `PATH`/`Path`, and passed to the helper as best-effort read/execute grants
+- `PATHEXT`, `SystemRoot`, and `ComSpec` remain explicitly supplied for Windows command resolution
+- `OFFICE_AGENT_SANDBOX_INHERIT_HOST_PATH=0` disables host `PATH` inheritance for debugging/regression comparison
 - intentionally excluded from sandbox command env:
   - OfficeAgent gateway token
   - arbitrary provider/API credentials
-  - arbitrary host environment variables
+  - arbitrary host environment variables except selected Windows/toolchain compatibility keys
 - smoke test now checks that the default OfficeAgent gateway token is not visible inside the sandbox command environment
+- accepted compatibility tradeoff: commands can discover and attempt to execute tools on the user's host `PATH`; AppContainer write confinement and managed profile/temp/cache redirects remain the v1 boundary, while read/execute exposure to host tool directories is intentionally broader than the earlier staged-only plan
 
 ### Accepted temporary risk: extensions/packages not sandbox-limited yet
 
@@ -1581,12 +1596,88 @@ Managed-root product work has now started in the repo.
 - current checks:
   - helper `selfTest`
   - AppContainer-backed command writes/reads inside managed project
+  - managed command compatibility for `dir`, `where`, `copy`, `move`, `del`, `mkdir`, `rmdir`, redirection, quoted paths, and missing-command behavior when the staged Python runtime is available
   - temp path remains inside managed root
   - OfficeAgent gateway token is not visible inside sandbox command env
   - outside-root write attempt does not create the target
   - outside-root read attempt does not leak file contents
   - long-running command is killed by helper timeout/job path and returns `124`
 - this gives the agent/dev loop a self-contained verification path before GUI packaging/e2e tests
+
+### Landed diagnostic workflow smoke harness
+
+- added `apps/gui/desktop/scripts/smoke-windows-sandbox-workflows.mjs`
+- added root script `npm run sandbox:smoke:workflows`
+- this smoke is diagnostic by default and can be made strict with `OFFICE_AGENT_SANDBOX_WORKFLOW_SMOKE_STRICT=1`
+- current expected diagnostic behavior with the default `cmd.exe` backend:
+  - sandbox command containment still works
+  - `node`, `npm`, `python`, and `git` should be discoverable when they are installed on the host `PATH` and readable/executable from the AppContainer
+  - host `PATH` read/execute grants are best-effort because non-admin portable apps may not be able to modify ACLs on protected tool directories such as some `Program Files` locations; the workflow smoke should expose which toolchains actually work on the machine
+- 2026-04-27 first run after host `PATH` inheritance:
+  - sandbox smoke still passes
+  - user-profile Python 3.13 is discoverable and `python --version` succeeds
+  - Node/npm from `C:\Program Files\nodejs` still do not execute (`node` not recognized / npm access-denied path), likely because non-admin AppContainer ACL grants on protected `Program Files` tool directories are best-effort and may fail
+  - Git for Windows is discoverable but `git` fails with `/dev/null` permission behavior under AppContainer, consistent with earlier MSYS/Git Bash compatibility concerns
+  - Python venv creation sees the host Python but fails resolving/bootstrapping the real Python install inside AppContainer
+- implication: v1 now prioritizes Codex-style host toolchain compatibility over staged-only purity, while preserving the curated non-secret environment and managed-root write boundary; however, AppContainer still needs staged/bundled or elevated-granted toolchains for common `Program Files` installs to become reliable
+
+### Landed OfficeAgent-staged Python + uv runtime path
+
+- added OfficeAgent-managed runtime helpers for Python and uv under `<managed-root>/.officeagent/runtime/`
+- added desktop staging scripts:
+  - `apps/gui/desktop/scripts/stage-python-runtime.mjs`
+  - `apps/gui/desktop/scripts/stage-uv-runtime.mjs`
+- Python staging supports local archives or download from Astral `python-build-standalone`:
+  - `OFFICE_AGENT_PYTHON_RUNTIME_ARCHIVE`
+  - `OFFICE_AGENT_DOWNLOAD_PYTHON_RUNTIME=1`
+  - `OFFICE_AGENT_PYTHON_RUNTIME_SHA256`
+  - `OFFICE_AGENT_PYTHON_VERSION`
+  - `OFFICE_AGENT_PYTHON_BUILD_STANDALONE_RELEASE`
+  - `OFFICE_AGENT_PYTHON_RUNTIME_PACKAGING_REVISION`
+- uv staging supports local archives or download from Astral uv releases:
+  - `OFFICE_AGENT_UV_ARCHIVE`
+  - `OFFICE_AGENT_DOWNLOAD_UV=1`
+  - `OFFICE_AGENT_UV_SHA256`
+  - `OFFICE_AGENT_UV_VERSION`
+  - `OFFICE_AGENT_UV_PACKAGING_REVISION`
+- packaged app resources are copied from:
+  - `apps/gui/desktop/build/runtime/python` -> `resources/runtime/python`
+  - `apps/gui/desktop/build/runtime/uv` -> `resources/runtime/uv`
+- runtime discovery also supports development/build paths plus:
+  - `OFFICE_AGENT_BUNDLED_PYTHON_RUNTIME_DIR`
+  - `OFFICE_AGENT_BUNDLED_UV_RUNTIME_DIR`
+- staged runtimes are copied into the managed root side-by-side by runtime id, with `current.json` manifests
+- shared runtime dirs and shim dirs are granted read/execute only; sandbox writes remain limited to the project cwd and per-session dirs
+- sandbox `PATH` now prefers OfficeAgent-staged Python/uv ahead of host tools
+- managed session env now supplies mutable package/tool state under the session dir:
+  - `PIP_CACHE_DIR`
+  - `PYTHONUSERBASE`
+  - `UV_CACHE_DIR`
+  - `UV_TOOL_DIR`
+  - `UV_TOOL_BIN_DIR`
+  - `UV_PYTHON_INSTALL_DIR`
+  - `UV_PYTHON_BIN_DIR`
+- `pip` remains real pip, not remapped to uv; the pip shim only injects `--user` for bare `pip install ...` outside a virtualenv
+- `UV_PYTHON` points at OfficeAgent Python and uv Python auto-downloads are disabled by default with `UV_PYTHON_DOWNLOADS=manual`
+- Python `venv` and temp-file behavior needed AppContainer-specific compatibility shims:
+  - `python.cmd`/`python3.cmd` route through `python-shim.py`
+  - `python -m venv` is implemented as `venv --without-pip` followed by explicit `ensurepip` so the managed `sitecustomize.py` remains active for temp handling
+  - `sitecustomize.py` redirects Python temp behavior to the managed session temp dir and works around AppContainer ACL inheritance problems for Python-created temp dirs/files
+- real uv currently hits AppContainer `NUL`/child-process compatibility issues when inspecting Python (`Access denied`), so `uv.cmd` routes common day-1 flows through an OfficeAgent uv compatibility shim:
+  - `uv --version` still delegates to bundled uv
+  - `uv python find` reports OfficeAgent Python
+  - `uv venv`, `uv pip ...`, and `uv run python ...` use the OfficeAgent Python/pip-backed workflow
+  - unsupported uv subcommands now fail with a clear OfficeAgent strict-sandbox message instead of unpredictably falling through to native uv
+- local strict validation is now green for the Python/uv smoke path with staged Python `3.13.13+20260408` and uv `0.11.8`
+- known limitation: python-build-standalone currently emits `Failed to find real location of ...python.exe` warnings under AppContainer; sandbox command output filters this warning from agent-visible stdout/stderr, and workflows pass
+- license/notice handling now has an initial root/package notice in `THIRD_PARTY_NOTICES.md`, but it still needs legal review before external distribution
+- known product follow-ups: clean-Windows VC runtime validation and deciding whether to keep the current Python `sitecustomize.py` compatibility strategy or replace it with a lower-level helper/ACL strategy
+
+### Future task: real uv under AppContainer
+
+The current `uv.cmd` shim intentionally handles common day-1 workflows (`uv python find`, `uv venv`, `uv pip ...`, and `uv run python ...`) through the OfficeAgent Python-backed compatibility path. This keeps user workflows green, but it is not the same as claiming full native uv compatibility.
+
+Future work should investigate and fix the underlying AppContainer compatibility issue where real uv fails while inspecting/spawning Python with `Access denied (os error 5)`, likely related to Windows `NUL` / stdio / child-process behavior inside AppContainer. Once fixed, reduce or remove the uv compatibility shim and let real uv own those flows directly.
 
 ### Important remaining gaps before product-model lock-in is complete
 
@@ -1596,3 +1687,232 @@ Managed-root product work has now started in the repo.
 - current TypeScript path checks are defense-in-depth only for file tools
 - Rust helper is now in the managed `bash` execution path, but the bridge is one-command-at-a-time and log-file based rather than a persistent sandboxed worker protocol
 - real sandbox compatibility remains unverified for current Node/Pi/Python/npm workflows until worker execution and shell/runtime packaging decisions are hardened
+
+---
+
+## 2026-04-29 rethink: stop making the shell artificially small
+
+### Problem statement
+
+The current sandbox path is drifting toward an overly curated command environment:
+
+- the model-facing tool says the command backend is an `OfficeAgent Windows shell`, not a normal terminal
+- prompt guidance tells the agent not to assume PowerShell, Git Bash, arbitrary host tools, `Program Files`, or broad Windows paths
+- the transport defaults to `cmd.exe`, but OfficeAgent rewrites several common commands (`dir`, `where`, `copy`, `move`, `del`, `mkdir`, `rmdir`) into managed shims
+- Python and uv have additional compatibility shims
+
+This kept the early AppContainer smoke path green, but it also **dumbs down the agentic experience**. Agents are best when they can use the real local operating-system affordances: `cmd`, PowerShell, `pwsh`, package managers, build tools, scripts, and normal command composition. If the sandbox is real, we should not need to protect the machine by forbidding normal shell usage at the tool layer.
+
+The better product goal is:
+
+> Let the agent attempt normal Windows commands inside an OS-enforced sandbox. If a command tries to read/write/execute something the sandbox cannot access, Windows should return the permission/file-not-found/process failure, and the agent should adapt.
+
+### Key distinction
+
+We should separate two things that are currently blended together:
+
+1. **Security boundary**
+   - AppContainer token
+   - ACL grants for managed root/session/runtime/toolchain paths
+   - low-integrity behavior
+   - Job Object process-tree supervision
+   - curated non-secret environment
+2. **Convenience/compatibility layer**
+   - command shims
+   - staged Python/uv wrappers
+   - Git Bash/MSYS workarounds
+   - friendly error messages
+
+The first one is the sandbox. The second one should be optional and minimal. If the compatibility layer becomes a command allowlist or a fake shell, we lose the main value of an agentic desktop tool.
+
+### Current implementation read
+
+Important current facts from the repo:
+
+- `native/windows-sandbox-helper/src/platform.rs` already accepts an arbitrary `executable` and `args`; validation requires `cwd`, `sessionDir`, writable/output paths to stay under the managed root, but it does **not** inherently restrict commands to a small vocabulary.
+- The real restriction is mostly in the TypeScript bridge and prompt framing:
+  - `packages/pi-sdk-driver/src/windows-sandbox-helper-client.ts` resolves the shell to Git Bash override/staged Git Bash when enabled, otherwise `C:\Windows\System32\cmd.exe`.
+  - `packages/pi-sdk-driver/src/office-agent-managed-runtime.ts` tells the model not to assume PowerShell or arbitrary host tools.
+  - `rewriteCmdManagedCommands(...)` replaces selected `cmd` built-ins with OfficeAgent shims when using the `cmd` backend.
+- The helper already launches under AppContainer and attaches the process to a Job Object. That is the primitive we should lean into.
+
+So the next design move should not be “add more managed commands”. It should be “make the sandbox launcher a general process runner”.
+
+### Recommended product posture
+
+Change the model-facing promise from:
+
+> Here is a restricted OfficeAgent shell with a small managed command compatibility surface.
+
+To:
+
+> Here is a Windows process runner inside the OfficeAgent sandbox. You may run normal `cmd.exe`, `powershell.exe`, `pwsh.exe`, or project/toolchain commands. The OS sandbox decides what succeeds.
+
+The agent should be allowed to try, for example:
+
+```cmd
+cmd.exe /d /s /c "dir && npm test"
+```
+
+```powershell
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-ChildItem; npm test"
+```
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -NonInteractive -Command "Get-ChildItem; python -m pytest"
+```
+
+If `pwsh.exe` is not installed, not on PATH, or cannot run in AppContainer, that should be a normal command failure. If PowerShell tries to read outside the managed root, Windows/AppContainer should deny it. If a tool on host PATH cannot execute because its installation directory cannot be granted to the AppContainer, the agent sees that failure and can use staged/bundled tools instead.
+
+### What should remain restricted
+
+“Run any command” should mean **any command inside the sandbox**, not unrestricted host execution.
+
+Keep these constraints:
+
+- launch all model-executed processes through the Rust helper/AppContainer path
+- keep cwd/session/output paths under the managed root
+- keep mutable env/profile/temp/cache locations under the managed root
+- do not pass provider/gateway/API credentials into the command environment
+- keep Job Object kill-on-close / timeout behavior
+- only grant read/execute access to explicit runtime/toolchain/system paths
+- keep write access limited to managed root/session paths
+- keep trusted GUI/import flows responsible for bringing external data into the managed root
+
+The OS can only return meaningful permission errors if the process is actually sandboxed. Direct host `powershell.exe`/`cmd.exe` from Electron/Node would be a regression.
+
+### What should be relaxed
+
+Relax these constraints:
+
+- stop telling the model that PowerShell is unavailable
+- stop implying `cmd.exe` is the only valid command grammar
+- stop growing the managed command vocabulary as a substitute for the OS shell
+- stop treating failures from real commands as product-policy failures when they are ordinary sandbox/Windows failures
+- allow explicit shell selection or direct executable launch
+
+The compatibility shims should be for known AppContainer bugs and bundled runtime bootstrapping, not for deciding what commands the agent is morally allowed to run.
+
+### Suggested architecture change: `exec` as the real primitive
+
+Introduce a lower-level sandbox execution primitive with roughly this shape:
+
+```ts
+type SandboxExecRequest = {
+  executable: string;
+  args: string[];
+  cwd: string;
+  env?: Record<string, string>;
+  timeoutMs?: number;
+  stdoutPath?: string;
+  stderrPath?: string;
+};
+```
+
+Then build thin shell adapters on top:
+
+- `cmd`: `cmd.exe /d /s /c <command>`
+- Windows PowerShell: `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command <command>`
+- PowerShell 7: `pwsh.exe -NoLogo -NoProfile -NonInteractive -Command <command>`
+- direct exec: run `<executable> <args...>` with no shell parser
+
+Pi compatibility can keep the internal tool name `bash` temporarily if needed, but OfficeAgent should conceptually expose a sandboxed Windows `exec`/`shell` tool, not a fake Bash or fake cmd subset.
+
+### Recommended prompt/tool wording
+
+Replace the current restrictive guidance with something closer to:
+
+- “Commands run inside an OfficeAgent Windows AppContainer sandbox.”
+- “You may use `cmd.exe`, `powershell.exe`, `pwsh.exe`, or direct project/tool commands.”
+- “Prefer commands that operate within the current project/managed root.”
+- “If Windows returns access denied / file not found / command not recognized, treat it as the sandbox or installed-tool reality and adapt.”
+- “Do not ask for host-level access unless the user explicitly imports files or changes product policy.”
+
+Avoid saying:
+
+- “Do not assume PowerShell.”
+- “Do not assume arbitrary host tools.”
+
+A better nuance is:
+
+- “You may try host tools visible on PATH, but they may fail if they are not installed or not executable from the sandbox.”
+
+### Managed command shims: downgrade from default behavior to fallback/debug aid
+
+The current managed `dir`/`copy`/etc. layer was useful because native `cmd.exe` built-ins hit AppContainer oddities. But long term it is risky because it creates a parallel pseudo-shell.
+
+Recommended policy:
+
+1. First try the real requested command through the real shell.
+2. Let Windows/AppContainer errors surface naturally.
+3. Use OfficeAgent shims only for:
+   - explicit `oa ...` helper commands, or
+   - tightly scoped compatibility wrappers for bundled runtimes where we understand the bug.
+4. Do not silently rewrite broad shell syntax unless a smoke test proves there is no better option.
+
+This preserves agent freedom while still letting us patch known runtime-specific problems.
+
+### PowerShell-specific considerations
+
+PowerShell is powerful, but that is exactly why the OS sandbox matters. Inside AppContainer it should still be constrained by:
+
+- filesystem ACL/AppContainer access checks
+- low-integrity behavior
+- registry/device/app access limitations
+- curated environment
+- Job Object process-tree lifetime
+
+Recommended first test path:
+
+- launch Windows PowerShell from `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`
+- use `-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass`
+- set `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `TEMP`, and `TMP` to the managed session dirs
+- verify:
+  - `Get-ChildItem` inside project succeeds
+  - outside-root read fails without leaking content
+  - outside-root write fails
+  - child `Start-Process` descendants are killed by the Job Object
+  - no host secrets are visible in `$env:`
+  - module/profile loading does not reach real user profile paths
+
+For `pwsh.exe`, do not require it as a v1 dependency. Resolve it from staged runtime or PATH and let command-not-found be a normal failure. Later, if PowerShell 7 is important, consider staging a vetted portable pwsh runtime just like Python/uv.
+
+### Toolchain compatibility implication
+
+This “run anything and let Windows decide” posture makes staged/bundled toolchains more important, not less.
+
+Host PATH compatibility is useful, but protected locations such as `Program Files` can be hard to ACL-grant from a non-admin portable app. Therefore:
+
+- allow trying host PATH tools
+- keep staged OfficeAgent runtimes first on PATH for reliability
+- treat host tool failures as normal sandbox compatibility outcomes
+- do not hide those failures behind a fake command subset
+
+### Security caveat
+
+This change improves usability, but it does **not** complete the untrusted-project sandbox story by itself. The already accepted gaps still matter:
+
+- file tools currently run in the trusted host process with TypeScript path checks
+- arbitrary Pi extensions/packages can still execute trusted JS unless locked down
+- current command bridge is one-command-at-a-time and log-file based
+
+If we let agents run richer shells, these gaps become more visible. The answer is not to shrink shell capability again; the answer is to move file tools and extension/package execution behind the same sandbox/broker model.
+
+### Recommended next implementation slice
+
+1. Add a sandbox `exec` abstraction in `packages/pi-sdk-driver` that maps directly to the Rust helper `launch` request.
+2. Add shell adapters for `cmd`, `powershell`, `pwsh`, and direct executable launch.
+3. Update the managed runtime prompt text to allow PowerShell/cmd/direct commands and explain OS-enforced failures.
+4. Stop silently rewriting normal `cmd` commands by default; keep shims only behind an explicit fallback flag or `oa` helper command.
+5. Add smoke tests for:
+   - `cmd.exe /c ...`
+   - `powershell.exe -Command ...`
+   - optional `pwsh.exe -Command ...` when present
+   - outside-root read/write denial from each shell
+   - env secret absence from each shell
+   - child-process cleanup from each shell
+6. After command execution is OS-first, prioritize moving file read/write/edit operations into the sandbox/broker path.
+
+### Updated conclusion
+
+The sandbox should not be a small, OfficeAgent-invented command language. It should be a Windows sandboxed process boundary. Agents should be free to run normal `cmd`, PowerShell, `pwsh`, and project/toolchain commands. Windows/AppContainer should be the thing that says “access denied”, “not found”, or “this executable cannot run here”. OfficeAgent should focus on making that boundary real, observable, and recoverable rather than preemptively narrowing the agent’s command vocabulary.

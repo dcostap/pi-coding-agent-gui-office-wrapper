@@ -85,14 +85,23 @@ pnpm --filter @pi-gui/desktop run test:e2e:all
 ```
 
 - `windows-sandbox`
-  Windows-only OS-enforced sandbox smoke coverage. This lane does not launch the GUI; it builds the runtime packages and Rust helper, creates a temporary managed root, invokes the same sandbox-backed command bridge used by managed sessions, and verifies inside-root execution, env filtering, outside-root blocking, redirected temp behavior, and timeout/job cleanup. The current v1 command backend is Windows `cmd.exe`, even though the internal Pi compatibility tool name is still `bash`.
+  Windows-only OS-enforced sandbox smoke coverage. This lane does not launch the GUI; it builds the runtime packages and Rust helper, creates a temporary managed root, invokes the same sandbox-backed command bridge used by managed sessions, and verifies inside-root execution, managed command compatibility, env filtering, outside-root blocking, redirected temp behavior, and timeout/job cleanup. The current v1 command transport is Windows `cmd.exe`, but the model-facing runtime is the OfficeAgent Windows sandbox shell: cmd-style syntax plus managed implementations for common file commands such as `dir`, `where`, `copy`, `move`, `del`, `mkdir`, and `rmdir`. The internal Pi compatibility tool name is still `bash`.
 
   ```bash
   npm run sandbox:smoke
   npm run test:sandbox:smoke --workspace @office-agent/gui
   ```
 
-  Set `OFFICE_AGENT_KEEP_SANDBOX_SMOKE_DIR=1` to keep the temporary smoke directories for debugging. Staged Git Bash testing is currently experimental: set `OFFICE_AGENT_ENABLE_STAGED_GIT_BASH=1` plus `OFFICE_AGENT_STAGED_GIT_BASH_DIR` to a staged portable Git Bash/MSYS2 runtime to exercise the Bash path; otherwise the smoke uses the temporary `cmd.exe` fallback.
+  Diagnostic workflow probe:
+
+  ```bash
+  npm run sandbox:smoke:workflows
+  npm run test:sandbox:workflows --workspace @office-agent/gui
+  ```
+
+  The workflow probe checks whether Node/npm/Python/Git are visible inside the sandboxed command environment. It is non-strict by default because host tool directories may still vary by machine/AppContainer ACL compatibility. The sandbox now inherits the host `PATH` for developer-tool compatibility while still using a curated environment for secrets/profile/temp/cache; set `OFFICE_AGENT_SANDBOX_INHERIT_HOST_PATH=0` to disable this path inheritance for debugging, or `OFFICE_AGENT_SANDBOX_WORKFLOW_SMOKE_STRICT=1` to fail on required checks.
+
+  Set `OFFICE_AGENT_KEEP_SANDBOX_SMOKE_DIR=1` to keep the temporary smoke directories for debugging. Staged Git Bash testing is currently experimental: set `OFFICE_AGENT_ENABLE_STAGED_GIT_BASH=1` plus `OFFICE_AGENT_STAGED_GIT_BASH_DIR` to a staged portable Git Bash/MSYS2 runtime to exercise the Bash path; otherwise the smoke uses the OfficeAgent Windows sandbox shell on the `cmd.exe` transport.
 
   Portable Git Bash staging for Windows packages is prepared by:
 
@@ -101,6 +110,27 @@ pnpm --filter @pi-gui/desktop run test:e2e:all
   ```
 
   By default this script is non-networked and skips if no archive is provided. To stage a runtime, either set `OFFICE_AGENT_PORTABLE_GIT_ARCHIVE` to a downloaded `PortableGit-*.7z.exe`, or set `OFFICE_AGENT_DOWNLOAD_PORTABLE_GIT=1` to download the default Git for Windows portable archive during the build.
+
+  OfficeAgent-staged Python and uv are the preferred Windows day-1 Python toolchain inside the sandbox. Stage them with:
+
+  ```bash
+  npm run build:python-runtime --workspace @office-agent/gui
+  npm run build:uv-runtime --workspace @office-agent/gui
+  ```
+
+  Python staging accepts `OFFICE_AGENT_PYTHON_RUNTIME_ARCHIVE`, or `OFFICE_AGENT_DOWNLOAD_PYTHON_RUNTIME=1` plus `OFFICE_AGENT_PYTHON_VERSION` and `OFFICE_AGENT_PYTHON_BUILD_STANDALONE_RELEASE` for Astral `python-build-standalone` downloads. Optional verification/packaging env vars are `OFFICE_AGENT_PYTHON_RUNTIME_SHA256` and `OFFICE_AGENT_PYTHON_RUNTIME_PACKAGING_REVISION`.
+
+  uv staging accepts `OFFICE_AGENT_UV_ARCHIVE`, or `OFFICE_AGENT_DOWNLOAD_UV=1` plus `OFFICE_AGENT_UV_VERSION` for Astral uv release downloads. Optional verification/packaging env vars are `OFFICE_AGENT_UV_SHA256` and `OFFICE_AGENT_UV_PACKAGING_REVISION`.
+
+  Packaged Windows builds include staged runtimes from `build/runtime/python` and `build/runtime/uv`, plus root `THIRD_PARTY_NOTICES.md` as `resources/THIRD_PARTY_NOTICES.md`. At runtime they are copied into `<managed-root>/.officeagent/runtime/...`, mounted read/execute-only for sandboxed commands, and placed before host tools on `PATH`. Mutable package state goes to the project `.venv` or per-session dirs such as `pip-cache`, `python-user-base`, `uv-cache`, and `uv-tools`.
+
+  Validate the strict Python/uv sandbox workflow with:
+
+  ```bash
+  OFFICE_AGENT_SANDBOX_PYTHON_SMOKE_STRICT=1 npm run sandbox:smoke:python
+  ```
+
+  `pip` remains real pip (the shim only injects `--user` for bare installs outside a virtualenv). `uv` uses OfficeAgent Python and disables automatic Python downloads by default. Because the real uv binary currently hits AppContainer `NUL`/child-process inspection limitations for some subcommands, the `uv.cmd` shim handles common day-1 flows (`uv python find`, `uv venv`, `uv pip ...`, `uv run python ...`) through the OfficeAgent Python-backed compatibility path. Unsupported uv subcommands now fail with a clear OfficeAgent message instead of unpredictably falling through to native uv inside the strict AppContainer sandbox.
 
 For mac-first CI, use:
 

@@ -197,6 +197,50 @@ then rebuild the package.
 
 ---
 
+## Manual packaged Python / uv sandbox test handoff
+
+After the automated package/resource checks pass, please run the actual human smoke on a clean or representative Windows machine/profile.
+
+Build the unpacked Windows package from repo root:
+
+```powershell
+npm run gui:package:dir
+```
+
+Confirm these packaged resources exist:
+
+```powershell
+Test-Path apps\gui\desktop\release\win-unpacked\resources\runtime\python
+Test-Path apps\gui\desktop\release\win-unpacked\resources\runtime\uv
+Test-Path apps\gui\desktop\release\win-unpacked\resources\windows-sandbox-helper\officeagent-windows-sandbox-helper.exe
+Test-Path apps\gui\desktop\release\win-unpacked\resources\THIRD_PARTY_NOTICES.md
+```
+
+Then launch:
+
+```powershell
+apps\gui\desktop\release\win-unpacked\OfficeAgent.exe
+```
+
+In a managed project chat, ask the agent to run/check these Windows commands:
+
+```cmd
+python --version
+python -m venv .venv
+.venv\Scripts\python.exe -m pip --version
+.venv\Scripts\python.exe -m pip install requests
+.venv\Scripts\python.exe -c "import requests; print(requests.__version__)"
+uv --version
+uv python find
+uv venv
+uv pip install httpx
+uv run python -c "import httpx; print(httpx.__version__)"
+```
+
+Expected current caveat: Python commands may print noisy `Failed to find real location of ...python.exe` warnings under AppContainer, but the commands should exit successfully.
+
+---
+
 ## Useful scripts
 
 From repo root:
