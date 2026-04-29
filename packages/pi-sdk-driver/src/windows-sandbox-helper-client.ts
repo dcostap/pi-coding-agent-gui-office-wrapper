@@ -462,6 +462,9 @@ async function ensureOfficeAgentManagedToolRuntimes(
   config: OfficeAgentSandboxShellConfig,
   managedRootDir: string,
 ): Promise<OfficeAgentSandboxShellConfig> {
+  // TODO(runtime): Add an OfficeAgent-bundled Node.js/npm runtime here, staged under
+  // `.officeagent/runtime/node`, so agent `node`/`npm`/`npx` behavior is reproducible
+  // and does not depend on the host machine's PATH installation.
   const [pythonRuntime, uvRuntime] = await Promise.all([
     ensureOfficeAgentPythonRuntime(managedRootDir),
     ensureOfficeAgentUvRuntime(managedRootDir),
