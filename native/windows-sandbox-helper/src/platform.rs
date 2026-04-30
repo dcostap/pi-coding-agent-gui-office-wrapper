@@ -187,7 +187,7 @@ mod windows_sandbox {
     };
     use windows::Win32::System::Threading::{
         CreateProcessAsUserW, GetCurrentProcess, GetExitCodeProcess, OpenProcessToken,
-        ResumeThread, WaitForSingleObject, CREATE_NO_WINDOW, CREATE_SUSPENDED,
+        ResumeThread, TerminateProcess, WaitForSingleObject, CREATE_NO_WINDOW, CREATE_SUSPENDED,
         CREATE_UNICODE_ENVIRONMENT, INFINITE, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION,
         STARTF_USESTDHANDLES, STARTUPINFOW,
     };
@@ -491,20 +491,16 @@ mod windows_sandbox {
         )
         .map_err(|error| format!("CreateProcessAsUserW write-restricted launch failed: {error}"))?;
 
-        let job_handle = create_kill_on_close_job()?;
-        AssignProcessToJobObject(job_handle, process_information.hProcess)
+        let mut process_guard = CreatedProcessGuard::new(process_information);
+        let job_guard = HandleGuard(create_kill_on_close_job()?);
+        AssignProcessToJobObject(job_guard.0, process_guard.process_handle())
             .map_err(|error| format!("AssignProcessToJobObject failed: {error}"))?;
 
-        if ResumeThread(process_information.hThread) == u32::MAX {
+        if ResumeThread(process_guard.thread_handle()) == u32::MAX {
             return Err("ResumeThread failed".to_string());
         }
 
-        Ok(SandboxedProcess {
-            process_handle: process_information.hProcess,
-            thread_handle: process_information.hThread,
-            job_handle,
-            process_id: process_information.dwProcessId,
-        })
+        Ok(process_guard.into_sandboxed_process(job_guard.into_inner()))
     }
 
     fn create_inheritable_output_file(path: &str) -> Result<File, String> {
@@ -846,6 +842,57 @@ mod windows_sandbox {
         }
     }
 
+    struct CreatedProcessGuard {
+        process_information: PROCESS_INFORMATION,
+        terminate_on_drop: bool,
+    }
+
+    impl CreatedProcessGuard {
+        fn new(process_information: PROCESS_INFORMATION) -> Self {
+            Self {
+                process_information,
+                terminate_on_drop: true,
+            }
+        }
+
+        fn process_handle(&self) -> HANDLE {
+            self.process_information.hProcess
+        }
+
+        fn thread_handle(&self) -> HANDLE {
+            self.process_information.hThread
+        }
+
+        fn into_sandboxed_process(&mut self, job_handle: HANDLE) -> SandboxedProcess {
+            self.terminate_on_drop = false;
+            let process = SandboxedProcess {
+                process_handle: self.process_information.hProcess,
+                thread_handle: self.process_information.hThread,
+                job_handle,
+                process_id: self.process_information.dwProcessId,
+            };
+            self.process_information.hProcess = HANDLE::default();
+            self.process_information.hThread = HANDLE::default();
+            process
+        }
+    }
+
+    impl Drop for CreatedProcessGuard {
+        fn drop(&mut self) {
+            unsafe {
+                if !self.process_information.hProcess.is_invalid() {
+                    if self.terminate_on_drop {
+                        let _ = TerminateProcess(self.process_information.hProcess, 1);
+                    }
+                    let _ = CloseHandle(self.process_information.hProcess);
+                }
+                if !self.process_information.hThread.is_invalid() {
+                    let _ = CloseHandle(self.process_information.hThread);
+                }
+            }
+        }
+    }
+
     struct SandboxedProcess {
         process_handle: HANDLE,
         thread_handle: HANDLE,
@@ -864,6 +911,14 @@ mod windows_sandbox {
     }
 
     struct HandleGuard(HANDLE);
+
+    impl HandleGuard {
+        fn into_inner(self) -> HANDLE {
+            let handle = self.0;
+            std::mem::forget(self);
+            handle
+        }
+    }
 
     impl Drop for HandleGuard {
         fn drop(&mut self) {
