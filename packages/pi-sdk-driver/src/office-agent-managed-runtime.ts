@@ -105,12 +105,7 @@ export async function createOfficeAgentManagedSessionRuntime(
   ];
 
   const customTools = [
-      createReadToolDefinition(cwd, {
-        operations: {
-          access: (absolutePath: string) => access(absolutePath),
-          readFile: (absolutePath: string) => readFile(absolutePath),
-        },
-      }),
+      createReadToolDefinition(cwd),
       sandboxCommandTool,
       createEditToolDefinition(cwd, {
         operations: {
