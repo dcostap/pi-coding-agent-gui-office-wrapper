@@ -113,13 +113,13 @@ export function createOfficeAgentSandboxBashOperations(
 
       const shellConfig = options.shellConfig ?? await ensureOfficeAgentSandboxShellConfig(options.managedRootDir);
       const runId = randomUUID();
-      await mkdir(options.sessionPaths.logsDir, { recursive: true });
+      await mkdirWithOfficeAgentSandbox(options.managedRootDir, options.sessionPaths.logsDir);
       const stdoutPath = join(options.sessionPaths.logsDir, `bash-${runId}.stdout.log`);
       const stderrPath = join(options.sessionPaths.logsDir, `bash-${runId}.stderr.log`);
       const timeoutMs = execOptions.timeout && execOptions.timeout > 0
         ? Math.ceil(execOptions.timeout * 1000)
         : undefined;
-      const commandLaunch = await prepareSandboxCommandLaunch(command, shellConfig, options.sessionPaths.sessionDir, runId);
+      const commandLaunch = await prepareSandboxCommandLaunch(command, shellConfig, options.managedRootDir, options.sessionPaths.sessionDir, runId);
 
       if (execOptions.signal?.aborted) {
         throw new Error("aborted");
@@ -189,18 +189,19 @@ export async function ensureOfficeAgentSandboxShellConfig(managedRootDir: string
 async function prepareSandboxCommandLaunch(
   command: string,
   shellConfig: OfficeAgentSandboxShellConfig,
+  managedRootDir: string,
   sessionDir: string,
   runId: string,
 ): Promise<{ args: string[]; writableScriptPaths: string[] }> {
   if (shellConfig.backend === "cmd") {
     const commandScriptPath = join(sessionDir, `bash-${runId}.cmd`);
-    await writeFile(commandScriptPath, `@echo off\r\n${command}\r\n`, "utf8");
+    await writeFileWithOfficeAgentSandbox(managedRootDir, commandScriptPath, `@echo off\r\n${command}\r\n`, { createParentDirs: true });
     return { args: ["/d", "/q", "/c", commandScriptPath], writableScriptPaths: [commandScriptPath] };
   }
 
   if (shellConfig.backend === "powershell" || shellConfig.backend === "pwsh") {
     const commandScriptPath = join(sessionDir, `bash-${runId}.ps1`);
-    await writeFile(commandScriptPath, `${command}\r\n`, "utf8");
+    await writeFileWithOfficeAgentSandbox(managedRootDir, commandScriptPath, `${command}\r\n`, { createParentDirs: true });
     return { args: [...shellConfig.args, commandScriptPath], writableScriptPaths: [commandScriptPath] };
   }
 

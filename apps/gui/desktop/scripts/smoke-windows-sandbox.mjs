@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -70,6 +70,16 @@ try {
   assert(!escapedFileToolWrite.ok, "strict native file write unexpectedly succeeded through a junction to an outside directory");
   assert(!escapedFileToolWriteExists, `strict native file write unexpectedly wrote outside through junction: ${escapedFileToolWriteTarget}`);
 
+  const commandHostWriteChecks = await runCommandHostWriteReparseChecks({
+    runtime,
+    driver,
+    managedRoot,
+    projectDir,
+    env,
+    shellConfig,
+    commandSet,
+  });
+
   const inside = await runSandboxCommand(bash, commandSet.inside, projectDir, env, 20);
   assert(inside.exitCode === 0, `inside command failed: ${JSON.stringify(inside)}`);
   assert(inside.output.includes("sandbox-ok"), `inside command did not produce expected output: ${inside.output}`);
@@ -120,6 +130,7 @@ try {
       helperSelfTest: true,
       directFileToolWriteInside: true,
       directFileToolJunctionEscapeBlocked: true,
+      commandHostWriteReparseChecks: commandHostWriteChecks,
       insideWriteAndOutput: true,
       nativeCmdCompatibility: nativeCommandChecks,
       powershellCompatibility: powershellChecks,
@@ -177,6 +188,55 @@ async function runSandboxCommand(bash, command, cwd, env, timeout, options = {})
     exitCode: result.exitCode,
     output: output.toString("utf8"),
   };
+}
+
+async function runCommandHostWriteReparseChecks({ runtime, driver, managedRoot, projectDir, env, shellConfig, commandSet }) {
+  const scriptOutsideRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "officeagent-command-script-junction-")));
+  const logsOutsideRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "officeagent-command-logs-junction-")));
+  try {
+    await grantEveryoneModify(scriptOutsideRoot);
+    await grantEveryoneModify(logsOutsideRoot);
+
+    const scriptSessionId = `script-junction-${Date.now()}`;
+    const scriptSessionPaths = await runtime.ensureOfficeAgentManagedSessionLayout(scriptSessionId, managedRoot);
+    await rm(scriptSessionPaths.sessionDir, { recursive: true, force: true });
+    await createDirectoryJunction(scriptSessionPaths.sessionDir, scriptOutsideRoot);
+    const scriptJunctionBash = driver.createOfficeAgentSandboxBashOperations({
+      managedRootDir: managedRoot,
+      sessionPaths: scriptSessionPaths,
+      env,
+      shellConfig,
+    });
+    const scriptJunctionRun = await tryAsync(() => runSandboxCommand(scriptJunctionBash, commandSet.hostWriteProbe, projectDir, env, 20));
+    const scriptOutsideFiles = await readdir(scriptOutsideRoot).catch(() => []);
+    assert(!scriptJunctionRun.ok, "command script creation unexpectedly succeeded through a sessionDir junction");
+    assert(scriptOutsideFiles.length === 0, `command script creation wrote outside through junction: ${scriptOutsideFiles.join(", ")}`);
+
+    const logsSessionId = `logs-junction-${Date.now()}`;
+    const logsSessionPaths = await runtime.ensureOfficeAgentManagedSessionLayout(logsSessionId, managedRoot);
+    await rm(logsSessionPaths.logsDir, { recursive: true, force: true });
+    await createDirectoryJunction(logsSessionPaths.logsDir, logsOutsideRoot);
+    const logsJunctionBash = driver.createOfficeAgentSandboxBashOperations({
+      managedRootDir: managedRoot,
+      sessionPaths: logsSessionPaths,
+      env,
+      shellConfig,
+    });
+    const logsJunctionRun = await tryAsync(() => runSandboxCommand(logsJunctionBash, commandSet.hostWriteProbe, projectDir, env, 20));
+    const logsOutsideFiles = await readdir(logsOutsideRoot).catch(() => []);
+    assert(!logsJunctionRun.ok, "command log creation unexpectedly succeeded through a logsDir junction");
+    assert(logsOutsideFiles.length === 0, `command log creation wrote outside through junction: ${logsOutsideFiles.join(", ")}`);
+
+    return {
+      commandScriptJunctionBlocked: true,
+      commandLogJunctionBlocked: true,
+    };
+  } finally {
+    await Promise.all([
+      rm(scriptOutsideRoot, { recursive: true, force: true }),
+      rm(logsOutsideRoot, { recursive: true, force: true }),
+    ]);
+  }
 }
 
 async function runCancellationCheck(bash, command, projectDir, env, cancellationTarget) {
@@ -312,6 +372,7 @@ function createCmdSmokeCommands() {
     envLeak: "set OFFICE_AGENT_GATEWAY_TOKEN",
     timeout: "for /l %%i in (1,1,1000000000) do @rem",
     delayedWrite: (target) => `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 10; 'late' | Set-Content -NoNewline '${escapePowerShellSingleQuotedString(target)}'"`,
+    hostWriteProbe: "echo host-write-probe",
   };
 }
 
@@ -324,6 +385,7 @@ function createPowerShellSmokeCommands() {
     envLeak: "Get-ChildItem Env:OFFICE_AGENT_GATEWAY_TOKEN -ErrorAction SilentlyContinue",
     timeout: "while ($true) { Start-Sleep -Milliseconds 100 }",
     delayedWrite: (target) => `Start-Sleep -Seconds 10; 'late' | Set-Content -NoNewline '${escapePowerShellSingleQuotedString(target)}'`,
+    hostWriteProbe: "Write-Output 'host-write-probe'",
   };
 }
 
@@ -336,6 +398,7 @@ function createBashSmokeCommands() {
     envLeak: "printenv OFFICE_AGENT_GATEWAY_TOKEN || true",
     timeout: "while true; do :; done",
     delayedWrite: (target) => `sleep 10; echo late > "${toMsysPath(target)}"`,
+    hostWriteProbe: "echo host-write-probe",
   };
 }
 

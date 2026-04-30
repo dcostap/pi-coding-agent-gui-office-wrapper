@@ -276,7 +276,7 @@ mod windows_sandbox {
     ) -> Result<SandboxedProcess, String> {
         let token = create_write_restricted_primary_token(restricting_sid)?;
         let _token_guard = HandleGuard(token);
-        create_token_process(request, token)
+        create_token_process(request, token, restricting_sid)
     }
 
     unsafe fn with_strict_write_restricted_impersonation<T>(
@@ -437,16 +437,21 @@ mod windows_sandbox {
     unsafe fn create_token_process(
         request: &LaunchRequest,
         token: HANDLE,
+        restricting_sid: PSID,
     ) -> Result<SandboxedProcess, String> {
         let stdout_file = request
             .stdout_path
             .as_deref()
-            .map(create_inheritable_output_file)
+            .map(|path| {
+                create_inheritable_output_file(path, &request.managed_root, restricting_sid)
+            })
             .transpose()?;
         let stderr_file = request
             .stderr_path
             .as_deref()
-            .map(create_inheritable_output_file)
+            .map(|path| {
+                create_inheritable_output_file(path, &request.managed_root, restricting_sid)
+            })
             .transpose()?;
         let redirect_stdio = stdout_file.is_some() || stderr_file.is_some();
 
@@ -503,17 +508,27 @@ mod windows_sandbox {
         Ok(process_guard.into_sandboxed_process(job_guard.into_inner()))
     }
 
-    fn create_inheritable_output_file(path: &str) -> Result<File, String> {
-        if let Some(parent) = Path::new(path).parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|error| format!("failed to create output parent for {path}: {error}"))?;
-        }
-        let file = OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
-            .open(path)
-            .map_err(|error| format!("failed to open output file {path}: {error}"))?;
+    fn create_inheritable_output_file(
+        path: &str,
+        managed_root: &str,
+        restricting_sid: PSID,
+    ) -> Result<File, String> {
+        grant_path_access(managed_root, restricting_sid, writable_access_mask())?;
+        let file = unsafe {
+            with_strict_write_restricted_impersonation(restricting_sid, || {
+                if let Some(parent) = Path::new(path).parent() {
+                    std::fs::create_dir_all(parent).map_err(|error| {
+                        format!("failed to create output parent for {path}: {error}")
+                    })?;
+                }
+                OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(path)
+                    .map_err(|error| format!("failed to open output file {path}: {error}"))
+            })?
+        };
         unsafe {
             SetHandleInformation(
                 HANDLE(file.as_raw_handle().cast()),
@@ -556,24 +571,6 @@ mod windows_sandbox {
         )?;
         for path in &request.writable_paths {
             grant_path_access(path, restricting_sid, writable_access_mask())?;
-        }
-        if let Some(path) = &request.stdout_path {
-            if let Some(parent) = Path::new(path).parent() {
-                grant_path_access(
-                    &parent.to_string_lossy(),
-                    restricting_sid,
-                    writable_access_mask(),
-                )?;
-            }
-        }
-        if let Some(path) = &request.stderr_path {
-            if let Some(parent) = Path::new(path).parent() {
-                grant_path_access(
-                    &parent.to_string_lossy(),
-                    restricting_sid,
-                    writable_access_mask(),
-                )?;
-            }
         }
         Ok(())
     }
@@ -620,6 +617,8 @@ mod windows_sandbox {
             explicit_access.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
             BuildTrusteeWithSidW(&mut explicit_access.Trustee, sid);
 
+            // FIXME: Repeated GRANT_ACCESS calls look idempotent in smoke tests, but this still mutates
+            // ACLs on every launch/file op. Add explicit de-dupe or a regression test against DACL growth.
             let mut new_dacl: *mut ACL = std::ptr::null_mut();
             let acl_error =
                 SetEntriesInAclW(Some(&[explicit_access]), Some(old_dacl), &mut new_dacl);
