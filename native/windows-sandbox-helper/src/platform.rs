@@ -1,4 +1,4 @@
-use crate::protocol::{HelperResponse, LaunchRequest};
+use crate::protocol::{FileWriteRequest, HelperResponse, LaunchRequest, MkdirRequest};
 use std::path::{Path, PathBuf};
 
 pub fn launch(request: LaunchRequest) -> HelperResponse {
@@ -7,6 +7,22 @@ pub fn launch(request: LaunchRequest) -> HelperResponse {
     }
 
     launch_platform(request)
+}
+
+pub fn file_write(request: FileWriteRequest) -> HelperResponse {
+    if let Err(error) = validate_managed_path_request(&request.managed_root, &request.path) {
+        return HelperResponse::err(request.request_id, "INVALID_REQUEST", error);
+    }
+
+    file_write_platform(request)
+}
+
+pub fn mkdir(request: MkdirRequest) -> HelperResponse {
+    if let Err(error) = validate_managed_path_request(&request.managed_root, &request.path) {
+        return HelperResponse::err(request.request_id, "INVALID_REQUEST", error);
+    }
+
+    mkdir_platform(request)
 }
 
 fn validate_launch_request(request: &LaunchRequest) -> Result<(), String> {
@@ -52,6 +68,19 @@ fn validate_launch_request(request: &LaunchRequest) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_managed_path_request(managed_root: &str, path: &str) -> Result<(), String> {
+    let managed_root = canonicalish(managed_root);
+    let candidate = canonicalish(path);
+    if !candidate.starts_with(&managed_root) {
+        return Err(format!(
+            "path must be inside managedRoot: path={}, managedRoot={}",
+            candidate.display(),
+            managed_root.display()
+        ));
+    }
+    Ok(())
+}
+
 fn canonicalish(path: impl AsRef<Path>) -> PathBuf {
     let raw = path.as_ref();
     if raw.is_absolute() {
@@ -74,6 +103,24 @@ fn launch_platform(request: LaunchRequest) -> HelperResponse {
     }
 }
 
+#[cfg(windows)]
+fn file_write_platform(request: FileWriteRequest) -> HelperResponse {
+    let request_id = request.request_id.clone();
+    match windows_sandbox::write_file_strict(request) {
+        Ok(()) => HelperResponse::self_test(request_id),
+        Err(error) => HelperResponse::err(request_id, "FILE_WRITE_FAILED", error),
+    }
+}
+
+#[cfg(windows)]
+fn mkdir_platform(request: MkdirRequest) -> HelperResponse {
+    let request_id = request.request_id.clone();
+    match windows_sandbox::mkdir_strict(request) {
+        Ok(()) => HelperResponse::self_test(request_id),
+        Err(error) => HelperResponse::err(request_id, "MKDIR_FAILED", error),
+    }
+}
+
 #[cfg(not(windows))]
 fn launch_platform(request: LaunchRequest) -> HelperResponse {
     HelperResponse::err(
@@ -83,9 +130,29 @@ fn launch_platform(request: LaunchRequest) -> HelperResponse {
     )
 }
 
+#[cfg(not(windows))]
+fn file_write_platform(request: FileWriteRequest) -> HelperResponse {
+    HelperResponse::err(
+        request.request_id,
+        "UNSUPPORTED_PLATFORM",
+        "OfficeAgent Windows sandbox helper can only write files on Windows.",
+    )
+}
+
+#[cfg(not(windows))]
+fn mkdir_platform(request: MkdirRequest) -> HelperResponse {
+    HelperResponse::err(
+        request.request_id,
+        "UNSUPPORTED_PLATFORM",
+        "OfficeAgent Windows sandbox helper can only create directories on Windows.",
+    )
+}
+
 #[cfg(windows)]
 mod windows_sandbox {
-    use crate::protocol::{HelperResponse, LaunchRequest, LaunchResult};
+    use crate::protocol::{
+        FileWriteRequest, HelperResponse, LaunchRequest, LaunchResult, MkdirRequest,
+    };
     use std::ffi::c_void;
     use std::fs::{File, OpenOptions};
     use std::mem::{size_of, zeroed};
@@ -103,25 +170,26 @@ mod windows_sandbox {
     };
     use windows::Win32::Security::{
         AllocateAndInitializeSid, CopySid, CreateRestrictedToken, FreeSid, GetLengthSid,
-        GetTokenInformation, SetTokenInformation, ACL, CREATE_RESTRICTED_TOKEN_FLAGS,
+        GetTokenInformation, ImpersonateLoggedOnUser, RevertToSelf, SetTokenInformation,
+        TokenDefaultDacl, TokenGroups, ACL, CREATE_RESTRICTED_TOKEN_FLAGS,
         DACL_SECURITY_INFORMATION, PSID, SECURITY_NT_AUTHORITY, SECURITY_WORLD_SID_AUTHORITY,
-        SID_AND_ATTRIBUTES,
-        SUB_CONTAINERS_AND_OBJECTS_INHERIT, TOKEN_ADJUST_DEFAULT, TOKEN_ADJUST_SESSIONID,
-        TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE, TOKEN_GROUPS, TOKEN_QUERY,
-        TokenDefaultDacl, TokenGroups,
+        SID_AND_ATTRIBUTES, SUB_CONTAINERS_AND_OBJECTS_INHERIT, TOKEN_ADJUST_DEFAULT,
+        TOKEN_ADJUST_SESSIONID, TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE,
+        TOKEN_GROUPS, TOKEN_IMPERSONATE, TOKEN_QUERY,
     };
     use windows::Win32::Storage::FileSystem::{
         DELETE, FILE_DELETE_CHILD, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
     };
     use windows::Win32::System::JobObjects::{
-        AssignProcessToJobObject, CreateJobObjectW, SetInformationJobObject, TerminateJobObject,
-        JobObjectExtendedLimitInformation, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, TerminateJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
         JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     };
     use windows::Win32::System::Threading::{
-        CreateProcessAsUserW, GetCurrentProcess, GetExitCodeProcess, OpenProcessToken, ResumeThread, WaitForSingleObject,
-        CREATE_NO_WINDOW, CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, INFINITE,
-        PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW,
+        CreateProcessAsUserW, GetCurrentProcess, GetExitCodeProcess, OpenProcessToken,
+        ResumeThread, WaitForSingleObject, CREATE_NO_WINDOW, CREATE_SUSPENDED,
+        CREATE_UNICODE_ENVIRONMENT, INFINITE, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION,
+        STARTF_USESTDHANDLES, STARTUPINFOW,
     };
 
     const WRITE_RESTRICTED: u32 = 0x08;
@@ -137,7 +205,10 @@ mod windows_sandbox {
         grant_write_restricted_paths(&request, restricting_sid.sid())?;
         let process = unsafe { create_write_restricted_process(&request, restricting_sid.sid())? };
         let pid = process.process_id;
-        let wait_ms = request.timeout_ms.unwrap_or(INFINITE as u64).min(INFINITE as u64) as u32;
+        let wait_ms = request
+            .timeout_ms
+            .unwrap_or(INFINITE as u64)
+            .min(INFINITE as u64) as u32;
 
         let wait_result = unsafe { WaitForSingleObject(process.process_handle, wait_ms) };
         let mut exit_code = None;
@@ -155,7 +226,48 @@ mod windows_sandbox {
             return Err("WaitForSingleObject failed".to_string());
         }
 
-        Ok(HelperResponse::ok(request_id, LaunchResult { pid, exit_code }))
+        Ok(HelperResponse::ok(
+            request_id,
+            LaunchResult { pid, exit_code },
+        ))
+    }
+
+    pub fn write_file_strict(request: FileWriteRequest) -> Result<(), String> {
+        let restricting_sid = RestrictingSid::for_managed_root(&request.managed_root)?;
+        grant_path_access(
+            &request.managed_root,
+            restricting_sid.sid(),
+            writable_access_mask(),
+        )?;
+        unsafe {
+            with_strict_write_restricted_impersonation(restricting_sid.sid(), || {
+                if request.create_parent_dirs {
+                    if let Some(parent) = Path::new(&request.path).parent() {
+                        std::fs::create_dir_all(parent).map_err(|error| {
+                            format!("failed to create parent directories: {error}")
+                        })?;
+                    }
+                }
+                std::fs::write(&request.path, request.content.as_bytes())
+                    .map_err(|error| format!("failed to write file {}: {error}", request.path))
+            })
+        }
+    }
+
+    pub fn mkdir_strict(request: MkdirRequest) -> Result<(), String> {
+        let restricting_sid = RestrictingSid::for_managed_root(&request.managed_root)?;
+        grant_path_access(
+            &request.managed_root,
+            restricting_sid.sid(),
+            writable_access_mask(),
+        )?;
+        unsafe {
+            with_strict_write_restricted_impersonation(restricting_sid.sid(), || {
+                std::fs::create_dir_all(&request.path).map_err(|error| {
+                    format!("failed to create directory {}: {error}", request.path)
+                })
+            })
+        }
     }
 
     unsafe fn create_write_restricted_process(
@@ -167,7 +279,43 @@ mod windows_sandbox {
         create_token_process(request, token)
     }
 
-    unsafe fn create_write_restricted_primary_token(restricting_sid: PSID) -> Result<HANDLE, String> {
+    unsafe fn with_strict_write_restricted_impersonation<T>(
+        restricting_sid: PSID,
+        action: impl FnOnce() -> Result<T, String>,
+    ) -> Result<T, String> {
+        let token = create_write_restricted_primary_token_with_policy(
+            restricting_sid,
+            RestrictingSidPolicy::strict_file_ops(),
+        )?;
+        let _token_guard = HandleGuard(token);
+        ImpersonateLoggedOnUser(token)
+            .map_err(|error| format!("ImpersonateLoggedOnUser(strict file op) failed: {error}"))?;
+        let result = action();
+        let revert_result =
+            RevertToSelf().map_err(|error| format!("RevertToSelf(strict file op) failed: {error}"));
+        match (result, revert_result) {
+            (Ok(value), Ok(())) => Ok(value),
+            (Err(error), Ok(())) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+            (Err(action_error), Err(revert_error)) => {
+                Err(format!("{action_error}; additionally {revert_error}"))
+            }
+        }
+    }
+
+    unsafe fn create_write_restricted_primary_token(
+        restricting_sid: PSID,
+    ) -> Result<HANDLE, String> {
+        create_write_restricted_primary_token_with_policy(
+            restricting_sid,
+            RestrictingSidPolicy::powershell_compat(),
+        )
+    }
+
+    unsafe fn create_write_restricted_primary_token_with_policy(
+        restricting_sid: PSID,
+        restricting_sid_policy: RestrictingSidPolicy,
+    ) -> Result<HANDLE, String> {
         let mut current_token = HANDLE::default();
         OpenProcessToken(
             GetCurrentProcess(),
@@ -175,7 +323,8 @@ mod windows_sandbox {
                 | TOKEN_ASSIGN_PRIMARY
                 | TOKEN_ADJUST_DEFAULT
                 | TOKEN_ADJUST_SESSIONID
-                | TOKEN_QUERY,
+                | TOKEN_QUERY
+                | TOKEN_IMPERSONATE,
             &mut current_token,
         )
         .map_err(|error| format!("OpenProcessToken failed: {error}"))?;
@@ -184,20 +333,22 @@ mod windows_sandbox {
         let mut logon_sid_bytes = get_logon_sid_bytes(current_token)?;
         let logon_sid = PSID(logon_sid_bytes.as_mut_ptr().cast());
         let world_sid = WorldSid::new()?;
-        let restricting_sids = [
-            SID_AND_ATTRIBUTES {
-                Sid: restricting_sid,
-                Attributes: 0,
-            },
-            SID_AND_ATTRIBUTES {
+        let mut restricting_sids = vec![SID_AND_ATTRIBUTES {
+            Sid: restricting_sid,
+            Attributes: 0,
+        }];
+        if restricting_sid_policy.include_logon {
+            restricting_sids.push(SID_AND_ATTRIBUTES {
                 Sid: logon_sid,
                 Attributes: 0,
-            },
-            SID_AND_ATTRIBUTES {
+            });
+        }
+        if restricting_sid_policy.include_everyone {
+            restricting_sids.push(SID_AND_ATTRIBUTES {
                 Sid: world_sid.0,
                 Attributes: 0,
-            },
-        ];
+            });
+        }
         let mut restricted_token = HANDLE::default();
         CreateRestrictedToken(
             current_token,
@@ -209,7 +360,14 @@ mod windows_sandbox {
         )
         .map_err(|error| format!("CreateRestrictedToken(WRITE_RESTRICTED) failed: {error}"))?;
 
-        if let Err(error) = set_token_default_dacl(restricted_token, &[restricting_sid, logon_sid, world_sid.0]) {
+        let mut default_dacl_sids = vec![restricting_sid];
+        if restricting_sid_policy.default_dacl_logon {
+            default_dacl_sids.push(logon_sid);
+        }
+        if restricting_sid_policy.default_dacl_everyone {
+            default_dacl_sids.push(world_sid.0);
+        }
+        if let Err(error) = set_token_default_dacl(restricted_token, &default_dacl_sids) {
             let _ = CloseHandle(restricted_token);
             return Err(error);
         }
@@ -226,10 +384,15 @@ mod windows_sandbox {
         let mut new_dacl: *mut ACL = std::ptr::null_mut();
         let acl_error = SetEntriesInAclW(Some(&entries), None, &mut new_dacl);
         if acl_error.0 != 0 {
-            return Err(format!("SetEntriesInAclW(TokenDefaultDacl) failed: {}", acl_error.0));
+            return Err(format!(
+                "SetEntriesInAclW(TokenDefaultDacl) failed: {}",
+                acl_error.0
+            ));
         }
         let _acl_guard = LocalMemoryGuard(HLOCAL(new_dacl.cast()));
-        let mut token_dacl = TOKEN_DEFAULT_DACL { DefaultDacl: new_dacl };
+        let mut token_dacl = TOKEN_DEFAULT_DACL {
+            DefaultDacl: new_dacl,
+        };
         SetTokenInformation(
             token,
             TokenDefaultDacl,
@@ -381,27 +544,50 @@ mod windows_sandbox {
         Ok(job_handle)
     }
 
-    fn grant_write_restricted_paths(request: &LaunchRequest, restricting_sid: PSID) -> Result<(), String> {
-        grant_path_access(&request.managed_root, restricting_sid, writable_access_mask())?;
-        grant_path_access(&request.session_dir, restricting_sid, writable_access_mask())?;
+    fn grant_write_restricted_paths(
+        request: &LaunchRequest,
+        restricting_sid: PSID,
+    ) -> Result<(), String> {
+        grant_path_access(
+            &request.managed_root,
+            restricting_sid,
+            writable_access_mask(),
+        )?;
+        grant_path_access(
+            &request.session_dir,
+            restricting_sid,
+            writable_access_mask(),
+        )?;
         for path in &request.writable_paths {
             grant_path_access(path, restricting_sid, writable_access_mask())?;
         }
         if let Some(path) = &request.stdout_path {
             if let Some(parent) = Path::new(path).parent() {
-                grant_path_access(&parent.to_string_lossy(), restricting_sid, writable_access_mask())?;
+                grant_path_access(
+                    &parent.to_string_lossy(),
+                    restricting_sid,
+                    writable_access_mask(),
+                )?;
             }
         }
         if let Some(path) = &request.stderr_path {
             if let Some(parent) = Path::new(path).parent() {
-                grant_path_access(&parent.to_string_lossy(), restricting_sid, writable_access_mask())?;
+                grant_path_access(
+                    &parent.to_string_lossy(),
+                    restricting_sid,
+                    writable_access_mask(),
+                )?;
             }
         }
         Ok(())
     }
 
     fn writable_access_mask() -> u32 {
-        FILE_GENERIC_READ.0 | FILE_GENERIC_EXECUTE.0 | FILE_GENERIC_WRITE.0 | DELETE.0 | FILE_DELETE_CHILD.0
+        FILE_GENERIC_READ.0
+            | FILE_GENERIC_EXECUTE.0
+            | FILE_GENERIC_WRITE.0
+            | DELETE.0
+            | FILE_DELETE_CHILD.0
     }
 
     fn grant_path_access(path: &str, sid: PSID, access_mask: u32) -> Result<(), String> {
@@ -425,7 +611,10 @@ mod windows_sandbox {
                 &mut security_descriptor,
             );
             if get_error.0 != 0 {
-                return Err(format!("GetNamedSecurityInfoW failed for {path}: {}", get_error.0));
+                return Err(format!(
+                    "GetNamedSecurityInfoW failed for {path}: {}",
+                    get_error.0
+                ));
             }
             let _sd_guard = LocalMemoryGuard(HLOCAL(security_descriptor.0));
 
@@ -436,9 +625,13 @@ mod windows_sandbox {
             BuildTrusteeWithSidW(&mut explicit_access.Trustee, sid);
 
             let mut new_dacl: *mut ACL = std::ptr::null_mut();
-            let acl_error = SetEntriesInAclW(Some(&[explicit_access]), Some(old_dacl), &mut new_dacl);
+            let acl_error =
+                SetEntriesInAclW(Some(&[explicit_access]), Some(old_dacl), &mut new_dacl);
             if acl_error.0 != 0 {
-                return Err(format!("SetEntriesInAclW failed for {path}: {}", acl_error.0));
+                return Err(format!(
+                    "SetEntriesInAclW failed for {path}: {}",
+                    acl_error.0
+                ));
             }
             let _acl_guard = LocalMemoryGuard(HLOCAL(new_dacl.cast()));
 
@@ -452,7 +645,10 @@ mod windows_sandbox {
                 None,
             );
             if set_error.0 != 0 {
-                return Err(format!("SetNamedSecurityInfoW failed for {path}: {}", set_error.0));
+                return Err(format!(
+                    "SetNamedSecurityInfoW failed for {path}: {}",
+                    set_error.0
+                ));
             }
         }
         Ok(())
@@ -505,7 +701,9 @@ mod windows_sandbox {
         result
     }
 
-    fn build_environment_block(env: &std::collections::BTreeMap<String, String>) -> Option<Vec<u16>> {
+    fn build_environment_block(
+        env: &std::collections::BTreeMap<String, String>,
+    ) -> Option<Vec<u16>> {
         if env.is_empty() {
             return None;
         }
@@ -546,6 +744,33 @@ mod windows_sandbox {
         hash
     }
 
+    struct RestrictingSidPolicy {
+        include_logon: bool,
+        include_everyone: bool,
+        default_dacl_logon: bool,
+        default_dacl_everyone: bool,
+    }
+
+    impl RestrictingSidPolicy {
+        fn powershell_compat() -> Self {
+            Self {
+                include_logon: true,
+                include_everyone: true,
+                default_dacl_logon: true,
+                default_dacl_everyone: true,
+            }
+        }
+
+        fn strict_file_ops() -> Self {
+            Self {
+                include_logon: false,
+                include_everyone: false,
+                default_dacl_logon: false,
+                default_dacl_everyone: false,
+            }
+        }
+    }
+
     struct WorldSid(PSID);
 
     impl WorldSid {
@@ -565,7 +790,9 @@ mod windows_sandbox {
                     0,
                     &mut sid,
                 )
-                .map_err(|error| format!("AllocateAndInitializeSid(Everyone SID) failed: {error}"))?;
+                .map_err(|error| {
+                    format!("AllocateAndInitializeSid(Everyone SID) failed: {error}")
+                })?;
             }
             Ok(Self(sid))
         }
@@ -599,7 +826,9 @@ mod windows_sandbox {
                     0,
                     &mut sid,
                 )
-                .map_err(|error| format!("AllocateAndInitializeSid(OfficeAgent restricting SID) failed: {error}"))?;
+                .map_err(|error| {
+                    format!("AllocateAndInitializeSid(OfficeAgent restricting SID) failed: {error}")
+                })?;
             }
             Ok(Self(sid))
         }

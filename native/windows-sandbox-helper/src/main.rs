@@ -1,5 +1,5 @@
-mod protocol;
 mod platform;
+mod protocol;
 
 use crate::protocol::{HelperRequest, HelperResponse};
 use std::io::{self, Read};
@@ -36,6 +36,8 @@ fn run() -> Result<HelperResponse, Box<dyn std::error::Error>> {
     let response = match request {
         HelperRequest::SelfTest { request_id } => HelperResponse::self_test(request_id),
         HelperRequest::Launch(request) => platform::launch(request),
+        HelperRequest::FileWrite(request) => platform::file_write(request),
+        HelperRequest::Mkdir(request) => platform::mkdir(request),
     };
     Ok(response)
 }

@@ -37,6 +37,28 @@ export interface WindowsSandboxLaunchRequest {
   readonly timeoutMs?: number;
 }
 
+export interface WindowsSandboxFileWriteRequest {
+  readonly kind: "fileWrite";
+  readonly requestId?: string;
+  readonly managedRoot: string;
+  readonly path: string;
+  readonly content: string;
+  readonly createParentDirs?: boolean;
+}
+
+export interface WindowsSandboxMkdirRequest {
+  readonly kind: "mkdir";
+  readonly requestId?: string;
+  readonly managedRoot: string;
+  readonly path: string;
+}
+
+export type WindowsSandboxHelperRequest =
+  | WindowsSandboxLaunchRequest
+  | WindowsSandboxFileWriteRequest
+  | WindowsSandboxMkdirRequest
+  | { readonly kind: "selfTest"; readonly requestId?: string };
+
 export interface WindowsSandboxHelperResponse {
   readonly ok: boolean;
   readonly requestId?: string;
@@ -309,10 +331,41 @@ export function getOfficeAgentSandboxShellPromptContext(shellConfig: OfficeAgent
 }
 
 export async function invokeWindowsSandboxHelper(
-  request: WindowsSandboxLaunchRequest | { readonly kind: "selfTest"; readonly requestId?: string },
+  request: WindowsSandboxHelperRequest,
 ): Promise<WindowsSandboxHelperResponse> {
   const helperPath = await resolveWindowsSandboxHelperPath();
   return invokeHelperExecutable(helperPath, request);
+}
+
+export async function writeFileWithOfficeAgentSandbox(
+  managedRootDir: string,
+  path: string,
+  content: string,
+  options?: { readonly createParentDirs?: boolean },
+): Promise<void> {
+  const response = await invokeWindowsSandboxHelper({
+    kind: "fileWrite",
+    requestId: randomUUID(),
+    managedRoot: managedRootDir,
+    path,
+    content,
+    createParentDirs: options?.createParentDirs ?? false,
+  });
+  if (!response.ok) {
+    throw new Error(response.error?.message ?? "OfficeAgent sandbox helper file write failed.");
+  }
+}
+
+export async function mkdirWithOfficeAgentSandbox(managedRootDir: string, path: string): Promise<void> {
+  const response = await invokeWindowsSandboxHelper({
+    kind: "mkdir",
+    requestId: randomUUID(),
+    managedRoot: managedRootDir,
+    path,
+  });
+  if (!response.ok) {
+    throw new Error(response.error?.message ?? "OfficeAgent sandbox helper mkdir failed.");
+  }
 }
 
 export async function resolveWindowsSandboxHelperPath(): Promise<string> {
@@ -395,7 +448,7 @@ function candidateHelperPaths(): string[] {
 
 function invokeHelperExecutable(
   helperPath: string,
-  request: WindowsSandboxLaunchRequest | { readonly kind: "selfTest"; readonly requestId?: string },
+  request: WindowsSandboxHelperRequest,
 ): Promise<WindowsSandboxHelperResponse> {
   return new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(helperPath, [], {

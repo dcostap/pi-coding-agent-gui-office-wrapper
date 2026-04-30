@@ -1,5 +1,5 @@
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { access, readFile } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
 import {
   ensureOfficeAgentManagedSessionLayout,
   findOfficeAgentManagedRootForPath,
@@ -24,6 +24,8 @@ import {
   createOfficeAgentSandboxBashOperations,
   ensureOfficeAgentSandboxShellConfig,
   getOfficeAgentSandboxShellPromptContext,
+  mkdirWithOfficeAgentSandbox,
+  writeFileWithOfficeAgentSandbox,
 } from "./windows-sandbox-helper-client.js";
 
 /**
@@ -38,7 +40,16 @@ export async function createOfficeAgentManagedSessionRuntime(
   const cwd = resolve(options.cwd ?? process.cwd());
   const managedRootDir = findOfficeAgentManagedRootForPath(cwd);
   if (!managedRootDir) {
-    return createAgentSessionRuntimeWithNpmFallback(options);
+    if (process.env.OFFICE_AGENT_ALLOW_UNMANAGED_PI_RUNTIME === "1") {
+      return createAgentSessionRuntimeWithNpmFallback(options);
+    }
+    throw new Error(
+      [
+        "OfficeAgent refused to start an unmanaged Pi runtime.",
+        `cwd is outside the OfficeAgent managed AgentData tree: ${cwd}`,
+        "Open or create a project inside OfficeAgent AgentData, or set OFFICE_AGENT_ALLOW_UNMANAGED_PI_RUNTIME=1 for explicit development/testing only.",
+      ].join(" "),
+    );
   }
 
   const sessionId = options.sessionManager?.getSessionId();
@@ -107,15 +118,14 @@ export async function createOfficeAgentManagedSessionRuntime(
           readFile: (absolutePath: string) => readFile(assertManagedPath(managedRootDir, absolutePath)),
           writeFile: async (absolutePath: string, content: string) => {
             const target = assertManagedPath(managedRootDir, absolutePath);
-            await mkdir(dirname(target), { recursive: true });
-            await writeFile(target, content, "utf8");
+            await writeFileWithOfficeAgentSandbox(managedRootDir, target, content, { createParentDirs: true });
           },
         },
       }),
       createWriteToolDefinition(cwd, {
         operations: {
-          mkdir: (dir: string) => mkdir(assertManagedPath(managedRootDir, dir), { recursive: true }).then(() => undefined),
-          writeFile: (absolutePath: string, content: string) => writeFile(assertManagedPath(managedRootDir, absolutePath), content, "utf8"),
+          mkdir: (dir: string) => mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
+          writeFile: (absolutePath: string, content: string) => writeFileWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, absolutePath), content),
         },
       }),
       ...(options.customTools ?? []),

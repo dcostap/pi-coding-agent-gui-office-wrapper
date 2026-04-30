@@ -19,6 +19,7 @@ const keepSmokeDir = process.env.OFFICE_AGENT_KEEP_SANDBOX_SMOKE_DIR === "1";
 const strictRealShellSmoke = process.env.OFFICE_AGENT_SANDBOX_REAL_SHELL_STRICT === "1";
 let managedRoot;
 let outsideRoot;
+let fileToolOutsideRoot;
 
 try {
   await run(npmCommand(), ["run", "build", "--workspace", "@office-agent/runtime"]);
@@ -32,6 +33,7 @@ try {
   await mkdir(smokeParentDir, { recursive: true });
   managedRoot = await realpath(await mkdtemp(path.join(smokeParentDir, "AgentData-smoke-")));
   outsideRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "officeagent-sandbox-smoke-outside-")));
+  fileToolOutsideRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), "officeagent-file-tool-smoke-outside-")));
   const projectDir = path.join(managedRoot, "projects", "demo");
   await mkdir(projectDir, { recursive: true });
 
@@ -52,6 +54,21 @@ try {
 
   const selfTest = await driver.invokeWindowsSandboxHelper({ kind: "selfTest", requestId: "sandbox-smoke-self-test" });
   assert(selfTest.ok, `helper selfTest failed: ${JSON.stringify(selfTest)}`);
+
+  const directFileToolWriteTarget = path.join(projectDir, "direct-file-tool-write.txt");
+  await driver.writeFileWithOfficeAgentSandbox(managedRoot, directFileToolWriteTarget, "direct-file-tool-ok", { createParentDirs: true });
+  await access(directFileToolWriteTarget);
+
+  await grantEveryoneModify(fileToolOutsideRoot);
+  const outsideJunction = path.join(projectDir, "outside-junction");
+  await createDirectoryJunction(outsideJunction, fileToolOutsideRoot);
+  const escapedFileToolWriteTarget = path.join(outsideJunction, "escaped-file-tool-write.txt");
+  const escapedFileToolWrite = await tryAsync(() =>
+    driver.writeFileWithOfficeAgentSandbox(managedRoot, escapedFileToolWriteTarget, "should-not-write", { createParentDirs: true }),
+  );
+  const escapedFileToolWriteExists = await exists(path.join(fileToolOutsideRoot, "escaped-file-tool-write.txt"));
+  assert(!escapedFileToolWrite.ok, "strict native file write unexpectedly succeeded through a junction to an outside directory");
+  assert(!escapedFileToolWriteExists, `strict native file write unexpectedly wrote outside through junction: ${escapedFileToolWriteTarget}`);
 
   const inside = await runSandboxCommand(bash, commandSet.inside, projectDir, env, 20);
   assert(inside.exitCode === 0, `inside command failed: ${JSON.stringify(inside)}`);
@@ -98,6 +115,8 @@ try {
     shell: shellConfig,
     checks: {
       helperSelfTest: true,
+      directFileToolWriteInside: true,
+      directFileToolJunctionEscapeBlocked: true,
       insideWriteAndOutput: true,
       nativeCmdCompatibility: nativeCommandChecks,
       powershellCompatibility: powershellChecks,
@@ -114,12 +133,14 @@ try {
   console.error(error instanceof Error ? error.stack ?? error.message : String(error));
   if (managedRoot) console.error(`Managed root kept for debugging: ${managedRoot}`);
   if (outsideRoot) console.error(`Outside root kept for debugging: ${outsideRoot}`);
+  if (fileToolOutsideRoot) console.error(`File-tool outside root kept for debugging: ${fileToolOutsideRoot}`);
   process.exitCode = 1;
 } finally {
   if (!keepSmokeDir && process.exitCode !== 1) {
     await Promise.all([
       managedRoot ? rm(managedRoot, { recursive: true, force: true }) : Promise.resolve(),
       outsideRoot ? rm(outsideRoot, { recursive: true, force: true }) : Promise.resolve(),
+      fileToolOutsideRoot ? rm(fileToolOutsideRoot, { recursive: true, force: true }) : Promise.resolve(),
     ]);
   }
 }
@@ -224,6 +245,37 @@ async function exists(filePath) {
   } catch {
     return false;
   }
+}
+
+async function tryAsync(action) {
+  try {
+    await action();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+async function grantEveryoneModify(dir) {
+  await execFileAsync("icacls", [dir, "/grant", "*S-1-1-0:(OI)(CI)(M)"], {
+    cwd: repoRoot,
+    windowsHide: true,
+  });
+}
+
+async function createDirectoryJunction(linkPath, targetPath) {
+  const escapedLink = linkPath.replaceAll("'", "''");
+  const escapedTarget = targetPath.replaceAll("'", "''");
+  await execFileAsync("powershell.exe", [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    `New-Item -ItemType Junction -Path '${escapedLink}' -Target '${escapedTarget}' | Out-Null`,
+  ], {
+    cwd: repoRoot,
+    windowsHide: true,
+  });
 }
 
 function createCmdSmokeCommands() {

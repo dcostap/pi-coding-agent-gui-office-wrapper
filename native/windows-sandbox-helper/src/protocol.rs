@@ -11,6 +11,10 @@ pub enum HelperRequest {
     },
     #[serde(rename = "launch")]
     Launch(LaunchRequest),
+    #[serde(rename = "fileWrite")]
+    FileWrite(FileWriteRequest),
+    #[serde(rename = "mkdir")]
+    Mkdir(MkdirRequest),
 }
 
 #[derive(Debug, Deserialize)]
@@ -30,6 +34,25 @@ pub struct LaunchRequest {
     pub stdout_path: Option<String>,
     pub stderr_path: Option<String>,
     pub timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileWriteRequest {
+    pub request_id: Option<String>,
+    pub managed_root: String,
+    pub path: String,
+    pub content: String,
+    #[serde(default)]
+    pub create_parent_dirs: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MkdirRequest {
+    pub request_id: Option<String>,
+    pub managed_root: String,
+    pub path: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -79,7 +102,11 @@ impl HelperResponse {
         }
     }
 
-    pub fn err(request_id: Option<String>, code: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn err(
+        request_id: Option<String>,
+        code: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
         Self {
             ok: false,
             request_id,
