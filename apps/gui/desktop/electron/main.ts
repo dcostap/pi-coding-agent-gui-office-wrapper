@@ -50,6 +50,7 @@ let notificationManager: NotificationManager | undefined;
 let notificationPermissionService: NotificationPermissionService | undefined;
 let stopPublishingState: (() => void) | undefined;
 let stopPublishingSelectedTranscript: (() => void) | undefined;
+let stopTrackingWindowActivation: (() => void) | undefined;
 let stopNotifications: (() => void) | undefined;
 let stopUpdateChecker: (() => void) | undefined;
 let quittingAfterStoreFlush = false;
@@ -172,6 +173,7 @@ function createWindow(): BrowserWindow {
 }
 
 function attachStatePublisher(window: BrowserWindow): void {
+  const webContentsId = window.webContents.id;
   stopPublishingState?.();
   stopPublishingSelectedTranscript?.();
   stopPublishingState = store.subscribe((state) => {
@@ -201,8 +203,36 @@ function attachStatePublisher(window: BrowserWindow): void {
   });
 }
 
+function attachViewedSessionTracking(window: BrowserWindow): void {
+  stopTrackingWindowActivation?.();
+
+  const handleActivation = () => {
+    store.handleWindowActivation();
+  };
+  const clearTracking = () => {
+    stopTrackingWindowActivation?.();
+    stopTrackingWindowActivation = undefined;
+  };
+
+  window.on("focus", handleActivation);
+  window.on("show", handleActivation);
+  window.on("restore", handleActivation);
+  window.once("closed", clearTracking);
+
+  stopTrackingWindowActivation = () => {
+    window.off("focus", handleActivation);
+    window.off("show", handleActivation);
+    window.off("restore", handleActivation);
+    window.off("closed", clearTracking);
+  };
+}
+
 function canPublishToWindow(window: BrowserWindow): boolean {
   return !window.isDestroyed() && !window.webContents.isDestroyed() && !window.webContents.isCrashed();
+}
+
+function resolveWindowTestMode(): "foreground" | "background" {
+  return process.env.PI_APP_TEST_MODE?.trim().toLowerCase() === "background" ? "background" : "foreground";
 }
 
 async function pickManagedRootViaDialog(): Promise<DesktopAppState> {
@@ -348,7 +378,31 @@ function installApplicationMenu(): void {
 
 app.setName("OfficeAgent");
 
+const defaultUserDataDir = path.join(process.env.LOCALAPPDATA || app.getPath("userData"), "OfficeAgent");
+const configuredUserDataDir = process.env.PI_APP_USER_DATA_DIR?.trim() || defaultUserDataDir;
+app.setPath("userData", configuredUserDataDir);
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
+
+app.on("second-instance", () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  mainWindow.show();
+  mainWindow.focus();
+});
+
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) {
+    return;
+  }
+
   // On macOS, packaged builds already render the dock icon from `icon.icns`
   // in the app bundle. In dev we override the generic Electron dock icon with
   // the real PNG so the running app looks right end-to-end.
@@ -356,9 +410,7 @@ app.whenReady().then(async () => {
     app.dock?.setIcon(appIcon);
   }
 
-  const defaultUserDataDir = path.join(process.env.LOCALAPPDATA || app.getPath("userData"), "OfficeAgent");
-  const userDataDir = process.env.PI_APP_USER_DATA_DIR?.trim() || defaultUserDataDir;
-  const agentDir = await ensureManagedPiAgentDir(userDataDir);
+  const agentDir = await ensureManagedPiAgentDir(configuredUserDataDir);
   let generateThreadTitleOverride:
     | ((workspace: WorkspaceRef, options: GenerateThreadTitleOptions) => Promise<string | null | undefined>)
     | undefined;
@@ -369,7 +421,7 @@ app.whenReady().then(async () => {
       }
     | undefined;
   store = new DesktopAppStore({
-    userDataDir,
+    userDataDir: configuredUserDataDir,
     agentDir,
     initialWorkspacePaths: resolveInitialWorkspacePaths(),
     getWindow: () => mainWindow,
@@ -468,6 +520,9 @@ app.whenReady().then(async () => {
     store.unarchiveSession(target),
   );
   ipcMain.handle(desktopIpc.setActiveView, (_event, activeView) => store.setActiveView(activeView));
+  ipcMain.handle(desktopIpc.setSidebarCollapsed, (_event, collapsed: boolean) =>
+    store.setSidebarCollapsed(collapsed),
+  );
   ipcMain.handle(desktopIpc.refreshRuntime, (_event, workspaceId?: string) => store.refreshRuntime(workspaceId));
   ipcMain.handle(desktopIpc.setModelSettingsScopeMode, (_event, mode) => store.setModelSettingsScopeMode(mode));
   ipcMain.handle(desktopIpc.setSessionModel, (_event, workspaceId: string, sessionId: string, provider: string, modelId: string) =>
@@ -614,6 +669,7 @@ app.whenReady().then(async () => {
   notificationPermissionService.trackWindow(mainWindow);
   themeManager.setWindow(mainWindow);
   attachStatePublisher(mainWindow);
+  attachViewedSessionTracking(mainWindow);
   void notificationPermissionService.getCurrentStatus();
 
   app.on("activate", () => {
@@ -623,6 +679,7 @@ app.whenReady().then(async () => {
       notificationPermissionService?.trackWindow(mainWindow);
       themeManager.setWindow(mainWindow);
       attachStatePublisher(mainWindow);
+      attachViewedSessionTracking(mainWindow);
       void notificationPermissionService?.getCurrentStatus();
     }
   });
@@ -673,10 +730,6 @@ function resolveInitialWorkspacePaths(): readonly string[] {
   }
 
   return [];
-}
-
-function resolveWindowTestMode(): "foreground" | "background" {
-  return process.env.PI_APP_TEST_MODE?.trim().toLowerCase() === "background" ? "background" : "foreground";
 }
 
 async function readComposerAttachment(filePath: string): Promise<ComposerAttachment> {

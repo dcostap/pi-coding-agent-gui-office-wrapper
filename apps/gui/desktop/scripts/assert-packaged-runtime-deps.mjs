@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
 
 const requiredPackages = [
@@ -8,6 +10,7 @@ const requiredPackages = [
   "brace-expansion",
   "chalk",
   "glob",
+  "highlight.js",
   "hosted-git-info",
   "lru-cache",
   "minimatch",
@@ -22,28 +25,28 @@ const notificationHelperPath =
     ? path.join(desktopDir, "release", "mac-arm64", "pi-gui.app", "Contents", "MacOS", "pi-gui-notification-status-helper")
     : undefined;
 const pnpmBinary = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const requiredPiCodingAgentVersion = "0.67.2";
 
 if (!existsSync(asarPath)) {
   throw new Error(`Packaged app.asar not found at ${asarPath}. Run the packaging step first.`);
 }
 
-const asarListing = execFileSync(pnpmBinary, ["exec", "asar", "list", asarPath], {
-  cwd: desktopDir,
-  encoding: "utf8",
-});
-
-const missingPackages = requiredPackages.filter((packageName) => {
-  const escaped = packageName.replace("/", "\\/");
-  const pattern = new RegExp(`^/node_modules/${escaped}(/|$)`, "m");
-  return !pattern.test(asarListing);
-});
-
-if (missingPackages.length > 0) {
-  throw new Error(`Packaged app is missing runtime dependencies: ${missingPackages.join(", ")}`);
-}
-
 if (notificationHelperPath && !existsSync(notificationHelperPath)) {
   throw new Error(`Packaged app is missing notification helper: ${notificationHelperPath}`);
+}
+
+const extractedDir = mkdtempSync(path.join(tmpdir(), "pi-gui-packaged-runtime-"));
+try {
+  execFileSync(pnpmBinary, ["exec", "asar", "extract", asarPath, extractedDir], {
+    cwd: desktopDir,
+    stdio: "pipe",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+
+  verifyRequiredPackages(extractedDir);
+  await verifyPackagedPiRuntime(extractedDir);
+} finally {
+  rmSync(extractedDir, { recursive: true, force: true });
 }
 
 console.log(`Verified packaged runtime dependencies in ${asarPath}`);
@@ -68,4 +71,27 @@ function resolveAsarPath(desktopDir, packagePlatform) {
   }
 
   throw new Error(`Unsupported packaged runtime dependency target: ${packagePlatform}`);
+}
+
+function verifyRequiredPackages(extractedDir) {
+  const missingPackages = requiredPackages.filter(
+    (packageName) => !existsSync(path.join(extractedDir, "node_modules", packageName)),
+  );
+
+  if (missingPackages.length > 0) {
+    throw new Error(`Packaged app is missing runtime dependencies: ${missingPackages.join(", ")}`);
+  }
+}
+
+async function verifyPackagedPiRuntime(extractedDir) {
+  const packageJsonPath = path.join(extractedDir, "node_modules", "@mariozechner", "pi-coding-agent", "package.json");
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  if (packageJson.version !== requiredPiCodingAgentVersion) {
+    throw new Error(
+      `Packaged app has @mariozechner/pi-coding-agent ${packageJson.version}; expected ${requiredPiCodingAgentVersion}.`,
+    );
+  }
+
+  const runtimeEntry = path.join(extractedDir, "node_modules", "@mariozechner", "pi-coding-agent", "dist", "index.js");
+  await import(pathToFileURL(runtimeEntry).href);
 }
