@@ -138,7 +138,7 @@ export function createOfficeAgentSandboxBashOperations(
         stdoutPath,
         stderrPath,
         ...(timeoutMs ? { timeoutMs } : {}),
-      });
+      }, execOptions.signal ? { signal: execOptions.signal } : undefined);
 
       if (execOptions.signal?.aborted) {
         throw new Error("aborted");
@@ -332,9 +332,10 @@ export function getOfficeAgentSandboxShellPromptContext(shellConfig: OfficeAgent
 
 export async function invokeWindowsSandboxHelper(
   request: WindowsSandboxHelperRequest,
+  options?: { readonly signal?: AbortSignal },
 ): Promise<WindowsSandboxHelperResponse> {
   const helperPath = await resolveWindowsSandboxHelperPath();
-  return invokeHelperExecutable(helperPath, request);
+  return invokeHelperExecutable(helperPath, request, options);
 }
 
 export async function writeFileWithOfficeAgentSandbox(
@@ -449,8 +450,14 @@ function candidateHelperPaths(): string[] {
 function invokeHelperExecutable(
   helperPath: string,
   request: WindowsSandboxHelperRequest,
+  options?: { readonly signal?: AbortSignal },
 ): Promise<WindowsSandboxHelperResponse> {
   return new Promise((resolvePromise, rejectPromise) => {
+    if (options?.signal?.aborted) {
+      rejectPromise(new Error("aborted"));
+      return;
+    }
+
     const child = spawn(helperPath, [], {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
@@ -459,25 +466,45 @@ function invokeHelperExecutable(
     let settled = false;
     let stdout = "";
     let stderr = "";
-    const requestTimeoutMs = "timeoutMs" in request && typeof request.timeoutMs === "number"
-      ? request.timeoutMs
-      : 30_000;
-    const watchdogMs = Math.max(30_000, requestTimeoutMs + 15_000);
-    const watchdog = setTimeout(() => {
+    const watchdogMs = getHelperWatchdogMs(request);
+    const watchdog = watchdogMs === undefined
+      ? undefined
+      : setTimeout(() => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          cleanupAbortListener();
+          child.kill();
+          rejectPromise(new Error(`OfficeAgent sandbox helper did not respond within ${watchdogMs}ms. stderr=${stderr}`));
+        }, watchdogMs);
+
+    const cleanupAbortListener = () => {
+      options?.signal?.removeEventListener("abort", onAbort);
+    };
+    const onAbort = () => {
       if (settled) {
         return;
       }
       settled = true;
+      if (watchdog) {
+        clearTimeout(watchdog);
+      }
+      cleanupAbortListener();
       child.kill();
-      rejectPromise(new Error(`OfficeAgent sandbox helper did not respond within ${watchdogMs}ms. stderr=${stderr}`));
-    }, watchdogMs);
+      rejectPromise(new Error("aborted"));
+    };
+    options?.signal?.addEventListener("abort", onAbort, { once: true });
 
     const reject = (error: unknown) => {
       if (settled) {
         return;
       }
       settled = true;
-      clearTimeout(watchdog);
+      if (watchdog) {
+        clearTimeout(watchdog);
+      }
+      cleanupAbortListener();
       rejectPromise(error);
     };
     const resolve = (response: WindowsSandboxHelperResponse) => {
@@ -485,7 +512,10 @@ function invokeHelperExecutable(
         return;
       }
       settled = true;
-      clearTimeout(watchdog);
+      if (watchdog) {
+        clearTimeout(watchdog);
+      }
+      cleanupAbortListener();
       resolvePromise(response);
     };
 
@@ -509,6 +539,15 @@ function invokeHelperExecutable(
 
     child.stdin.end(`${JSON.stringify(request)}\n`);
   });
+}
+
+function getHelperWatchdogMs(request: WindowsSandboxHelperRequest): number | undefined {
+  if (request.kind === "launch") {
+    return typeof request.timeoutMs === "number"
+      ? Math.max(30_000, request.timeoutMs + 15_000)
+      : undefined;
+  }
+  return 30_000;
 }
 
 async function ensureOfficeAgentManagedToolRuntimes(

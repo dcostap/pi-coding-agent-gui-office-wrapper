@@ -108,6 +108,9 @@ try {
   const timeout = await runSandboxCommand(bash, commandSet.timeout, projectDir, env, 1);
   assert(timeout.exitCode === 124, `timeout command should return 124, got ${JSON.stringify(timeout)}`);
 
+  const cancellationTarget = path.join(projectDir, "cancelled-late-write.txt");
+  const cancellation = await runCancellationCheck(bash, commandSet.delayedWrite(cancellationTarget), projectDir, env, cancellationTarget);
+
   console.log(JSON.stringify({
     ok: true,
     managedRoot,
@@ -127,6 +130,7 @@ try {
       systemReadAllowed: true,
       outsideReadAllowed,
       timeoutKilled: true,
+      cancellation,
     },
   }, null, 2));
 } catch (error) {
@@ -159,19 +163,40 @@ async function run(command, args) {
   if (stderr.trim()) console.error(stderr.trim());
 }
 
-async function runSandboxCommand(bash, command, cwd, env, timeout) {
+async function runSandboxCommand(bash, command, cwd, env, timeout, options = {}) {
   let output = Buffer.alloc(0);
   const result = await bash.exec(command, cwd, {
     onData(data) {
       output = Buffer.concat([output, data]);
     },
     env,
-    timeout,
+    ...(timeout === undefined ? {} : { timeout }),
+    ...(options.signal ? { signal: options.signal } : {}),
   });
   return {
     exitCode: result.exitCode,
     output: output.toString("utf8"),
   };
+}
+
+async function runCancellationCheck(bash, command, projectDir, env, cancellationTarget) {
+  const controller = new AbortController();
+  const started = Date.now();
+  const runPromise = runSandboxCommand(bash, command, projectDir, env, undefined, { signal: controller.signal });
+  setTimeout(() => controller.abort(), 1000);
+  let aborted = false;
+  try {
+    await runPromise;
+  } catch (error) {
+    aborted = String(error instanceof Error ? error.message : error).includes("aborted");
+  }
+  const durationMs = Date.now() - started;
+  await sleep(1500);
+  const wroteAfterAbort = await exists(cancellationTarget);
+  assert(aborted, "sandbox command cancellation should reject with aborted");
+  assert(durationMs < 6_000, `sandbox command cancellation took too long: ${durationMs}ms`);
+  assert(!wroteAfterAbort, `sandbox command wrote after cancellation: ${cancellationTarget}`);
+  return { aborted, durationMs, wroteAfterAbort };
 }
 
 async function runNativeCmdCompatibilityChecks(bash, projectDir, env) {
@@ -286,6 +311,7 @@ function createCmdSmokeCommands() {
     systemRead: "type C:\\Windows\\win.ini",
     envLeak: "set OFFICE_AGENT_GATEWAY_TOKEN",
     timeout: "for /l %%i in (1,1,1000000000) do @rem",
+    delayedWrite: (target) => `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 10; 'late' | Set-Content -NoNewline '${escapePowerShellSingleQuotedString(target)}'"`,
   };
 }
 
@@ -297,6 +323,7 @@ function createPowerShellSmokeCommands() {
     systemRead: "Get-Content C:\\Windows\\win.ini",
     envLeak: "Get-ChildItem Env:OFFICE_AGENT_GATEWAY_TOKEN -ErrorAction SilentlyContinue",
     timeout: "while ($true) { Start-Sleep -Milliseconds 100 }",
+    delayedWrite: (target) => `Start-Sleep -Seconds 10; 'late' | Set-Content -NoNewline '${escapePowerShellSingleQuotedString(target)}'`,
   };
 }
 
@@ -308,11 +335,16 @@ function createBashSmokeCommands() {
     systemRead: "cat /c/Windows/win.ini",
     envLeak: "printenv OFFICE_AGENT_GATEWAY_TOKEN || true",
     timeout: "while true; do :; done",
+    delayedWrite: (target) => `sleep 10; echo late > "${toMsysPath(target)}"`,
   };
 }
 
 function escapePowerShellString(value) {
   return value.replaceAll("`", "``").replaceAll("\"", "`\"");
+}
+
+function escapePowerShellSingleQuotedString(value) {
+  return value.replaceAll("'", "''");
 }
 
 function toMsysPath(windowsPath) {
@@ -334,6 +366,10 @@ function getPublicDir() {
 
 function npmCommand() {
   return "npm";
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function assert(condition, message) {
