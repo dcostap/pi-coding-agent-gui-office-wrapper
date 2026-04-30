@@ -2131,7 +2131,7 @@ cargo build --manifest-path native/windows-sandbox-helper/Cargo.toml
 npm run build --workspace @office-agent/runtime
 npm run build --workspace @pi-gui/pi-sdk-driver
 npm run build:sandbox-helper --workspace @office-agent/gui
-OFFICE_AGENT_STRICT_REAL_SHELL_SMOKE=1 npm run sandbox:smoke
+OFFICE_AGENT_SANDBOX_REAL_SHELL_STRICT=1 npm run sandbox:smoke
 npm run build --workspace @office-agent/gui
 ```
 
@@ -2192,7 +2192,7 @@ Validated:
 
 ```text
 npm run build --workspace @pi-gui/pi-sdk-driver
-OFFICE_AGENT_STRICT_REAL_SHELL_SMOKE=1 npm run sandbox:smoke
+OFFICE_AGENT_SANDBOX_REAL_SHELL_STRICT=1 npm run sandbox:smoke
 npm run build --workspace @office-agent/gui
 ```
 
