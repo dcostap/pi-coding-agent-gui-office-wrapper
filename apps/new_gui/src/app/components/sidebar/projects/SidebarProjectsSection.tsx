@@ -1,4 +1,4 @@
-import { Clock3, FolderPlus, Github, ListFilter, Search, SquareTerminal, Star } from "lucide-react";
+import { FolderPlus, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseGitHubRepositoryUrl } from "../../../../../shared/github-repository-url";
 import type { AppSettings, DesktopActionInvoker } from "../../../desktop/types";
@@ -71,7 +71,7 @@ export function SidebarProjectsSection({
     (activeView === "extensions" || activeView === "skills") && projectScopeLockActive;
   const showProjectCreate = activeView !== "extensions" && activeView !== "skills";
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterMode, setFilterMode] = useState<SidebarProjectsFilterMode>("all");
+  const filterMode: SidebarProjectsFilterMode = "all";
   const [createOpen, setCreateOpen] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
@@ -105,7 +105,7 @@ export function SidebarProjectsSection({
   );
 
   useEffect(() => {
-    if (filterMode !== "terminal" && filterMode !== "recent" && searchQuery.trim().length === 0) {
+    if (searchQuery.trim().length === 0) {
       return;
     }
 
@@ -125,7 +125,7 @@ export function SidebarProjectsSection({
 
       void onLoadProjectThreads(project.id, { chat: activeView === "chat" });
     }
-  }, [activeView, filterMode, onLoadProjectThreads, projects, searchQuery, visibleProjects]);
+  }, [activeView, onLoadProjectThreads, projects, searchQuery, visibleProjects]);
 
   const effectiveCollapsedProjectIds = useMemo(() => {
     if (searchQuery.trim().length === 0) {
@@ -138,38 +138,6 @@ export function SidebarProjectsSection({
     };
   }, [autoExpandedProjectIds, collapsedProjectIds, searchQuery]);
 
-  const cycleFilterMode = () => {
-    setFilterMode((current) => {
-      if (current === "all") {
-        return "favourites";
-      }
-
-      if (current === "favourites") {
-        return "github";
-      }
-
-      if (current === "github") {
-        return "terminal";
-      }
-
-      if (current === "terminal") {
-        return "recent";
-      }
-
-      return "all";
-    });
-  };
-
-  const filterLabel =
-    filterMode === "favourites"
-      ? "Show favourites"
-      : filterMode === "github"
-        ? "Show GitHub projects"
-        : filterMode === "terminal"
-          ? "Show threads with running terminals"
-          : filterMode === "recent"
-            ? "Show threads active since launch"
-            : "Filter projects";
 
   const dismissCreate = useCallback(() => {
     setCreateOpen(false);
@@ -259,25 +227,6 @@ export function SidebarProjectsSection({
         </label>
         {showProjects ? (
           <div className="sidebar-action-group">
-            <IconButton
-              label={filterLabel}
-              tooltipPlacement="right"
-              onClick={cycleFilterMode}
-              icon={
-                filterMode === "favourites" ? (
-                  <Star size={15} className="fill-current" />
-                ) : filterMode === "github" ? (
-                  <Github size={15} />
-                ) : filterMode === "terminal" ? (
-                  <SquareTerminal size={15} />
-                ) : filterMode === "recent" ? (
-                  <Clock3 size={15} />
-                ) : (
-                  <ListFilter size={15} />
-                )
-              }
-              active={filterMode !== "all"}
-            />
             {showProjectCreate ? (
               <IconButton
                 ref={createButtonRef}
