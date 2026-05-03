@@ -1,9 +1,17 @@
-import { app, ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from "electron";
+import {
+  app,
+  ipcMain,
+  Menu,
+  type BrowserWindow,
+  type IpcMainInvokeEvent,
+  type MenuItemConstructorOptions,
+} from "electron";
 import {
   getDesktopEventIpcChannel,
   getDesktopRequestIpcChannel,
   type DesktopRequestChannel,
   type DesktopRequestHandlerMap,
+  type TitleBarMenuId,
 } from "../../../../shared/desktop-ipc";
 import { resolveConfiguredDevServerUrl } from "../../../../shared/dev-server";
 import { isTrustedRendererUrl } from "../app/navigation-security";
@@ -47,6 +55,40 @@ function assertTrustedDesktopIpcEvent(
   }
 }
 
+function getTitleBarMenuTemplate(menuId: TitleBarMenuId): MenuItemConstructorOptions[] {
+  switch (menuId) {
+    case "file":
+      return [{ role: "close" }, { type: "separator" }, { role: "quit" }];
+    case "edit":
+      return [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { type: "separator" },
+        { role: "selectAll" },
+      ];
+    case "view":
+      return [
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ];
+    case "window":
+      return [{ role: "minimize" }, { role: "close" }];
+    case "help":
+      return [{ label: "OfficeAgent v0.1", enabled: false }];
+  }
+}
+
 function registerRequestHandlers(
   handlers: DesktopRequestHandlerMap,
   getMainWindow: () => BrowserWindow | null,
@@ -65,6 +107,78 @@ export function registerDesktopIpc(
   appUpdater: AppUpdater,
 ) {
   const handlers: DesktopRequestHandlerMap = {
+    showTitleBarMenu: ({ menuId, x, y }) => {
+      const mainWindow = getMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return { ok: false };
+      }
+
+      Menu.buildFromTemplate(getTitleBarMenuTemplate(menuId)).popup({
+        window: mainWindow,
+        x: Math.round(x),
+        y: Math.round(y),
+      });
+      return { ok: true };
+    },
+    runTitleBarCommand: ({ commandId }) => {
+      const mainWindow = getMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return { ok: false };
+      }
+
+      const webContents = mainWindow.webContents;
+      switch (commandId) {
+        case "file.close":
+        case "window.close":
+          mainWindow.close();
+          return { ok: true };
+        case "file.quit":
+          app.quit();
+          return { ok: true };
+        case "window.minimize":
+          mainWindow.minimize();
+          return { ok: true };
+        case "edit.undo":
+          webContents.undo();
+          return { ok: true };
+        case "edit.redo":
+          webContents.redo();
+          return { ok: true };
+        case "edit.cut":
+          webContents.cut();
+          return { ok: true };
+        case "edit.copy":
+          webContents.copy();
+          return { ok: true };
+        case "edit.paste":
+          webContents.paste();
+          return { ok: true };
+        case "edit.selectAll":
+          webContents.selectAll();
+          return { ok: true };
+        case "view.reload":
+          webContents.reload();
+          return { ok: true };
+        case "view.forceReload":
+          webContents.reloadIgnoringCache();
+          return { ok: true };
+        case "view.toggleDevTools":
+          webContents.toggleDevTools();
+          return { ok: true };
+        case "view.resetZoom":
+          webContents.setZoomLevel(0);
+          return { ok: true };
+        case "view.zoomIn":
+          webContents.setZoomLevel(webContents.getZoomLevel() + 0.5);
+          return { ok: true };
+        case "view.zoomOut":
+          webContents.setZoomLevel(webContents.getZoomLevel() - 0.5);
+          return { ok: true };
+        case "view.toggleFullscreen":
+          mainWindow.setFullScreen(!mainWindow.isFullScreen());
+          return { ok: true };
+      }
+    },
     ...createAppUpdateHandlers(appUpdater),
     ...createPiThreadsHandlers(runtime.piThreads),
     ...createPiPackagesHandlers(runtime.piThreads),

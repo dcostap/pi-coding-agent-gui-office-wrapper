@@ -81,6 +81,8 @@ terminalManager.subscribeTerminalEvents((event) => {
 });
 
 const handlers: DesktopRequestHandlerMap = {
+  showTitleBarMenu: () => ({ ok: false }),
+  runTitleBarCommand: () => ({ ok: false }),
   getAppUpdateState: () => devAppUpdateState,
   checkAppUpdate: () => devAppUpdateState,
   installAppUpdate: () => devAppUpdateState,

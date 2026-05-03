@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FolderGit2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { FolderGit2 } from "lucide-react";
 import type { AppShellController } from "../../app-shell/useAppShellController";
 import { defaultPiSettings } from "../../../../shared/default-pi-settings";
 import { Composer } from "../../components/workspace/Composer";
@@ -12,7 +12,6 @@ import { useDesktopDiff } from "../../hooks/useDesktopDiff";
 import { mainPanelClass } from "../../ui/classes";
 import { cn } from "../../utils/cn";
 import { CodeWorkspaceMainView } from "./CodeWorkspaceMainView";
-import { DesktopComposerStatus } from "./DesktopComposerStatus";
 import { useDiffCommentController } from "./useDiffCommentController";
 import { useQueuedPromptRestore } from "./useQueuedPromptRestore";
 import { useWorkspaceFooterHeight } from "./useWorkspaceFooterHeight";
@@ -56,8 +55,6 @@ export function CodeWorkspaceView({
   workspaceContentClass,
   onSetDiffBaseline,
   onSetDiffRenderMode,
-  sidebarCollapsed,
-  onToggleSidebar,
 }: CodeWorkspaceViewProps) {
   const [composerPromptResetKey, setComposerPromptResetKey] = useState(0);
   const [gitOpsFileTreeVisibilityByThread, setGitOpsFileTreeVisibilityByThread] = useState<
@@ -267,27 +264,9 @@ export function CodeWorkspaceView({
           style={threadFooterStyle}
         >
           <div className="pointer-events-auto grid gap-2.5">
-            <div className="grid grid-cols-[minmax(0,1fr)_800px_minmax(0,1fr)] items-end gap-3">
-              <div
-                className={cn(
-                  "mb-1.5 min-w-0 self-end",
-                  state.activeView === "gitops" ? "opacity-100" : "opacity-0 xl:opacity-100",
-                )}
-              >
-                {(state.activeView === "thread" || state.activeView === "gitops") &&
-                !state.takeoverVisible ? (
-                  <button
-                    type="button"
-                    className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--muted)] opacity-70 transition hover:bg-[rgba(169,178,215,0.1)] hover:text-[color:var(--text)] hover:opacity-100"
-                    onClick={onToggleSidebar}
-                    aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-                    data-tooltip={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-                  >
-                    {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-                  </button>
-                ) : null}
-              </div>
-              <div className="w-[800px]">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(520px,800px)_minmax(0,1fr)] items-end gap-3">
+              <div className="mb-1.5 min-w-0 self-end" />
+              <div className="w-full max-w-[800px]">
                 {state.activeView === "gitops" ? (
                   <div>
                     <GitOpsComposerPanel
@@ -433,14 +412,6 @@ export function CodeWorkspaceView({
                   >
                     <FolderGit2 size={15} />
                   </button>
-                ) : state.activeView === "thread" &&
-                  !state.takeoverVisible &&
-                  !showDesktopTerminalDrawer ? (
-                  <DesktopComposerStatus
-                    contextUsage={activeComposerState?.contextUsage ?? null}
-                    model={activeComposerState?.currentModel ?? null}
-                    thinkingLevel={activeComposerState?.currentThinkingLevel ?? "off"}
-                  />
                 ) : null}
               </div>
             </div>

@@ -1,13 +1,20 @@
-import { FolderPlus, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, FolderPlus, Search, SquarePen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppSettings, DesktopActionInvoker } from "../../../desktop/types";
 import { useDesktopBridgeAvailable } from "../../../hooks/useDesktopBridge";
 import { useDismissibleLayer } from "../../../hooks/useDismissibleLayer";
-import type { Project, View } from "../../../types";
+import type { Project, Thread, View } from "../../../types";
 import { cn } from "../../../utils/cn";
 import { IconButton } from "../../common/IconButton";
 import { ProjectTree } from "../ProjectTree";
+import { ThreadRow } from "../project-tree/ThreadRow";
 import { SidebarProjectsCreatePopover } from "./SidebarProjectsCreatePopover";
+import {
+  getUnassignedChatDisplayTitle,
+  isUnassignedChatProjectId,
+  UNASSIGNED_CHATS_FAKE_PROJECT_ID,
+  UNASSIGNED_CHAT_PROJECT_NAME,
+} from "../../../../../shared/unassigned-chats";
 import {
   type SidebarProjectsFilterMode,
   getSidebarVisibleProjects,
@@ -16,6 +23,10 @@ import {
 type PendingProject = {
   key: string;
   name: string;
+};
+
+type UnassignedChatThread = Thread & {
+  projectId: string;
 };
 
 type SidebarProjectsSectionProps = {
@@ -80,11 +91,37 @@ export function SidebarProjectsSection({
   const desktopBridgeAvailable = useDesktopBridgeAvailable();
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const createPanelRef = useRef<HTMLDialogElement>(null);
+  const [unassignedChatsExpanded, setUnassignedChatsExpanded] = useState(true);
+
+  const regularProjects = useMemo(
+    () => projects.filter((project) => !isUnassignedChatProjectId(project.id)),
+    [projects],
+  );
+  const unassignedChatProjects = useMemo(
+    () => projects.filter((project) => isUnassignedChatProjectId(project.id)),
+    [projects],
+  );
+  const unassignedChatThreads = useMemo<UnassignedChatThread[]>(
+    () =>
+      unassignedChatProjects
+        .flatMap((project) =>
+          project.threads.map((thread) => ({
+            ...thread,
+            projectId: project.id,
+            title: getUnassignedChatDisplayTitle(thread.title),
+          })),
+        )
+        .sort((left, right) => (right.lastModifiedMs ?? 0) - (left.lastModifiedMs ?? 0)),
+    [unassignedChatProjects],
+  );
+  const hasUnassignedChats =
+    unassignedChatThreads.length > 0 ||
+    unassignedChatProjects.some((project) => (project.threadCount ?? 0) > 0);
 
   const { projects: visibleProjects, autoExpandedProjectIds } = useMemo(
     () =>
       getSidebarVisibleProjects({
-        projects,
+        projects: regularProjects,
         searchQuery,
         filterMode,
         terminalRunningProjectIds,
@@ -96,7 +133,7 @@ export function SidebarProjectsSection({
       appLaunchedAtMs,
       createdProjectIds,
       filterMode,
-      projects,
+      regularProjects,
       searchQuery,
       terminalRunningProjectIds,
       terminalRunningSessionPaths,
@@ -109,7 +146,7 @@ export function SidebarProjectsSection({
     }
 
     for (const project of visibleProjects) {
-      const sourceProject = projects.find((candidate) => candidate.id === project.id);
+      const sourceProject = regularProjects.find((candidate) => candidate.id === project.id);
 
       const shouldLoadSearchedProject = searchQuery.trim().length > 0;
       const hasIndexedThreads = (sourceProject?.threadCount ?? project.threadCount ?? 0) > 0;
@@ -124,7 +161,17 @@ export function SidebarProjectsSection({
 
       void onLoadProjectThreads(project.id, { chat: activeView === "chat" });
     }
-  }, [activeView, onLoadProjectThreads, projects, searchQuery, visibleProjects]);
+  }, [activeView, onLoadProjectThreads, regularProjects, searchQuery, visibleProjects]);
+
+  useEffect(() => {
+    for (const project of unassignedChatProjects) {
+      if (project.threadsLoaded || (project.threadCount ?? 0) === 0) {
+        continue;
+      }
+
+      void onLoadProjectThreads(project.id, { chat: false });
+    }
+  }, [onLoadProjectThreads, unassignedChatProjects]);
 
   const effectiveCollapsedProjectIds = useMemo(() => {
     if (searchQuery.trim().length === 0) {
@@ -156,7 +203,7 @@ export function SidebarProjectsSection({
     setCreateErrorMessage(null);
 
     if (!appSettings.preferredProjectLocation) {
-      setCreateErrorMessage("La ubicación del proyecto no está configurada.");
+      setCreateErrorMessage("La ubicaciï¿½n del proyecto no estï¿½ configurada.");
       return;
     }
 
@@ -228,7 +275,7 @@ export function SidebarProjectsSection({
                 tooltipPlacement="right"
                 onClick={() => {
                   if (!appSettings.preferredProjectLocation) {
-                    setCreateErrorMessage("La ubicación del proyecto no está configurada.");
+                    setCreateErrorMessage("La ubicaciï¿½n del proyecto no estï¿½ configurada.");
                   } else {
                     setCreateErrorMessage(null);
                   }
@@ -262,7 +309,7 @@ export function SidebarProjectsSection({
         ) : null}
       </div>
 
-      {visibleProjects.length > 0 || pendingProject ? (
+      {visibleProjects.length > 0 || pendingProject || hasUnassignedChats ? (
         <>
           {pendingProject ? (
             <div className="sidebar-tree-item" aria-live="polite">
@@ -281,6 +328,89 @@ export function SidebarProjectsSection({
                 </div>
                 <span className="text-[11px] text-[color:var(--muted-2)]">Addingâ€¦</span>
               </div>
+            </div>
+          ) : null}
+          {hasUnassignedChats ? (
+            <div className="sidebar-tree-item">
+              <div className="sidebar-project-row sidebar-row-surface">
+                <button
+                  type="button"
+                  className="sidebar-project-toggle"
+                  onClick={() => setUnassignedChatsExpanded((expanded) => !expanded)}
+                  data-can-toggle="true"
+                  aria-label={
+                    unassignedChatsExpanded
+                      ? "Contraer chats sin proyecto"
+                      : "Expandir chats sin proyecto"
+                  }
+                  aria-expanded={unassignedChatsExpanded}
+                  aria-controls={UNASSIGNED_CHATS_FAKE_PROJECT_ID}
+                >
+                  <SquarePen size={12} className="sidebar-project-icon sidebar-project-origin-icon" />
+                  {unassignedChatsExpanded ? (
+                    <ChevronDown size={12} className="sidebar-project-icon sidebar-project-chevron-icon" />
+                  ) : (
+                    <ChevronRight size={12} className="sidebar-project-icon sidebar-project-chevron-icon" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="sidebar-project-button cursor-pointer"
+                  onClick={() => setUnassignedChatsExpanded((expanded) => !expanded)}
+                >
+                  <span className="sidebar-project-title">{UNASSIGNED_CHAT_PROJECT_NAME}</span>
+                </button>
+                <span className="pr-1 text-[11px] text-[color:var(--muted-2)]">
+                  {unassignedChatThreads.length}
+                </span>
+              </div>
+              {unassignedChatsExpanded ? (
+                <div
+                  id={UNASSIGNED_CHATS_FAKE_PROJECT_ID}
+                  className="motion-collapse-panel"
+                  data-open="true"
+                >
+                  <div className="motion-collapse-panel__inner">
+                    {unassignedChatThreads.map((thread) => (
+                      <ThreadRow
+                        key={`${thread.projectId}:${thread.id}`}
+                        age={thread.age}
+                        pinned={Boolean(thread.pinned)}
+                        running={Boolean(thread.running)}
+                        terminalRunning={Boolean(
+                          thread.sessionPath && terminalRunningSessionPaths.has(thread.sessionPath),
+                        )}
+                        unread={Boolean(thread.unread)}
+                        isSelected={
+                          selectedThreadId === thread.id &&
+                          selectedProjectId === thread.projectId &&
+                          (activeView === "thread" || activeView === "gitops")
+                        }
+                        title={thread.title}
+                        onArchive={() =>
+                          onAction("thread.archive", {
+                            projectId: thread.projectId,
+                            threadId: thread.id,
+                          })
+                        }
+                        onOpen={() => {
+                          if (!thread.sessionPath) {
+                            return;
+                          }
+
+                          onThreadOpen(thread.projectId, thread.id, thread.sessionPath);
+                        }}
+                        onPin={() =>
+                          onAction("thread.pin", {
+                            projectId: thread.projectId,
+                            threadId: thread.id,
+                          })
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
           {visibleProjects.length > 0 ? (

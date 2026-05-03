@@ -29,7 +29,16 @@ function getRendererTrustConfig() {
 
 export function createMainWindow() {
   const mainWindow = new BrowserWindow({
-    title: "howcode",
+    title: "OfficeAgent",
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#00000000",
+      symbolColor: "#ededed",
+      height: 36,
+    },
+    backgroundColor: "#00000000",
+    backgroundMaterial: process.platform === "win32" ? "acrylic" : undefined,
+    autoHideMenuBar: true,
     width: 1480,
     height: 980,
     minWidth: SMALL_WINDOW_MINIMUM_SIZE.width,

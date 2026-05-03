@@ -1,5 +1,8 @@
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { TitleBarCommandId, TitleBarMenuId } from "../../../shared/desktop-ipc";
 import { getPersistedSessionPath, isLocalSessionPath } from "../../../shared/session-paths";
+import { Tooltip } from "../components/common/Tooltip";
 import { Sidebar } from "../components/sidebar/Sidebar";
 import { TerminalPanel } from "../components/workspace/TerminalPanel";
 import { defaultDiffBaseline } from "../components/workspace/composer/diff-baseline";
@@ -13,6 +16,52 @@ import type { AppShellController } from "./useAppShellController";
 import { useAppShellLayoutState } from "./useAppShellLayoutState";
 
 const TERMINAL_DRAWER_WIDTH = "min(28rem, calc(100% - 2.5rem))";
+
+const titleBarMenuItems: Array<{ id: TitleBarMenuId; label: string }> = [
+  { id: "file", label: "File" },
+  { id: "edit", label: "Edit" },
+  { id: "view", label: "View" },
+  { id: "window", label: "Window" },
+  { id: "help", label: "Help" },
+];
+
+type TitleBarMenuEntry =
+  | { type: "separator" }
+  | { type?: "item"; label: string; commandId?: TitleBarCommandId; disabled?: boolean };
+
+const titleBarMenuEntries: Record<TitleBarMenuId, TitleBarMenuEntry[]> = {
+  file: [
+    { label: "Close", commandId: "file.close" },
+    { type: "separator" },
+    { label: "Quit", commandId: "file.quit" },
+  ],
+  edit: [
+    { label: "Undo", commandId: "edit.undo" },
+    { label: "Redo", commandId: "edit.redo" },
+    { type: "separator" },
+    { label: "Cut", commandId: "edit.cut" },
+    { label: "Copy", commandId: "edit.copy" },
+    { label: "Paste", commandId: "edit.paste" },
+    { type: "separator" },
+    { label: "Select All", commandId: "edit.selectAll" },
+  ],
+  view: [
+    { label: "Reload", commandId: "view.reload" },
+    { label: "Force Reload", commandId: "view.forceReload" },
+    { label: "Toggle DevTools", commandId: "view.toggleDevTools" },
+    { type: "separator" },
+    { label: "Reset Zoom", commandId: "view.resetZoom" },
+    { label: "Zoom In", commandId: "view.zoomIn" },
+    { label: "Zoom Out", commandId: "view.zoomOut" },
+    { type: "separator" },
+    { label: "Toggle Full Screen", commandId: "view.toggleFullscreen" },
+  ],
+  window: [
+    { label: "Minimize", commandId: "window.minimize" },
+    { label: "Close", commandId: "window.close" },
+  ],
+  help: [{ label: "OfficeAgent v0.1", disabled: true }],
+};
 
 type TakeoverTerminalKeyState = {
   key: string;
@@ -33,6 +82,119 @@ function isLocalToPersistedTakeoverTransition(
     previous.threadId === nextThreadId &&
     isLocalSessionPath(previous.sessionPath) &&
     getPersistedSessionPath(nextSessionPath) !== null
+  );
+}
+
+function AppTitleBar({
+  sidebarCollapsed,
+  onToggleSidebar,
+}: {
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
+}) {
+  const [openMenuId, setOpenMenuId] = useState<TitleBarMenuId | null>(null);
+  const titleBarRef = useRef<HTMLElement>(null);
+  const sidebarToggleLabel = sidebarCollapsed ? "Mostrar barra lateral" : "Ocultar barra lateral";
+
+  useEffect(() => {
+    if (!openMenuId) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!titleBarRef.current?.contains(event.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenMenuId(null);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [openMenuId]);
+
+  const runTitleBarCommand = (commandId: TitleBarCommandId | undefined) => {
+    setOpenMenuId(null);
+    if (commandId) {
+      void window.piDesktop?.runTitleBarCommand?.(commandId);
+    }
+  };
+
+  return (
+    <header
+      ref={titleBarRef}
+      className="app-titlebar flex h-9 shrink-0 items-center bg-[color:var(--bg)] pr-[142px] pl-1.5"
+    >
+      <Tooltip content={sidebarToggleLabel} placement="right">
+        <button
+          type="button"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.075)] hover:text-[color:var(--text)]"
+          onClick={onToggleSidebar}
+          aria-label={sidebarToggleLabel}
+        >
+          {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+        </button>
+      </Tooltip>
+      <nav className="ml-2 flex h-full items-center gap-0.5" aria-label="Application menu">
+        {titleBarMenuItems.map((item) => {
+          const isOpen = openMenuId === item.id;
+          return (
+            <div key={item.id} className="relative flex h-full items-center">
+              <button
+                type="button"
+                className="inline-flex h-7 items-center rounded-md px-2 text-[13px] font-medium text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.075)] hover:text-[color:var(--text)] focus-visible:bg-[rgba(255,255,255,0.075)] focus-visible:text-[color:var(--text)] focus-visible:outline-none data-[open=true]:bg-[rgba(255,255,255,0.075)] data-[open=true]:text-[color:var(--text)]"
+                data-open={isOpen ? "true" : "false"}
+                onClick={() => setOpenMenuId((current) => (current === item.id ? null : item.id))}
+                onPointerEnter={() => {
+                  setOpenMenuId((current) => (current ? item.id : current));
+                }}
+                aria-haspopup="menu"
+                aria-expanded={isOpen}
+              >
+                {item.label}
+              </button>
+              {isOpen ? (
+                <div
+                  className="app-titlebar-menu-popover absolute top-[calc(100%+2px)] left-0 z-50 min-w-44 rounded-lg border border-[rgba(255,255,255,0.09)] bg-[rgba(34,34,34,0.88)] p-1.5 text-[13px] text-[color:var(--text)] shadow-[0_16px_42px_rgba(0,0,0,0.38)] backdrop-blur-[22px]"
+                  role="menu"
+                  aria-label={item.label}
+                >
+                  {titleBarMenuEntries[item.id].map((entry, index) =>
+                    entry.type === "separator" ? (
+                      <div
+                        key={`${item.id}-separator-${index}`}
+                        className="my-1 h-px bg-[rgba(255,255,255,0.075)]"
+                        role="separator"
+                      />
+                    ) : (
+                      <button
+                        key={entry.label}
+                        type="button"
+                        className="flex h-7 w-full items-center rounded-md px-2 text-left text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.075)] hover:text-[color:var(--text)] disabled:cursor-default disabled:opacity-55 disabled:hover:bg-transparent disabled:hover:text-[color:var(--muted)]"
+                        disabled={entry.disabled}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => runTitleBarCommand(entry.commandId)}
+                        role="menuitem"
+                      >
+                        {entry.label}
+                      </button>
+                    ),
+                  )}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </nav>
+      <div className="min-w-0 flex-1" />
+    </header>
   );
 }
 
@@ -352,10 +514,15 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
   return (
     <>
       <div className={appShellRootClass}>
-        <div
-          className="relative min-w-0 shrink-0 overflow-hidden transition-[width,opacity] duration-200 ease-out"
-          style={{ width: sidebarCollapsed ? 0 : 300, opacity: sidebarCollapsed ? 0 : 1 }}
-        >
+        <AppTitleBar
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
+        />
+        <div className="flex min-h-0 flex-1 overflow-hidden bg-[color:var(--bg)]">
+          <div
+            className="relative min-w-0 shrink-0 overflow-hidden transition-[width,opacity] duration-200 ease-out"
+            style={{ width: sidebarCollapsed ? 0 : 300, opacity: sidebarCollapsed ? 0 : 1 }}
+          >
           {sidebarCollapsed ? null : (
             <Sidebar
               projects={projects}
@@ -424,6 +591,7 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
                 controller.handleSelectChatGroup(groupId);
                 void handleAction("thread.new", { chatGroupId: groupId });
               }}
+              onStartUnassignedChat={controller.handleStartUnassignedChat}
               onRefreshChatSidebar={controller.refreshChatSidebarState}
               onProjectSelect={handleProjectSelect}
               onProjectReorder={handleProjectReorder}
@@ -435,10 +603,10 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
           )}
         </div>
 
-        <section
-          ref={mainSectionRef}
-          className="flex min-w-0 min-h-0 h-full flex-1 flex-col overflow-hidden bg-[color:var(--workspace)]"
-        >
+          <section
+            ref={mainSectionRef}
+            className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-tl-xl border-t border-l border-[color:var(--border)] bg-[color:var(--workspace)]"
+          >
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
             <div
               data-open={!takeoverVisible ? "true" : "false"}
@@ -494,7 +662,8 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
               </div>
             ) : null}
           </div>
-        </section>
+          </section>
+        </div>
       </div>
       <SmallWindowOverlay />
       {controller.toast ? (

@@ -41,6 +41,10 @@ function subscribeToEvent<K extends DesktopEventChannel>(
 
 export function createDesktopApi() {
   return {
+    showTitleBarMenu: (menuId: "file" | "edit" | "view" | "window" | "help", x: number, y: number) =>
+      invokeRequest("showTitleBarMenu", { menuId, x, y }).then(({ ok }) => ok),
+    runTitleBarCommand: (commandId: import("../../../shared/desktop-ipc").TitleBarCommandId) =>
+      invokeRequest("runTitleBarCommand", { commandId }).then(({ ok }) => ok),
     getAppUpdateState: () => invokeRequest("getAppUpdateState", {}),
     checkAppUpdate: () => invokeRequest("checkAppUpdate", {}),
     installAppUpdate: () => invokeRequest("installAppUpdate", {}),

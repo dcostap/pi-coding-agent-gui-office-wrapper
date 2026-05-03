@@ -83,9 +83,10 @@ export function ProjectRow({
     }
 
     clickTimeoutRef.current = window.setTimeout(() => {
-      onSelect();
       if (canToggleExpanded) {
         onToggleExpanded();
+      } else {
+        onSelect();
       }
       clickTimeoutRef.current = null;
     }, 180);
@@ -108,29 +109,27 @@ export function ProjectRow({
       data-highlighted={isActive || actionMenuOpen ? "true" : "false"}
       data-dragging={isDragging ? "true" : "false"}
     >
-      <Tooltip content={isExpanded ? "Contraer carpeta" : "Expandir carpeta"} placement="right">
-        <button
-          type="button"
-          className="sidebar-project-toggle"
-          onClick={canToggleExpanded ? onToggleExpanded : undefined}
-          data-can-toggle={canToggleExpanded ? "true" : "false"}
-          aria-label={isExpanded ? "Contraer carpeta" : "Expandir carpeta"}
-          aria-expanded={isExpanded}
-          aria-controls={threadGroupId}
-          disabled={!canToggleExpanded}
-        >
-          {hasRepoOrigin ? (
-            <Github size={12} className="sidebar-project-icon sidebar-project-origin-icon" />
-          ) : (
-            <Folder size={12} className="sidebar-project-icon sidebar-project-origin-icon" />
-          )}
-          {isExpanded ? (
-            <ChevronDown size={12} className="sidebar-project-icon sidebar-project-chevron-icon" />
-          ) : (
-            <ChevronRight size={12} className="sidebar-project-icon sidebar-project-chevron-icon" />
-          )}
-        </button>
-      </Tooltip>
+      <button
+        type="button"
+        className="sidebar-project-toggle"
+        onClick={canToggleExpanded ? onToggleExpanded : undefined}
+        data-can-toggle={canToggleExpanded ? "true" : "false"}
+        aria-label={isExpanded ? "Contraer carpeta" : "Expandir carpeta"}
+        aria-expanded={isExpanded}
+        aria-controls={threadGroupId}
+        disabled={!canToggleExpanded}
+      >
+        {hasRepoOrigin ? (
+          <Github size={12} className="sidebar-project-icon sidebar-project-origin-icon" />
+        ) : (
+          <Folder size={12} className="sidebar-project-icon sidebar-project-origin-icon" />
+        )}
+        {isExpanded ? (
+          <ChevronDown size={12} className="sidebar-project-icon sidebar-project-chevron-icon" />
+        ) : (
+          <ChevronRight size={12} className="sidebar-project-icon sidebar-project-chevron-icon" />
+        )}
+      </button>
 
       {isEditing ? (
         <div className="sidebar-project-edit">

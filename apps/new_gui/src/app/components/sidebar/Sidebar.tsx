@@ -1,4 +1,4 @@
-import { MessageSquare } from "lucide-react";
+import { SquarePen } from "lucide-react";
 import type { AppSettings, DesktopActionInvoker, InboxThread } from "../../desktop/types";
 import type { ChatSidebarState } from "../../desktop/types";
 import type { Project, View } from "../../types";
@@ -37,6 +37,7 @@ type SidebarProps = {
   onCreateChatGroup: (name: string) => Promise<unknown>;
   onSelectChatGroup: (groupId: string | null) => void;
   onNewChat: (groupId: string | null) => void;
+  onStartUnassignedChat: () => void;
   onRefreshChatSidebar: () => Promise<unknown>;
   onProjectSelect: (projectId: string) => void;
   onProjectReorder: (projectIds: string[]) => void;
@@ -69,6 +70,7 @@ export function Sidebar({
   onCreateChatGroup,
   onSelectChatGroup,
   onNewChat,
+  onStartUnassignedChat,
   onRefreshChatSidebar,
   onProjectSelect,
   onProjectReorder,
@@ -88,11 +90,10 @@ export function Sidebar({
       {showModeSelection ? (
         <nav className="sidebar-mode-nav" aria-label="Primary navigation">
           <NavButton
-            icon={<MessageSquare size={16} />}
-            label="Chat"
-            active={activeView === "chat"}
-            disabled
-            title="Chat will be enabled later"
+            icon={<SquarePen size={16} />}
+            label="Nuevo chat"
+            active={false}
+            onClick={onStartUnassignedChat}
           />
 
         </nav>

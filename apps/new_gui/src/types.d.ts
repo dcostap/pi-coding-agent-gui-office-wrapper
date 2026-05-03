@@ -53,6 +53,14 @@ declare global {
   interface Window {
     __howcodeDevWebBridge?: boolean;
     piDesktop?: {
+      showTitleBarMenu?: (
+        menuId: "file" | "edit" | "view" | "window" | "help",
+        x: number,
+        y: number,
+      ) => Promise<boolean>;
+      runTitleBarCommand?: (
+        commandId: import("../shared/desktop-ipc").TitleBarCommandId,
+      ) => Promise<boolean>;
       getAppUpdateState?: () => Promise<AppUpdateState>;
       checkAppUpdate?: () => Promise<AppUpdateState>;
       installAppUpdate?: () => Promise<AppUpdateState>;

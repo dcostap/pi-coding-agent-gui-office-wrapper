@@ -1,8 +1,7 @@
-import { Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import type { ClipboardEvent, RefObject } from "react";
 import { getPathForFileQuery } from "../../../query/desktop-query";
 import { cn } from "../../../utils/cn";
-import { ComposerDictationControls } from "./ComposerDictationControls";
 import { ComposerFilePicker } from "./ComposerFilePicker";
 import { ComposerTextField } from "./ComposerTextField";
 import {
@@ -14,19 +13,18 @@ import {
   getComposerSlashCommandOptionId,
   type ComposerSlashCommands,
 } from "./useComposerSlashCommands";
-import type { ComposerAttachment, DesktopActionInvoker } from "../../../desktop/types";
+import type { ComposerAttachment } from "../../../desktop/types";
 
 type ComposerPromptInputPanelProps = {
   attachments: ComposerAttachment[];
   clearError: () => void;
   dictationActive: boolean;
-  dictationMissingModel: boolean;
-  dictationSupported: boolean;
   dictationTranscribing: boolean;
   draft: string;
   errorMessage: string | null;
   extensionRunning: boolean;
   inputLocked: boolean;
+  canSubmit: boolean;
   favoriteFolders: string[];
   pickerLoading: boolean;
   pickerOpen: boolean;
@@ -36,21 +34,19 @@ type ComposerPromptInputPanelProps = {
   projectId: string;
   slashCommandPanelRef: RefObject<HTMLDivElement | null>;
   slashCommands: ComposerSlashCommands;
-  showDictationButton: boolean;
   attachPickerAttachments: Parameters<typeof ComposerFilePicker>[0]["onAttachAttachments"];
   cancelDictation: () => Promise<void>;
   handlePaste: (payload: {
     clipboardData: DataTransfer | ClipboardEvent<HTMLTextAreaElement>["clipboardData"];
     textarea: HTMLTextAreaElement;
   }) => Promise<void>;
-  onAction: DesktopActionInvoker;
   onLayoutChange?: () => void;
-  onOpenSettingsView: () => void;
+  onSubmit: () => void;
   openPickerDirectory: Parameters<typeof ComposerFilePicker>[0]["onOpenDirectory"];
   openPickerRoot: Parameters<typeof ComposerFilePicker>[0]["onOpenRoot"];
   removeAttachment: (path: string) => void;
   setDraft: (value: string) => void;
-  toggleDictation: Parameters<typeof ComposerDictationControls>[0]["toggleDictation"];
+
   togglePendingPickerAttachment: Parameters<typeof ComposerFilePicker>[0]["onToggleFile"];
 };
 
@@ -58,13 +54,12 @@ export function ComposerPromptInputPanel({
   attachments,
   clearError,
   dictationActive,
-  dictationMissingModel,
-  dictationSupported,
   dictationTranscribing,
   draft,
   errorMessage,
   extensionRunning,
   inputLocked,
+  canSubmit,
   favoriteFolders,
   pickerLoading,
   pickerOpen,
@@ -74,18 +69,16 @@ export function ComposerPromptInputPanel({
   projectId,
   slashCommandPanelRef,
   slashCommands,
-  showDictationButton,
   attachPickerAttachments,
   cancelDictation,
   handlePaste,
-  onAction,
   onLayoutChange,
-  onOpenSettingsView,
+  onSubmit,
   openPickerDirectory,
   openPickerRoot,
   removeAttachment,
   setDraft,
-  toggleDictation,
+
   togglePendingPickerAttachment,
 }: ComposerPromptInputPanelProps) {
   return (
@@ -106,7 +99,7 @@ export function ComposerPromptInputPanel({
           onToggleFile={togglePendingPickerAttachment}
         />
       ) : null}
-      <div className="grid content-end pr-4 pl-[1.1rem] pt-4 pb-1">
+      <div className="grid content-end pr-4 pl-[1.1rem] pt-4 pb-2">
         <div className="flex items-end justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-end gap-2">
             <div className="min-w-0 flex-1">
@@ -185,6 +178,12 @@ export function ComposerPromptInputPanel({
                     return;
                   }
 
+                  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                    event.preventDefault();
+                    slashCommands.submit();
+                    return;
+                  }
+
                   if (slashCommands.handleKeyDown(event)) {
                     return;
                   }
@@ -195,10 +194,6 @@ export function ComposerPromptInputPanel({
                     return;
                   }
 
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    slashCommands.submit();
-                  }
                 }}
                 onPaste={(event: ClipboardEvent<HTMLTextAreaElement>) => {
                   if (inputLocked) {
@@ -232,19 +227,7 @@ export function ComposerPromptInputPanel({
                 placeholderTone={errorMessage ? "error" : "muted"}
                 statusMessage={errorMessage && draft.length > 0 ? errorMessage : null}
                 reservedLineCount={1}
-                trailingAdornment={
-                  <ComposerDictationControls
-                    dictationActive={dictationActive}
-                    dictationMissingModel={dictationMissingModel}
-                    dictationSupported={dictationSupported}
-                    dictationTranscribing={dictationTranscribing}
-                    placement="trailing"
-                    onAction={onAction}
-                    onOpenSettingsView={onOpenSettingsView}
-                    showDictationButton={showDictationButton}
-                    toggleDictation={toggleDictation}
-                  />
-                }
+                trailingAdornment={null}
                 onHeightChange={onLayoutChange}
               />
             </div>
@@ -257,6 +240,21 @@ export function ComposerPromptInputPanel({
                 <span>Pi extension running</span>
               </div>
             ) : null}
+            <button
+              type="button"
+              className={cn(
+                "group inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#f2bf20]/40 bg-[#f2bf20]/10 text-[#f2bf20] shadow-[0_0_0_rgba(242,191,32,0)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[#f2bf20]/70 hover:bg-[#f2bf20] hover:text-[#151515] hover:shadow-[0_8px_22px_rgba(242,191,32,0.22)] active:translate-y-0 active:scale-95 disabled:pointer-events-none disabled:border-white/10 disabled:bg-white/[0.035] disabled:text-[color:var(--muted-2)] disabled:opacity-55",
+              )}
+              onClick={onSubmit}
+              disabled={!canSubmit || inputLocked}
+              aria-label="Enviar prompt"
+              data-tooltip="Enviar · Ctrl + Enter"
+            >
+              <ArrowRight
+                size={15}
+                className="transition-transform duration-200 ease-out group-hover:translate-x-0.5"
+              />
+            </button>
           </div>
         </div>
       </div>

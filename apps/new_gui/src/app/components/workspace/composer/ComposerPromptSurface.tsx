@@ -40,7 +40,6 @@ export function ComposerPromptSurface({
   dictationModelId,
   dictationMaxDurationSeconds,
   favoriteFolders,
-  showDictationButton,
   onOpenTakeoverTerminal,
   onToggleTerminal,
   onToggleArtifacts,
@@ -59,13 +58,12 @@ export function ComposerPromptSurface({
   const {
     attachments,
     cancelDictation,
+    canSend,
     clearAttachments,
     clearError,
     draft,
     dictationActive,
     dictationInterimText,
-    dictationMissingModel,
-    dictationSupported,
     errorMessage,
     extensionCommandRunning,
     inputLocked,
@@ -90,7 +88,6 @@ export function ComposerPromptSurface({
     setDraft,
     setOpenMenu,
     stop,
-    toggleDictation,
     attachPickerAttachments,
     handleDrop,
     togglePendingPickerAttachment,
@@ -263,10 +260,7 @@ export function ComposerPromptSurface({
 
   const extensionRunning = extensionCommandRunning;
   const placeholderText =
-    errorMessage ??
-    (activeView === "chat" || activeView === "thread"
-      ? "Hover to type · Enter sends · Shift+Enter for a new line"
-      : "Hover to type · / commands · @ files · Enter sends");
+    errorMessage ?? "Escribe aquí · Enter para nueva línea · Ctrl + Enter para enviar";
   const attachmentButtonLabel = attachments.length > 0 ? "Manage attachments" : "Add attachment";
   const canStopComposer = (composerIsStreaming || extensionRunning) && !isSending && !!sessionPath;
 
@@ -316,7 +310,7 @@ export function ComposerPromptSurface({
 
       <div
         ref={composerPanelRef}
-        className="grid gap-0 overflow-visible rounded-[20px] border border-[rgba(169,178,215,0.06)] bg-[#272a39] shadow-none"
+        className="grid gap-0 overflow-visible rounded-[18px] border border-[rgba(255,255,255,0.075)] bg-[color:var(--panel)] shadow-[0_16px_48px_rgba(0,0,0,0.24)]"
         aria-label="Composer panel"
       >
         {/* Let the prompt column size itself to one line by default, then grow upward naturally as
@@ -328,13 +322,12 @@ export function ComposerPromptSurface({
             attachments={attachments}
             clearError={clearError}
             dictationActive={dictationActive}
-            dictationMissingModel={dictationMissingModel}
-            dictationSupported={dictationSupported}
             dictationTranscribing={dictationTranscribing}
             draft={draft}
             errorMessage={errorMessage}
             extensionRunning={extensionRunning}
             inputLocked={inputLocked}
+            canSubmit={canSend}
             favoriteFolders={favoriteFolders}
             pickerLoading={pickerLoading}
             pickerOpen={pickerOpen}
@@ -344,18 +337,15 @@ export function ComposerPromptSurface({
             projectId={projectId}
             slashCommandPanelRef={slashCommandPanelRef}
             slashCommands={slashCommands}
-            showDictationButton={showDictationButton}
             attachPickerAttachments={attachPickerAttachments}
             cancelDictation={cancelDictation}
             handlePaste={handlePaste}
-            onAction={onAction}
             onLayoutChange={onLayoutChange}
-            onOpenSettingsView={onOpenSettingsView}
+            onSubmit={slashCommands.submit}
             openPickerDirectory={openPickerDirectory}
             openPickerRoot={openPickerRoot}
             removeAttachment={removeAttachment}
             setDraft={setDraft}
-            toggleDictation={toggleDictation}
             togglePendingPickerAttachment={togglePendingPickerAttachment}
           />
         </div>
@@ -366,7 +356,7 @@ export function ComposerPromptSurface({
           </output>
         ) : null}
 
-        <div className="h-px bg-[rgba(169,178,215,0.07)]" />
+        <div className="h-px bg-[rgba(255,255,255,0.055)]" />
 
         <ComposerFooter
           availableModels={availableModels}

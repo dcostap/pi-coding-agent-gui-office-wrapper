@@ -1,7 +1,19 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
-import { getPersistedSessionPath } from "../../../shared/session-paths";
+import {
+  createLocalThreadDraft,
+  getLocalDraftProjectId,
+  getPersistedSessionPath,
+  isLocalSessionPath,
+} from "../../../shared/session-paths";
+import {
+  createUnassignedChatProjectId,
+  createUnassignedChatToken,
+  UNNAMED_CHAT_TITLE,
+  UNASSIGNED_CHAT_PROJECT_NAME,
+} from "../../../shared/unassigned-chats";
 import type { ArchivedThread, ComposerState, ProjectGitState, ThreadData } from "../desktop/types";
+import type { Project } from "../types";
 import { useDesktopBridge } from "../hooks/useDesktopBridge";
 import { useDesktopInbox } from "../hooks/useDesktopInbox";
 import { useDesktopShell } from "../hooks/useDesktopShell";
@@ -33,6 +45,7 @@ export function useAppShellController() {
   const [selectedChatGroupId, setSelectedChatGroupId] = useState<string | null>(null);
   const [chatSidebarState, setChatSidebarState] =
     useState<Awaited<ReturnType<typeof getChatSidebarStateQuery>>>(null);
+  const [localUnassignedChatProjects, setLocalUnassignedChatProjects] = useState<Project[]>([]);
   const { toast, showToast } = useToast();
   const {
     shellState,
@@ -47,7 +60,46 @@ export function useAppShellController() {
     scheduleShellStateRefresh,
   } = useDesktopShell();
   const invokeDesktopAction = useDesktopBridge();
-  const projects = shellState?.projects ?? [];
+  const shellProjects = shellState?.projects ?? [];
+  const projects = useMemo(() => {
+    if (localUnassignedChatProjects.length === 0) {
+      return shellProjects;
+    }
+
+    const shellProjectIds = new Set(shellProjects.map((project) => project.id));
+    const mergedProjects = new Map(shellProjects.map((project) => [project.id, project]));
+    for (const localProject of localUnassignedChatProjects) {
+      const persistedProject = mergedProjects.get(localProject.id);
+      if (!persistedProject) {
+        mergedProjects.set(localProject.id, localProject);
+        continue;
+      }
+
+      const persistedSessionPaths = new Set(
+        persistedProject.threads.map((thread) => thread.sessionPath).filter(Boolean),
+      );
+      const localOnlyThreads = localProject.threads.filter(
+        (thread) => thread.sessionPath && !persistedSessionPaths.has(thread.sessionPath),
+      );
+
+      mergedProjects.set(localProject.id, {
+        ...persistedProject,
+        name: UNASSIGNED_CHAT_PROJECT_NAME,
+        threads: [...localOnlyThreads, ...persistedProject.threads],
+        threadsLoaded: persistedProject.threadsLoaded || localProject.threadsLoaded,
+        threadCount: Math.max(
+          persistedProject.threadCount ?? 0,
+          persistedProject.threads.length + localOnlyThreads.length,
+        ),
+        collapsed: false,
+      });
+    }
+
+    return [
+      ...shellProjects.map((project) => mergedProjects.get(project.id) ?? project),
+      ...localUnassignedChatProjects.filter((project) => !shellProjectIds.has(project.id)),
+    ];
+  }, [localUnassignedChatProjects, shellProjects]);
   const threadData = useDesktopThread(
     state.selectedSessionPath,
     threadRefreshKey,
@@ -65,6 +117,39 @@ export function useAppShellController() {
       inboxThreads.find((thread) => thread.sessionPath === state.selectedInboxSessionPath) ?? null,
     [inboxThreads, state.selectedInboxSessionPath],
   );
+
+  useEffect(() => {
+    const localDraftProjectId = getLocalDraftProjectId(state.selectedSessionPath);
+    if (!localDraftProjectId) {
+      return;
+    }
+
+    const persistedProject = shellProjects.find((project) => project.id === localDraftProjectId);
+    if (!persistedProject) {
+      return;
+    }
+
+    const replacementThread = persistedProject.threads.find(
+      (thread) => thread.sessionPath && !isLocalSessionPath(thread.sessionPath),
+    );
+    if (replacementThread?.sessionPath) {
+      setLocalUnassignedChatProjects((current) =>
+        current.filter((project) => project.id !== localDraftProjectId),
+      );
+      dispatch({
+        type: "open-thread",
+        projectId: localDraftProjectId,
+        threadId: replacementThread.id,
+        sessionPath: replacementThread.sessionPath,
+      });
+      return;
+    }
+
+    if (!persistedProject.threadsLoaded && (persistedProject.threadCount ?? 0) > 0) {
+      void loadProjectThreads(localDraftProjectId);
+    }
+  }, [loadProjectThreads, shellProjects, state.selectedSessionPath]);
+
   const { terminalRunningProjectIds, terminalRunningSessionPaths } = useRunningTerminalSessions();
   const refreshChatSidebarState = useCallback(
     async (groupId = selectedChatGroupId) => {
@@ -188,6 +273,54 @@ export function useAppShellController() {
     workspaceState: state,
   });
 
+  const handleStartUnassignedChat = useCallback(() => {
+    const projectsRoot = shellState?.appSettings.preferredProjectLocation ?? shellState?.cwd ?? "";
+    if (!projectsRoot) {
+      showToast("No se pudo preparar el chat sin proyecto.");
+      return;
+    }
+
+    const token = createUnassignedChatToken();
+    const projectId = createUnassignedChatProjectId(projectsRoot, token);
+    const draft = createLocalThreadDraft(projectId, token);
+    const now = Date.now();
+    const localProject: Project = {
+      id: projectId,
+      name: UNASSIGNED_CHAT_PROJECT_NAME,
+      threads: [
+        {
+          id: draft.threadId,
+          title: UNNAMED_CHAT_TITLE,
+          age: "Ahora",
+          lastModifiedMs: now,
+          sessionPath: draft.sessionPath,
+        },
+      ],
+      latestModifiedMs: now,
+      collapsed: false,
+      threadsLoaded: true,
+      threadCount: 1,
+    };
+
+    setLocalUnassignedChatProjects((current) => [
+      localProject,
+      ...current.filter((project) => project.id !== projectId),
+    ]);
+    setThreadHistoryCompactions(0);
+    dispatch({
+      type: "open-thread",
+      projectId: draft.projectId,
+      threadId: draft.threadId,
+      sessionPath: draft.sessionPath,
+    });
+
+    void loadComposerState({ projectId, composerMode: "code" }).then((nextComposerState) => {
+      if (nextComposerState) {
+        setComposerState(nextComposerState);
+      }
+    });
+  }, [dispatch, loadComposerState, shellState?.appSettings.preferredProjectLocation, shellState?.cwd, showToast]);
+
   return {
     activeComposerState,
     activeThreadData,
@@ -219,6 +352,7 @@ export function useAppShellController() {
     selectedChatGroupId,
     handleCreateChatGroup,
     handleSelectChatGroup: setSelectedChatGroupId,
+    handleStartUnassignedChat,
     refreshChatSidebarState,
   };
 }

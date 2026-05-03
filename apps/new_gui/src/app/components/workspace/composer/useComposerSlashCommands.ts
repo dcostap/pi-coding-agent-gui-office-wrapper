@@ -236,23 +236,6 @@ export function useComposerSlashCommands({
       return true;
     }
 
-    if (event.key === "Enter" && !event.shiftKey && filteredCommands[selectedIndex]) {
-      event.preventDefault();
-      selectCommand(filteredCommands[selectedIndex]);
-      return true;
-    }
-
-    if (event.key === "Enter" && !event.shiftKey && draft === "/settings") {
-      event.preventDefault();
-      submit();
-      return true;
-    }
-
-    if (event.key === "Enter" && !event.shiftKey && loading && shouldWaitForSlashCommands(draft)) {
-      event.preventDefault();
-      return true;
-    }
-
     return false;
   };
 

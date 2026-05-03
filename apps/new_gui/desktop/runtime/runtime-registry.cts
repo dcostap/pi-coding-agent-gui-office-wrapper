@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises";
 import { getPersistedSessionPath } from "../../shared/session-paths.ts";
 import path from "node:path";
 import { getPiModule } from "../pi-module.cts";
@@ -381,6 +382,7 @@ export async function createRuntimeForNewSession(
   sessionDir?: string | null,
   options: { chatGroupId?: string | null } = {},
 ) {
+  await mkdir(cwd, { recursive: true });
   const runtime = await createRuntime({
     cwd,
     sessionDir,

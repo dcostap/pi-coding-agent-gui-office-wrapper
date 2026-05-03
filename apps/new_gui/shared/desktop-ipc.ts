@@ -54,7 +54,36 @@ import type {
   TerminalWriteRequest,
 } from "./terminal-contracts";
 
+export type TitleBarMenuId = "file" | "edit" | "view" | "window" | "help";
+
+export type TitleBarCommandId =
+  | "file.close"
+  | "file.quit"
+  | "edit.undo"
+  | "edit.redo"
+  | "edit.cut"
+  | "edit.copy"
+  | "edit.paste"
+  | "edit.selectAll"
+  | "view.reload"
+  | "view.forceReload"
+  | "view.toggleDevTools"
+  | "view.resetZoom"
+  | "view.zoomIn"
+  | "view.zoomOut"
+  | "view.toggleFullscreen"
+  | "window.minimize"
+  | "window.close";
+
 export type DesktopRequestMap = {
+  showTitleBarMenu: {
+    params: { menuId: TitleBarMenuId; x: number; y: number };
+    response: { ok: boolean };
+  };
+  runTitleBarCommand: {
+    params: { commandId: TitleBarCommandId };
+    response: { ok: boolean };
+  };
   getAppUpdateState: { params: Record<string, never>; response: AppUpdateState };
   checkAppUpdate: { params: Record<string, never>; response: AppUpdateState };
   installAppUpdate: { params: Record<string, never>; response: AppUpdateState };

@@ -1,4 +1,4 @@
-import { ArrowUpRight, Bot, Paperclip, Send, Square, X } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Bot, Paperclip, Square, X } from "lucide-react";
 import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from "react";
 import { getDesktopActionErrorMessage } from "../../../desktop/action-results";
 import { getErrorMessage } from "../../../desktop/error-messages";
@@ -19,7 +19,6 @@ import { IconButton } from "../../common/IconButton";
 import { ToolbarButton } from "../../common/ToolbarButton";
 import { Tooltip } from "../../common/Tooltip";
 import { ComposerContextMeter } from "../composer/ComposerContextMeter";
-import { ComposerDictationControls } from "../composer/ComposerDictationControls";
 import { ComposerFilePicker } from "../composer/ComposerFilePicker";
 import { ComposerModelPopover } from "../composer/ComposerModelPopover";
 import { ComposerTextField } from "../composer/ComposerTextField";
@@ -86,7 +85,6 @@ export function InboxComposer({
   isCompacting,
   isStreaming,
   isSending,
-  showDictationButton,
   thread,
   onAction,
   onChangeAttachments,
@@ -213,10 +211,7 @@ export function InboxComposer({
     cancelDictation,
     dictationActive,
     dictationInterimText,
-    dictationMissingModel,
-    dictationSupported,
     stopDictationAndFlush,
-    toggleDictation,
   } = useComposerDictation({
     activeView: "inbox",
     dictationModelId: appSettings.dictationModelId,
@@ -526,6 +521,12 @@ export function InboxComposer({
                     }
                   }}
                   onKeyDown={(event) => {
+                    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                      event.preventDefault();
+                      slashCommands.submit();
+                      return;
+                    }
+
                     if (slashCommands.handleKeyDown(event)) {
                       return;
                     }
@@ -536,16 +537,15 @@ export function InboxComposer({
                       return;
                     }
 
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      slashCommands.submit();
-                    }
                   }}
                   ariaLabel="Inbox prompt composer"
                   ariaActiveDescendant={slashCommands.activeDescendantId}
                   ariaControls={slashCommands.open ? slashCommands.listboxId : undefined}
                   ariaExpanded={slashCommands.open}
-                  placeholder={errorMessage ?? "Reply to this thread…"}
+                  placeholder={
+                    errorMessage ??
+                    "Escribe aquí · Enter para nueva línea · Ctrl + Enter para enviar"
+                  }
                   placeholderTone={errorMessage ? "error" : "muted"}
                   statusMessage={errorMessage && draft.length > 0 ? errorMessage : null}
                   reservedLineCount={1}
@@ -554,16 +554,7 @@ export function InboxComposer({
             </div>
 
             <div className="inline-flex h-8 items-center justify-end gap-2">
-              <ComposerDictationControls
-                dictationActive={dictationActive}
-                dictationMissingModel={dictationMissingModel}
-                dictationSupported={dictationSupported}
-                dictationTranscribing={dictationInterimText.length > 0 && !dictationActive}
-                onAction={onAction}
-                onOpenSettingsView={onOpenSettingsView}
-                showDictationButton={showDictationButton}
-                toggleDictation={toggleDictation}
-              />
+
               <button
                 type="button"
                 className={cn(
@@ -581,14 +572,17 @@ export function InboxComposer({
                 type="button"
                 className={cn(
                   compactIconButtonClass,
-                  "h-6 w-6 shrink-0 rounded-full bg-[rgba(146,153,184,0.46)] text-[color:var(--workspace)] hover:bg-[rgba(146,153,184,0.56)] hover:text-[color:var(--workspace)] disabled:cursor-not-allowed disabled:opacity-45",
+                  "group h-7 w-7 shrink-0 rounded-full border border-[#f2bf20]/40 bg-[#f2bf20]/10 text-[#f2bf20] shadow-[0_0_0_rgba(242,191,32,0)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[#f2bf20]/70 hover:bg-[#f2bf20] hover:text-[#151515] hover:shadow-[0_8px_22px_rgba(242,191,32,0.22)] active:translate-y-0 active:scale-95 disabled:pointer-events-none disabled:border-white/10 disabled:bg-white/[0.035] disabled:text-[color:var(--muted-2)] disabled:opacity-55",
                 )}
                 onClick={() => slashCommands.submit()}
                 disabled={!canSend}
-                aria-label="Send"
-                data-tooltip="Send"
+                aria-label="Enviar prompt"
+                data-tooltip="Enviar · Ctrl + Enter"
               >
-                <Send size={14} />
+                <ArrowRight
+                  size={15}
+                  className="transition-transform duration-200 ease-out group-hover:translate-x-0.5"
+                />
               </button>
             </div>
           </div>
@@ -607,8 +601,7 @@ export function InboxComposer({
         <div className="relative mr-auto inline-flex h-7 items-center">
           <ToolbarButton
             ref={modelButtonRef}
-            label="Agent"
-            tooltip="Model settings"
+            label="Agente"
             icon={<Bot size={14} />}
             className="pr-8"
             onClick={() => setOpenMenu((current) => (current === "model" ? null : "model"))}

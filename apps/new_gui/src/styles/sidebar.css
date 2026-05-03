@@ -6,8 +6,10 @@
   flex-direction: column;
   gap: 0.875rem;
   overflow: hidden;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
   background: var(--sidebar);
+  backdrop-filter: blur(24px) saturate(135%);
+  -webkit-backdrop-filter: blur(24px) saturate(135%);
   padding: 0.75rem 0.625rem 0.625rem;
 }
 
@@ -112,9 +114,11 @@
 }
 
 .sidebar-popover-panel {
-  border: 1px solid var(--border-strong);
-  background: rgba(45, 48, 64, 0.98);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(34, 34, 34, 0.88);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(22px) saturate(130%);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
 }
 
 .sidebar-settings-menu {
@@ -181,37 +185,40 @@
 .sidebar-project-action-menu {
   position: absolute;
   inset-inline: 0;
-  top: calc(100% + 2px);
+  top: calc(100% + 4px);
   z-index: 40;
   overflow: hidden;
-  border-radius: 18px;
-  padding: 0;
+  border-radius: 10px;
+  padding: 0.375rem;
 }
 
 .sidebar-project-menu-list {
   display: grid;
+  gap: 0.125rem;
 }
 
 .sidebar-project-menu-item {
   display: grid;
-  min-height: 2rem;
+  min-height: 1.85rem;
   width: 100%;
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   gap: 0.5rem;
-  padding: 0.375rem 0.5rem;
-  color: var(--text);
+  border-radius: 7px;
+  padding: 0.25rem 0.5rem;
+  color: var(--muted);
   font-size: 13px;
   text-align: left;
   transition: background-color 150ms ease-out, color 150ms ease-out;
 }
 
 .sidebar-project-menu-item:hover {
-  background: rgba(183, 186, 245, 0.08);
+  background: rgba(255, 255, 255, 0.075);
+  color: var(--text);
 }
 
 .sidebar-project-menu-item + .sidebar-project-menu-item {
-  border-top: 1px solid rgba(169, 178, 215, 0.08);
+  border-top: 0;
 }
 
 .sidebar-project-menu-item[data-danger="true"] {
@@ -481,6 +488,10 @@
   transition: opacity 150ms ease-out;
 }
 
+.sidebar-project-origin-icon {
+  color: #f2bf20;
+}
+
 .sidebar-project-chevron-icon {
   opacity: 0;
   transition-duration: 200ms;
@@ -630,6 +641,10 @@
 .sidebar-old-sessions-action {
   justify-self: end;
   transform: translateX(0.375rem);
+}
+
+.sidebar-thread-row {
+  padding-left: 1.5rem;
 }
 
 .sidebar-thread-row[data-selected="true"] {

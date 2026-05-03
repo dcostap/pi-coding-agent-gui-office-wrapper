@@ -1,47 +1,47 @@
 import { spawn } from "node:child_process";
-import process from "node:process";
+import { createRequire } from "node:module";
 
-function getOpenCommand() {
-  if (process.platform === "darwin") {
-    return { command: "open", args: [] };
+const require = createRequire(__filename);
+
+type ElectronShell = {
+  openPath?: (path: string) => Promise<string>;
+};
+
+function getElectronShell(): ElectronShell | null {
+  try {
+    const electron = require("electron") as { shell?: ElectronShell } | string;
+    return typeof electron === "object" ? (electron.shell ?? null) : null;
+  } catch {
+    return null;
   }
+}
 
-  if (process.platform === "win32") {
-    return { command: "rundll32.exe", args: ["url.dll,FileProtocolHandler"] };
-  }
+function openPathWithFallback(targetPath: string) {
+  const command =
+    process.platform === "win32" ? "explorer.exe" : process.platform === "darwin" ? "open" : "xdg-open";
 
-  return { command: "xdg-open", args: [] };
+  const child = spawn(command, [targetPath], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  child.unref();
 }
 
 export async function openPathWithSystem(targetPath: string) {
-  const { command, args } = getOpenCommand();
+  const shell = getElectronShell();
 
-  return new Promise<boolean>((resolve) => {
-    let settled = false;
-    const child = spawn(command, [...args, targetPath], {
-      stdio: "ignore",
-      windowsHide: true,
-    });
+  if (shell?.openPath) {
+    const error = await shell.openPath(targetPath);
+    if (error.length === 0) {
+      return true;
+    }
+  }
 
-    const finish = (ok: boolean) => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      resolve(ok);
-    };
-
-    child.once("error", () => {
-      finish(false);
-    });
-    child.once("exit", (code) => {
-      finish(code === 0);
-    });
-
-    setTimeout(() => {
-      child.kill();
-      finish(false);
-    }, 10_000).unref();
-  });
+  try {
+    openPathWithFallback(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
 }

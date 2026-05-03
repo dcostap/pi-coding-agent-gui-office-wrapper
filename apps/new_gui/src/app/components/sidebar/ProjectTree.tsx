@@ -104,9 +104,7 @@ export function ProjectTree({
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null);
   const [expandedOldProjectIds, setExpandedOldProjectIds] = useState<Record<string, boolean>>({});
   const [renameDraft, setRenameDraft] = useState("");
-  const { containerRef } = useProjectMenuDismiss(openProjectMenuId !== null, () =>
-    setOpenProjectMenuId(null),
-  );
+  useProjectMenuDismiss(openProjectMenuId !== null, () => setOpenProjectMenuId(null));
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -167,7 +165,7 @@ export function ProjectTree({
   };
 
   return (
-    <div ref={containerRef} className="sidebar-project-tree">
+    <div className="sidebar-project-tree">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}

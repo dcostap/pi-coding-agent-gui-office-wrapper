@@ -6,8 +6,8 @@ export type AppWindowSize = {
 // Temporary stopgap until the shell gets a real responsive-layout pass.
 // Roughly half of a 1920x1080 display, matching the issue brief.
 export const SMALL_WINDOW_MINIMUM_SIZE: AppWindowSize = {
-  width: 960,
-  height: 540,
+  width: 1040,
+  height: 600,
 };
 
 export function isSmallAppWindow(

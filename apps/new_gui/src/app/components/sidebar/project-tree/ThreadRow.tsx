@@ -58,7 +58,7 @@ export function ThreadRow({
 
       <button
         type="button"
-        className="sidebar-thread-button"
+        className="sidebar-thread-button cursor-pointer"
         onClick={onOpen}
         aria-current={isSelected ? "page" : undefined}
       >

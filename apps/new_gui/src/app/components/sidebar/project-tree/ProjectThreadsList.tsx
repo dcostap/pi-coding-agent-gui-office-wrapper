@@ -85,17 +85,15 @@ function OldSessionsRow({
 }) {
   return (
     <div className="sidebar-row-surface sidebar-old-sessions-row">
-      <Tooltip content={expanded ? "Collapse old" : "Expand old"} placement="right">
-        <button
-          type="button"
-          className="sidebar-old-sessions-toggle"
-          onClick={onToggle}
-          aria-label={expanded ? "Collapse old" : "Expand old"}
-          aria-expanded={expanded}
-        >
-          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        </button>
-      </Tooltip>
+      <button
+        type="button"
+        className="sidebar-old-sessions-toggle"
+        onClick={onToggle}
+        aria-label={expanded ? "Contraer antiguas" : "Expandir antiguas"}
+        aria-expanded={expanded}
+      >
+        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+      </button>
 
       <button type="button" className="sidebar-old-sessions-button" onClick={onToggle}>
         <span className="truncate">Old sessions</span>

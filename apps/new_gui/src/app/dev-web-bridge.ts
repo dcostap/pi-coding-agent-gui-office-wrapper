@@ -112,6 +112,8 @@ export function installDevWebDesktopBridge() {
   window.__howcodeDevWebBridge = true;
 
   window.piDesktop = {
+    showTitleBarMenu: () => Promise.resolve(false),
+    runTitleBarCommand: () => Promise.resolve(false),
     clearClipboardImages: () => invokeRequest("clearClipboardImages", {}),
     getShellState: () => invokeRequest("getShellState", {}),
     getProjectGitState: (projectId: string) => invokeRequest("getProjectGitState", { projectId }),
