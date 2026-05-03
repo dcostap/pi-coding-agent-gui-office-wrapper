@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Code2, Inbox, MessageSquare, PawPrint, Settings } from "lucide-react";
+import { Code2, Inbox, MessageSquare, Settings } from "lucide-react";
 import { useCallback, useRef } from "react";
 import type { AppSettings, DesktopActionInvoker, InboxThread } from "../../desktop/types";
 import type { ChatSidebarState } from "../../desktop/types";
@@ -121,30 +121,6 @@ export function Sidebar({
       {showModeSelection ? (
         <nav className="sidebar-mode-nav" aria-label="Primary navigation">
           <NavButton
-            icon={<PawPrint size={16} />}
-            label={
-              <span className="sidebar-mode-label">
-                <span>Claw</span>
-                <span className="sidebar-coming-soon-label">Coming soon</span>
-              </span>
-            }
-            active={activeView === "claw"}
-            disabled
-            title="Coming soon"
-          />
-          <NavButton
-            icon={<BriefcaseBusiness size={16} />}
-            label={
-              <span className="sidebar-mode-label">
-                <span>Work</span>
-                <span className="sidebar-coming-soon-label">Coming soon</span>
-              </span>
-            }
-            active={activeView === "work"}
-            disabled
-            title="Coming soon"
-          />
-          <NavButton
             icon={<Inbox size={16} />}
             label="Inbox"
             active={activeView === "inbox"}
@@ -154,7 +130,8 @@ export function Sidebar({
             icon={<MessageSquare size={16} />}
             label="Chat"
             active={activeView === "chat"}
-            onClick={() => onShowView("chat")}
+            disabled
+            title="Chat will be enabled later"
           />
           <NavButton
             icon={<Code2 size={16} />}
