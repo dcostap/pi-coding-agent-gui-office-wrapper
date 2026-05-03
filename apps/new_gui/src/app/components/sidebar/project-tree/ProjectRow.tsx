@@ -108,13 +108,13 @@ export function ProjectRow({
       data-highlighted={isActive || actionMenuOpen ? "true" : "false"}
       data-dragging={isDragging ? "true" : "false"}
     >
-      <Tooltip content={isExpanded ? "Collapse folder" : "Expand folder"} placement="right">
+      <Tooltip content={isExpanded ? "Contraer carpeta" : "Expandir carpeta"} placement="right">
         <button
           type="button"
           className="sidebar-project-toggle"
           onClick={canToggleExpanded ? onToggleExpanded : undefined}
           data-can-toggle={canToggleExpanded ? "true" : "false"}
-          aria-label={isExpanded ? "Collapse folder" : "Expand folder"}
+          aria-label={isExpanded ? "Contraer carpeta" : "Expandir carpeta"}
           aria-expanded={isExpanded}
           aria-controls={threadGroupId}
           disabled={!canToggleExpanded}
@@ -152,7 +152,7 @@ export function ProjectRow({
               }
             }}
             className="sidebar-project-input"
-            aria-label={`Rename ${name}`}
+            aria-label={`Renombrar ${name}`}
           />
         </div>
       ) : (
@@ -180,18 +180,18 @@ export function ProjectRow({
         data-editing={isEditing ? "true" : "false"}
         data-visible={showActions ? "true" : "false"}
       >
-        <Tooltip content="New session" placement="right">
+        <Tooltip content="Nueva sesión" placement="right">
           <button
             type="button"
             className={compactIconButtonClass}
             onClick={onCreateSession}
-            aria-label={`Start a new session in ${name}`}
+            aria-label={`Iniciar una nueva sesión en ${name}`}
           >
             <Plus size={14} />
           </button>
         </Tooltip>
 
-        <Tooltip content="Project actions" placement="right">
+        <Tooltip content="Acciones del proyecto" placement="right">
           <button
             type="button"
             className={cn(
@@ -199,7 +199,7 @@ export function ProjectRow({
               actionMenuOpen && "bg-[rgba(255,255,255,0.05)] text-[color:var(--text)]",
             )}
             onClick={onToggleActions}
-            aria-label="Project actions"
+            aria-label="Acciones del proyecto"
             aria-haspopup="menu"
             aria-expanded={actionMenuOpen}
             aria-controls={actionMenuId}

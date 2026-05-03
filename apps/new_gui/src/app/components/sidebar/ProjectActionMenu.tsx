@@ -61,17 +61,17 @@ export function ProjectActionMenu({
   const items: ProjectMenuEntry[] = [
     {
       icon: <FolderOpen size={14} />,
-      title: "File Manager",
+      title: "Abrir carpeta",
       action: "project.open-in-file-manager",
     },
     {
       icon: <Star size={14} className={pinned ? "fill-current" : undefined} />,
-      title: pinned ? "Unmark Favourite" : "Mark Favourite",
+      title: pinned ? "Quitar de favoritos" : "Marcar como favorito",
       action: "project.pin",
     },
     {
       icon: <Archive size={14} />,
-      title: "Archive all",
+      title: "Archivar todo",
       action: "project.archive-threads",
     },
   ];
@@ -79,7 +79,7 @@ export function ProjectActionMenu({
   if (canDelete) {
     items.push({
       icon: <Trash2 size={14} />,
-      title: "Delete project",
+      title: "Eliminar proyecto",
       action: "project.remove-project",
       danger: true,
     });
@@ -90,7 +90,7 @@ export function ProjectActionMenu({
       ref={panelRef}
       id={menuId}
       role="menu"
-      aria-label="Project actions"
+      aria-label="Acciones del proyecto"
       className="sidebar-popover-panel sidebar-project-action-menu"
     >
       <div className="sidebar-project-menu-list">
@@ -114,7 +114,7 @@ export function ProjectActionMenu({
               )}
             </span>
             <span className="truncate text-left">
-              {confirmAction === item.action ? "Click to confirm" : item.title}
+              {confirmAction === item.action ? "Haz clic para confirmar" : item.title}
             </span>
           </button>
         ))}
