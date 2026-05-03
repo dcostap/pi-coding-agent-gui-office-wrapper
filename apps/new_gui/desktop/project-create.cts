@@ -41,7 +41,7 @@ export async function createProject(options: {
 }) {
   const preferredProjectLocation = options.preferredProjectLocation?.trim() ?? "";
   if (preferredProjectLocation.length === 0) {
-    throw new Error("Configura primero una ubicación predeterminada para proyectos.");
+    throw new Error("Configura primero una ubicaciï¿½n predeterminada para proyectos.");
   }
 
   const folderName = sanitizeProjectFolderName(options.projectName);
@@ -68,9 +68,10 @@ export async function createProject(options: {
     await initializeProjectGit(projectPath);
   }
 
+  ensureProject(projectPath);
   const result = await startNewThread({ projectId: projectPath });
   moveProjectToTop(projectPath);
-  return result;
+  return { ...result, projectId: projectPath };
 }
 
 async function resolvePathIfPresent(projectPath: string) {
@@ -135,7 +136,7 @@ export async function createProjectFromGitHubUrl(options: {
 }) {
   const preferredProjectLocation = options.preferredProjectLocation?.trim() ?? "";
   if (preferredProjectLocation.length === 0) {
-    throw new Error("Configura primero una ubicación predeterminada para proyectos.");
+    throw new Error("Configura primero una ubicaciï¿½n predeterminada para proyectos.");
   }
 
   const repository = parseGitHubRepositoryUrl(options.repositoryUrl);
