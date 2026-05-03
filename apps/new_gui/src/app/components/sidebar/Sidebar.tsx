@@ -1,4 +1,4 @@
-import { Code2, Inbox, MessageSquare } from "lucide-react";
+import { Inbox, MessageSquare } from "lucide-react";
 import type { AppSettings, DesktopActionInvoker, InboxThread } from "../../desktop/types";
 import type { ChatSidebarState } from "../../desktop/types";
 import type { Project, View } from "../../types";
@@ -77,15 +77,6 @@ export function Sidebar({
   onThreadOpen,
   onToggleProjectCollapse,
 }: SidebarProps) {
-  const codeModeActive =
-    activeView === "inbox" ||
-    activeView === "code" ||
-    activeView === "thread" ||
-    activeView === "gitops" ||
-    activeView === "archived" ||
-    activeView === "settings" ||
-    activeView === "extensions" ||
-    activeView === "skills";
   const showModeSelection = activeView !== "extensions" && activeView !== "skills";
 
   return (
@@ -109,12 +100,7 @@ export function Sidebar({
             disabled
             title="Chat will be enabled later"
           />
-          <NavButton
-            icon={<Code2 size={16} />}
-            label="Code"
-            active={codeModeActive && activeView !== "inbox"}
-            onClick={() => onShowView("code")}
-          />
+
         </nav>
       ) : null}
 
