@@ -224,6 +224,7 @@ export function listProjectThreads(projectId: string, options: { chat?: boolean 
 }
 
 export function listInboxThreads(): InboxThread[] {
+  ensureChatStateSchema();
   const db = getThreadStateDatabase();
   const rows = db
     .prepare(
@@ -270,6 +271,7 @@ export function listInboxThreads(): InboxThread[] {
 }
 
 export function listArchivedThreads(): ArchivedThread[] {
+  ensureChatStateSchema();
   const db = getThreadStateDatabase();
   const rows = db
     .prepare(

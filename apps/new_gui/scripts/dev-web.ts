@@ -16,8 +16,18 @@ import {
 } from "../shared/dev-server";
 
 const projectRoot = process.cwd();
+const repoRoot = path.resolve(projectRoot, "..", "..");
 const devRepoRoot = projectRoot;
 const require = createRequire(import.meta.url);
+
+const officeAgentRuntimeAliasPlugin = {
+  name: "office-agent-runtime-alias",
+  setup(build: Bun.PluginBuilder) {
+    build.onResolve({ filter: /^@office-agent\/runtime$/ }, () => ({
+      path: path.join(repoRoot, "packages", "office-agent-runtime", "src", "index.ts"),
+    }));
+  },
+} satisfies Bun.BunPlugin;
 const electronPath = require("electron") as string;
 const devServerMetadataPath = path.join(projectRoot, DEV_SERVER_METADATA_RELATIVE_PATH);
 const bridgeBuildPath = path.join(projectRoot, "build", "dev-web-bridge.mjs");
@@ -37,6 +47,7 @@ async function buildDevWebBridge() {
     target: "node",
     format: "esm",
     packages: "external",
+    plugins: [officeAgentRuntimeAliasPlugin],
     sourcemap: "linked",
     throw: true,
   });

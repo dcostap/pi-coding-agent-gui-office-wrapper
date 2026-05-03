@@ -3,7 +3,17 @@ import path from "node:path";
 
 const isWatchMode = process.argv.includes("--watch");
 const projectRoot = process.cwd();
+const repoRoot = path.resolve(projectRoot, "..", "..");
 const buildRoot = path.join(projectRoot, "build");
+
+const officeAgentRuntimeAliasPlugin = {
+  name: "office-agent-runtime-alias",
+  setup(build: Bun.PluginBuilder) {
+    build.onResolve({ filter: /^@office-agent\/runtime$/ }, () => ({
+      path: path.join(repoRoot, "packages", "office-agent-runtime", "src", "index.ts"),
+    }));
+  },
+} satisfies Bun.BunPlugin;
 
 const buildTargets = [
   {
@@ -66,6 +76,7 @@ async function runBuild() {
         target: "node",
         format: target.format,
         packages: "external",
+        plugins: [officeAgentRuntimeAliasPlugin],
         sourcemap: "linked",
         watch: isWatchMode,
         throw: true,

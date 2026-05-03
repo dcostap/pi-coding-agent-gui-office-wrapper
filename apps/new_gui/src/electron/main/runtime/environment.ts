@@ -1,6 +1,7 @@
 import path from "node:path";
 import { createRequire } from "node:module";
 import { app } from "electron";
+import { prepareOfficeAgentDesktopRuntime } from "../../../../desktop/office-agent-runtime.cts";
 
 const require = createRequire(__filename);
 
@@ -22,7 +23,7 @@ function resolveConfiguredUserDataPath() {
   return app.isPackaged ? defaultUserDataPath : path.join(defaultUserDataPath, "dev");
 }
 
-export function configureDesktopEnvironment() {
+export async function configureDesktopEnvironment() {
   const userDataPath = resolveConfiguredUserDataPath();
   app.setPath("userData", userDataPath);
   process.env.HOWCODE_USER_DATA_PATH = userDataPath;
@@ -31,4 +32,6 @@ export function configureDesktopEnvironment() {
   if (piPackageDirectory) {
     process.env.PI_PACKAGE_DIR = piPackageDirectory;
   }
+
+  await prepareOfficeAgentDesktopRuntime();
 }

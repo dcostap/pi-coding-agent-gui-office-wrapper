@@ -1,0 +1,182 @@
+import { existsSync } from "node:fs";
+import { access, readFile } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
+import type { CreateAgentSessionOptions } from "@mariozechner/pi-coding-agent";
+import type { PiModule } from "./pi-module.cts";
+import {
+  ensureOfficeAgentManagedAgentDir,
+  ensureOfficeAgentManagedRoot,
+  ensureOfficeAgentManagedSessionLayout,
+  findOfficeAgentManagedRootForPath,
+  getOfficeAgentAgentDir,
+  getOfficeAgentManagedEnv,
+  getOfficeAgentManagedRootDir,
+  getOfficeAgentManagedSessionEnv,
+  getOfficeAgentProjectsDir,
+  OFFICE_AGENT_MODEL_ID,
+  OFFICE_AGENT_PROVIDER_ID,
+} from "../../../packages/office-agent-runtime/src/index.ts";
+import {
+  createOfficeAgentSandboxBashOperations,
+  ensureOfficeAgentSandboxShellConfig,
+  getOfficeAgentSandboxShellPromptContext,
+  mkdirWithOfficeAgentSandbox,
+  writeFileWithOfficeAgentSandbox,
+} from "../../../packages/pi-sdk-driver/src/windows-sandbox-helper-client.ts";
+
+export const officeAgentModelSelection = {
+  provider: OFFICE_AGENT_PROVIDER_ID,
+  id: OFFICE_AGENT_MODEL_ID,
+} as const;
+
+export function getOfficeAgentDefaultProjectLocation(): string {
+  return getOfficeAgentProjectsDir(getOfficeAgentManagedRootDir());
+}
+
+export async function prepareOfficeAgentDesktopRuntime(): Promise<{
+  readonly agentDir: string;
+  readonly managedRootDir: string;
+  readonly projectsDir: string;
+}> {
+  const agentDir = getOfficeAgentAgentDir();
+  const managedRootDir = getOfficeAgentManagedRootDir();
+  const projectsDir = getOfficeAgentProjectsDir(managedRootDir);
+
+  Object.assign(process.env, getOfficeAgentManagedEnv(process.env, { agentDir, clientKind: "gui" }));
+  process.env.HOWCODE_REPO_ROOT = process.env.HOWCODE_REPO_ROOT?.trim() || projectsDir;
+  setSandboxHelperEnvIfPresent();
+
+  await ensureOfficeAgentManagedAgentDir(agentDir);
+  await ensureOfficeAgentManagedRoot(managedRootDir);
+
+  return { agentDir, managedRootDir, projectsDir };
+}
+
+export async function createOfficeAgentManagedCustomTools(options: {
+  readonly cwd: string;
+  readonly sessionId: string;
+  readonly agentDir: string;
+  readonly pi: Pick<
+    PiModule,
+    | "createBashToolDefinition"
+    | "createEditToolDefinition"
+    | "createReadToolDefinition"
+    | "createWriteToolDefinition"
+  >;
+}): Promise<NonNullable<CreateAgentSessionOptions["customTools"]>> {
+  const cwd = resolve(options.cwd);
+  const managedRootDir = resolveOfficeAgentManagedRootForPath(cwd);
+  if (!managedRootDir) {
+    throw new Error(`OfficeAgent project is outside managed AgentData: ${cwd}`);
+  }
+
+  const sessionPaths = await ensureOfficeAgentManagedSessionLayout(options.sessionId, managedRootDir);
+  const shellConfig = await ensureOfficeAgentSandboxShellConfig(managedRootDir);
+  const shellPromptContext = getOfficeAgentSandboxShellPromptContext(shellConfig);
+  const sessionEnv = getOfficeAgentManagedSessionEnv(options.sessionId, process.env, {
+    managedRootDir,
+    agentDir: options.agentDir,
+    clientKind: "gui",
+  });
+
+  const sandboxCommandTool = options.pi.createBashToolDefinition(cwd, {
+    operations: createOfficeAgentSandboxBashOperations({
+      managedRootDir,
+      sessionPaths,
+      env: sessionEnv,
+      shellConfig,
+    }),
+    spawnHook: (context) => ({
+      ...context,
+      cwd: assertManagedPath(managedRootDir, context.cwd),
+      env: {
+        ...context.env,
+        ...sessionEnv,
+      },
+    }),
+  });
+  sandboxCommandTool.label = "OfficeAgent Windows sandbox exec";
+  sandboxCommandTool.description = [
+    "Run commands with OfficeAgent's write-contained Windows execution model for this managed project.",
+    "Commands may modify only the OfficeAgent managed project/root; reads outside may succeed or fail according to Windows permissions.",
+  ].join(" ");
+  sandboxCommandTool.promptSnippet = "Execute Windows commands with OfficeAgent write containment for the current project.";
+  sandboxCommandTool.promptGuidelines = [
+    shellPromptContext,
+    "Prefer commands that operate inside the current managed project.",
+    "Writes outside the OfficeAgent managed root should fail.",
+  ];
+
+  return [
+    options.pi.createReadToolDefinition(cwd),
+    sandboxCommandTool,
+    options.pi.createEditToolDefinition(cwd, {
+      operations: {
+        access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
+        readFile: (absolutePath: string) => readFile(assertManagedPath(managedRootDir, absolutePath)),
+        writeFile: async (absolutePath: string, content: string) => {
+          const target = assertManagedPath(managedRootDir, absolutePath);
+          await writeFileWithOfficeAgentSandbox(managedRootDir, target, content, { createParentDirs: true });
+        },
+      },
+    }),
+    options.pi.createWriteToolDefinition(cwd, {
+      operations: {
+        mkdir: (dir: string) => mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
+        writeFile: (absolutePath: string, content: string) =>
+          writeFileWithOfficeAgentSandbox(
+            managedRootDir,
+            assertManagedPath(managedRootDir, absolutePath),
+            content,
+          ),
+      },
+    }),
+  ] as NonNullable<CreateAgentSessionOptions["customTools"]>;
+}
+
+export function assertManagedPath(managedRootDir: string, pathValue: string): string {
+  const absolutePath = resolve(pathValue);
+  if (!isPathWithin(managedRootDir, absolutePath)) {
+    throw new Error(`OfficeAgent blocked path outside managed root: ${absolutePath}`);
+  }
+  return absolutePath;
+}
+
+function resolveOfficeAgentManagedRootForPath(pathValue: string): string | undefined {
+  const discoveredRoot = findOfficeAgentManagedRootForPath(pathValue);
+  if (discoveredRoot) {
+    return discoveredRoot;
+  }
+
+  const defaultManagedRoot = getOfficeAgentManagedRootDir();
+  return isPathWithin(defaultManagedRoot, pathValue) ? defaultManagedRoot : undefined;
+}
+
+function isPathWithin(parent: string, candidate: string): boolean {
+  const normalizedParent = resolve(parent);
+  const normalizedCandidate = resolve(candidate);
+  const rel = relative(normalizedParent, normalizedCandidate);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+function setSandboxHelperEnvIfPresent(): void {
+  if (process.env.OFFICE_AGENT_WINDOWS_SANDBOX_HELPER?.trim()) {
+    return;
+  }
+
+  const relativeHelperPath = [
+    "apps",
+    "gui",
+    "desktop",
+    "build",
+    "native",
+    "windows-sandbox-helper",
+    "officeagent-windows-sandbox-helper.exe",
+  ];
+  const candidates = [
+    resolve(process.cwd(), ...relativeHelperPath),
+    resolve(process.cwd(), "..", "..", ...relativeHelperPath),
+  ];
+  process.env.OFFICE_AGENT_WINDOWS_SANDBOX_HELPER =
+    candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+}

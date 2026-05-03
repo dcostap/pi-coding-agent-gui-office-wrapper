@@ -11,7 +11,7 @@ import { AppUpdater } from "./updater/app-updater";
 let currentMainWindow: BrowserWindow | null = null;
 const devtoolsDebuggingPort = configureDevtoolsRemoteDebugging();
 
-app.setName("howcode");
+app.setName("OfficeAgent");
 
 async function openMainWindow() {
   const mainWindow = createMainWindow();
@@ -28,7 +28,7 @@ async function openMainWindow() {
 
 async function bootstrap() {
   await app.whenReady();
-  configureDesktopEnvironment();
+  await configureDesktopEnvironment();
   logDevtoolsRemoteDebugging(devtoolsDebuggingPort);
 
   const runtime = await loadDesktopRuntimeModules();

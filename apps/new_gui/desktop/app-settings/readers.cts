@@ -1,5 +1,9 @@
 import type { AppSettings } from "../../shared/desktop-contracts.ts";
 import {
+  getOfficeAgentDefaultProjectLocation,
+  officeAgentModelSelection,
+} from "../office-agent-runtime.cts";
+import {
   DEFAULT_DICTATION_MAX_DURATION_SECONDS,
   normalizeDictationMaxDurationSeconds,
 } from "../../shared/dictation-settings.ts";
@@ -256,9 +260,9 @@ export function loadAppSettings(): AppSettings {
     .get(showDictationButtonKey) as PreferenceRow | undefined;
 
   return {
-    chatModel: parseModelSelection(chatModelRow?.valueJson),
+    chatModel: parseModelSelection(chatModelRow?.valueJson) ?? officeAgentModelSelection,
     chatThinkingLevel: parseThinkingLevelPreference(chatThinkingLevelRow?.valueJson),
-    codeModel: parseModelSelection(codeModelRow?.valueJson),
+    codeModel: parseModelSelection(codeModelRow?.valueJson) ?? officeAgentModelSelection,
     codeThinkingLevel: parseThinkingLevelPreference(codeThinkingLevelRow?.valueJson),
     gitCommitMessageModel: parseModelSelection(modelRow?.valueJson),
     gitCommitMessageThinkingLevel:
@@ -277,7 +281,8 @@ export function loadAppSettings(): AppSettings {
     showDictationButton: parseBooleanPreference(showDictationButtonRow?.valueJson) ?? true,
     favoriteFolders: parseFavoriteFolders(favoriteFoldersRow?.valueJson),
     projectImportState: parseBooleanPreference(projectImportStateRow?.valueJson),
-    preferredProjectLocation: parseStringPreference(preferredProjectLocationRow?.valueJson),
+    preferredProjectLocation:
+      parseStringPreference(preferredProjectLocationRow?.valueJson) ?? getOfficeAgentDefaultProjectLocation(),
     initializeGitOnProjectCreate:
       parseBooleanPreference(initializeGitOnProjectCreateRow?.valueJson) ?? false,
     gitOpsDefaultMode: parseGitOpsModePreference(gitOpsDefaultModeRow?.valueJson) ?? "commit",

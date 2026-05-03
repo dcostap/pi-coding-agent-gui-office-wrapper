@@ -2,7 +2,8 @@
   "name": "office-gui-for-agentic-ai",
   "private": true,
   "workspaces": [
-    "apps/*",
+    "apps/gateway",
+    "apps/tui",
     "apps/gui/*",
     "packages/*"
   ],

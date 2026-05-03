@@ -9,6 +9,7 @@ import {
 } from "../runtime/agent-session-extensions.cts";
 import { buildComposerState } from "../runtime/composer-state.cts";
 import { createArtifactTools } from "../runtime/artifact-tools.cts";
+import { createOfficeAgentManagedCustomTools } from "../office-agent-runtime.cts";
 import { invokeMainRequest } from "./main-request-client.cts";
 import {
   createIsolatedRuntimeResourceLoader,
@@ -97,6 +98,10 @@ async function createRuntime(options: {
     SettingsManager,
     DefaultResourceLoader,
     createAgentSession,
+    createBashToolDefinition,
+    createEditToolDefinition,
+    createReadToolDefinition,
+    createWriteToolDefinition,
     getAgentDir,
   } = await getPiModule();
   const agentDir = getAgentDir();
@@ -109,6 +114,7 @@ async function createRuntime(options: {
     settingsCwd: options.settingsCwd,
   });
   const sessionDir = options.sessionDir ?? settingsManager.getSessionDir() ?? undefined;
+  const sessionManager = options.sessionManager ?? SessionManager.create(options.cwd, sessionDir);
   const resourceLoader = await createIsolatedRuntimeResourceLoader({
     DefaultResourceLoader,
     cwd: options.cwd,
@@ -116,6 +122,25 @@ async function createRuntime(options: {
     settingsCwd: options.settingsCwd,
     settingsManager,
   });
+  const customTools = options.settingsCwd
+    ? createArtifactTools({
+        createArtifact: (input) => invokeMainRequest("createArtifact", input),
+        editArtifact: (input) => invokeMainRequest("editArtifact", input),
+        getArtifact: ({ conversationId, slug }) =>
+          invokeMainRequest("getArtifact", { artifactSlug: slug, conversationId }),
+        listArtifacts: (conversationId) => invokeMainRequest("listArtifacts", { conversationId }),
+      })
+    : await createOfficeAgentManagedCustomTools({
+        cwd: options.cwd,
+        sessionId: sessionManager.getSessionId(),
+        agentDir,
+        pi: {
+          createBashToolDefinition,
+          createEditToolDefinition,
+          createReadToolDefinition,
+          createWriteToolDefinition,
+        },
+      });
   const { session } = await createAgentSession({
     cwd: options.cwd,
     agentDir,
@@ -123,20 +148,9 @@ async function createRuntime(options: {
     modelRegistry,
     settingsManager,
     resourceLoader,
-    sessionManager: options.sessionManager ?? SessionManager.create(options.cwd, sessionDir),
-    ...(options.settingsCwd
-      ? {
-          noTools: "builtin" as const,
-          customTools: createArtifactTools({
-            createArtifact: (input) => invokeMainRequest("createArtifact", input),
-            editArtifact: (input) => invokeMainRequest("editArtifact", input),
-            getArtifact: ({ conversationId, slug }) =>
-              invokeMainRequest("getArtifact", { artifactSlug: slug, conversationId }),
-            listArtifacts: (conversationId) =>
-              invokeMainRequest("listArtifacts", { conversationId }),
-          }),
-        }
-      : {}),
+    sessionManager,
+    noTools: "builtin" as const,
+    customTools,
   });
   const runtime = {
     cwd: options.cwd,
