@@ -1,4 +1,4 @@
-import { Inbox, MessageSquare } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import type { AppSettings, DesktopActionInvoker, InboxThread } from "../../desktop/types";
 import type { ChatSidebarState } from "../../desktop/types";
 import type { Project, View } from "../../types";
@@ -63,7 +63,7 @@ export function Sidebar({
   terminalRunningSessionPaths,
   collapsedProjectIds,
   onAction,
-  onShowView,
+
 
   onDismissInboxThread,
   onCreateChatGroup,
@@ -87,12 +87,6 @@ export function Sidebar({
     >
       {showModeSelection ? (
         <nav className="sidebar-mode-nav" aria-label="Primary navigation">
-          <NavButton
-            icon={<Inbox size={16} />}
-            label="Inbox"
-            active={activeView === "inbox"}
-            onClick={() => onShowView("inbox")}
-          />
           <NavButton
             icon={<MessageSquare size={16} />}
             label="Chat"
