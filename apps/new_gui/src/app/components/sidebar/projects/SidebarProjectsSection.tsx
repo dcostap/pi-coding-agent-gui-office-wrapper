@@ -156,7 +156,7 @@ export function SidebarProjectsSection({
     setCreateErrorMessage(null);
 
     if (!appSettings.preferredProjectLocation) {
-      setCreateErrorMessage("Project location is not configured.");
+      setCreateErrorMessage("La ubicación del proyecto no está configurada.");
       return;
     }
 
@@ -214,9 +214,9 @@ export function SidebarProjectsSection({
           <input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search"
+            placeholder="Buscar"
             className="sidebar-search-input"
-            aria-label="Search projects"
+            aria-label="Buscar proyectos"
           />
         </label>
         {showProjects ? (
@@ -228,7 +228,7 @@ export function SidebarProjectsSection({
                 tooltipPlacement="right"
                 onClick={() => {
                   if (!appSettings.preferredProjectLocation) {
-                    setCreateErrorMessage("Project location is not configured.");
+                    setCreateErrorMessage("La ubicación del proyecto no está configurada.");
                   } else {
                     setCreateErrorMessage(null);
                   }

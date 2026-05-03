@@ -41,12 +41,12 @@ export async function createProject(options: {
 }) {
   const preferredProjectLocation = options.preferredProjectLocation?.trim() ?? "";
   if (preferredProjectLocation.length === 0) {
-    throw new Error("Set a default project location in Settings first.");
+    throw new Error("Configura primero una ubicación predeterminada para proyectos.");
   }
 
   const folderName = sanitizeProjectFolderName(options.projectName);
   if (folderName.length === 0) {
-    throw new Error("Enter a project name.");
+    throw new Error("Introduce un nombre de proyecto.");
   }
 
   const parentDirectory = path.resolve(preferredProjectLocation);
@@ -58,7 +58,7 @@ export async function createProject(options: {
     await mkdir(projectPath);
   } catch (error) {
     if (typeof error === "object" && error !== null && "code" in error && error.code === "EEXIST") {
-      throw new Error("A project with that name already exists there.");
+      throw new Error("Ya existe un proyecto con ese nombre.");
     }
 
     throw error;
@@ -135,12 +135,12 @@ export async function createProjectFromGitHubUrl(options: {
 }) {
   const preferredProjectLocation = options.preferredProjectLocation?.trim() ?? "";
   if (preferredProjectLocation.length === 0) {
-    throw new Error("Set a default project location in Settings first.");
+    throw new Error("Configura primero una ubicación predeterminada para proyectos.");
   }
 
   const repository = parseGitHubRepositoryUrl(options.repositoryUrl);
   if (!repository) {
-    throw new Error("Paste a GitHub repository URL such as https://github.com/owner/repo.");
+    throw new Error("Pega una URL de repositorio de GitHub, por ejemplo https://github.com/owner/repo.");
   }
 
   const existingProjectId = await findExistingGitHubProject(repository.canonicalUrl);
