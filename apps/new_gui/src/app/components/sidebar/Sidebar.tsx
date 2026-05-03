@@ -1,14 +1,10 @@
 import { Code2, Inbox, MessageSquare, Settings } from "lucide-react";
-import { useCallback, useRef } from "react";
 import type { AppSettings, DesktopActionInvoker, InboxThread } from "../../desktop/types";
 import type { ChatSidebarState } from "../../desktop/types";
-import { useAnimatedPresence } from "../../hooks/useAnimatedPresence";
-import { useDismissibleLayer } from "../../hooks/useDismissibleLayer";
 import type { Project, View } from "../../types";
 
 type SidebarNavigableView = Exclude<View, "gitops">;
 import { NavButton } from "../common/NavButton";
-import { SettingsMenu } from "./SettingsMenu";
 import { SidebarChatSection } from "./chat/SidebarChatSection";
 import { SidebarInboxSection } from "./inbox/SidebarInboxSection";
 import { SidebarProjectsSection } from "./projects/SidebarProjectsSection";
@@ -62,18 +58,13 @@ export function Sidebar({
   selectedProjectId,
   selectedThreadId,
   selectedChatGroupId,
-  settingsOpen,
   projectScopeLockActive,
   terminalRunningProjectIds,
   terminalRunningSessionPaths,
   collapsedProjectIds,
   onAction,
   onShowView,
-  onToggleSettings,
-  onOpenExtensionsView,
-  onOpenSkillsView,
   onOpenSettingsPanel,
-  onOpenArchivedThreads,
   onDismissInboxThread,
   onCreateChatGroup,
   onSelectChatGroup,
@@ -86,10 +77,6 @@ export function Sidebar({
   onThreadOpen,
   onToggleProjectCollapse,
 }: SidebarProps) {
-  const settingsButtonRef = useRef<HTMLButtonElement>(null);
-  const settingsMenuRef = useRef<HTMLDivElement>(null);
-  const settingsMenuId = "sidebar-settings-menu";
-  const settingsMenuPresent = useAnimatedPresence(settingsOpen);
   const codeModeActive =
     activeView === "inbox" ||
     activeView === "code" ||
@@ -100,17 +87,6 @@ export function Sidebar({
     activeView === "extensions" ||
     activeView === "skills";
   const showModeSelection = activeView !== "extensions" && activeView !== "skills";
-  const closeSettings = useCallback(() => {
-    if (settingsOpen) {
-      onToggleSettings();
-    }
-  }, [onToggleSettings, settingsOpen]);
-
-  useDismissibleLayer({
-    open: settingsOpen,
-    onDismiss: closeSettings,
-    refs: [settingsButtonRef, settingsMenuRef],
-  });
 
   return (
     <aside
@@ -188,30 +164,13 @@ export function Sidebar({
 
       <div className="sidebar-footer">
         <button
-          ref={settingsButtonRef}
           type="button"
           className="sidebar-settings-button"
-          onClick={onToggleSettings}
-          data-open={settingsOpen ? "true" : "false"}
-          aria-haspopup="menu"
-          aria-expanded={settingsOpen}
-          aria-controls={settingsMenuId}
+          onClick={onOpenSettingsPanel}
         >
           <Settings size={16} />
           <span>Settings</span>
         </button>
-
-        {settingsMenuPresent ? (
-          <SettingsMenu
-            menuId={settingsMenuId}
-            open={settingsOpen}
-            panelRef={settingsMenuRef}
-            onOpenExtensionsView={onOpenExtensionsView}
-            onOpenSkillsView={onOpenSkillsView}
-            onOpenSettingsPanel={onOpenSettingsPanel}
-            onOpenArchivedThreads={onOpenArchivedThreads}
-          />
-        ) : null}
       </div>
     </aside>
   );
