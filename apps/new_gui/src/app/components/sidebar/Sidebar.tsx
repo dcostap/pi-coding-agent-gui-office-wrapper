@@ -1,4 +1,4 @@
-import { Code2, Inbox, MessageSquare, Settings } from "lucide-react";
+import { Code2, Inbox, MessageSquare } from "lucide-react";
 import type { AppSettings, DesktopActionInvoker, InboxThread } from "../../desktop/types";
 import type { ChatSidebarState } from "../../desktop/types";
 import type { Project, View } from "../../types";
@@ -64,7 +64,7 @@ export function Sidebar({
   collapsedProjectIds,
   onAction,
   onShowView,
-  onOpenSettingsPanel,
+
   onDismissInboxThread,
   onCreateChatGroup,
   onSelectChatGroup,
@@ -154,7 +154,6 @@ export function Sidebar({
           collapsedProjectIds={collapsedProjectIds}
           onAction={onAction}
           onLoadProjectThreads={onLoadProjectThreads}
-          onOpenSettingsPanel={onOpenSettingsPanel}
           onProjectSelect={onProjectSelect}
           onProjectReorder={onProjectReorder}
           onThreadOpen={onThreadOpen}
@@ -162,16 +161,7 @@ export function Sidebar({
         />
       )}
 
-      <div className="sidebar-footer">
-        <button
-          type="button"
-          className="sidebar-settings-button"
-          onClick={onOpenSettingsPanel}
-        >
-          <Settings size={16} />
-          <span>Settings</span>
-        </button>
-      </div>
+      <div className="sidebar-footer" />
     </aside>
   );
 }

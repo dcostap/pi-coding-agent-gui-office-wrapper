@@ -33,7 +33,6 @@ type SidebarProjectsSectionProps = {
   collapsedProjectIds: Record<string, boolean>;
   onAction: DesktopActionInvoker;
   onLoadProjectThreads: (projectId: string, options?: { chat?: boolean }) => Promise<unknown>;
-  onOpenSettingsPanel: () => void;
   onProjectSelect: (projectId: string) => void;
   onProjectReorder: (projectIds: string[]) => void;
   onThreadOpen: (projectId: string, threadId: string, sessionPath: string) => void;
@@ -54,7 +53,6 @@ export function SidebarProjectsSection({
   collapsedProjectIds,
   onAction,
   onLoadProjectThreads,
-  onOpenSettingsPanel,
   onProjectSelect,
   onProjectReorder,
   onThreadOpen,
@@ -191,8 +189,7 @@ export function SidebarProjectsSection({
     setCreateErrorMessage(null);
 
     if (!appSettings.preferredProjectLocation) {
-      setCreateOpen(false);
-      onOpenSettingsPanel();
+      setCreateErrorMessage("Project location is not configured.");
       return;
     }
 
@@ -288,11 +285,11 @@ export function SidebarProjectsSection({
                 tooltipPlacement="right"
                 onClick={() => {
                   if (!appSettings.preferredProjectLocation) {
-                    onOpenSettingsPanel();
-                    return;
+                    setCreateErrorMessage("Project location is not configured.");
+                  } else {
+                    setCreateErrorMessage(null);
                   }
 
-                  setCreateErrorMessage(null);
                   setCreateOpen(true);
                 }}
                 icon={<FolderPlus size={15} />}
