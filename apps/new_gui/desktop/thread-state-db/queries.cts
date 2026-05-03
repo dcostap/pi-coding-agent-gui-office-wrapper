@@ -34,6 +34,7 @@ import type {
 } from "../../shared/desktop-contracts.ts";
 import { getLiveThread } from "../runtime/live-thread-store.cts";
 import { ensureChatStateSchema, isChatSessionPath } from "../chat-state-db.cts";
+import { isOfficeAgentManagedProjectPath } from "../office-agent-runtime.cts";
 import { ensureProject } from "./writes.cts";
 
 function matchesThreadScope(sessionPath: string, options: { chat?: boolean } = {}) {
@@ -92,7 +93,7 @@ export function listProjects(cwd: string): Project[] {
     )
     .all(getChatSessionLikePattern(), cwd) as ProjectRow[];
 
-  return rows.map(mapProjectRow);
+  return rows.filter((row) => isOfficeAgentManagedProjectPath(row.id)).map(mapProjectRow);
 }
 
 export function hasProject(projectId: string) {

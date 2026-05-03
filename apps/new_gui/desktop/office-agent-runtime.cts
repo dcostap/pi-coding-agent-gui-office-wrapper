@@ -33,6 +33,10 @@ export function getOfficeAgentDefaultProjectLocation(): string {
   return getOfficeAgentProjectsDir(getOfficeAgentManagedRootDir());
 }
 
+export function isOfficeAgentManagedProjectPath(pathValue: string): boolean {
+  return isPathWithin(getOfficeAgentDefaultProjectLocation(), pathValue);
+}
+
 export async function prepareOfficeAgentDesktopRuntime(): Promise<{
   readonly agentDir: string;
   readonly managedRootDir: string;
