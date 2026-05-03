@@ -1,0 +1,217 @@
+name: Release artifacts
+
+on:
+  pull_request:
+    branches:
+      - dev
+  push:
+    branches:
+      - dev
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: release-artifacts-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            runs_on: ubuntu-24.04
+          - name: linux-arm64
+            runs_on: ubuntu-24.04-arm
+          - name: windows-x64
+            runs_on: windows-2025
+          - name: windows-arm64
+            runs_on: windows-11-arm
+          - name: macos-arm64
+            runs_on: macos-15
+          - name: macos-x64
+            runs_on: macos-15-intel
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            pkg-config \
+            unzip
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Windows ARM64 Rollup native package
+        if: matrix.name == 'windows-arm64'
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund @rollup/rollup-win32-arm64-msvc@4.60.2
+
+      - name: Verify release version alignment
+        shell: bash
+        run: |
+          ROOT_VERSION=$(node -p "require('./package.json').version")
+          LAUNCHER_VERSION=$(node -p "require('./packages/howcode/package.json').version")
+          if [ "$ROOT_VERSION" != "$LAUNCHER_VERSION" ]; then
+            echo "Version mismatch detected"
+            echo "root=$ROOT_VERSION launcher=$LAUNCHER_VERSION"
+            exit 1
+          fi
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            if [ "$ROOT_VERSION" != "$TAG_VERSION" ]; then
+              echo "Tag version $TAG_VERSION does not match package version $ROOT_VERSION"
+              exit 1
+            fi
+          fi
+
+      - name: Build stable desktop release
+        run: bun run build:release
+
+      - name: Build launcher archives
+        run: bun run build:launcher-artifacts
+
+      - name: Upload dev artifacts
+        if: github.event_name == 'push' && github.ref_name == 'dev'
+        uses: actions/upload-artifact@v6
+        with:
+          name: dev-${{ matrix.name }}
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            artifacts/*
+            !artifacts/npm-launcher
+            artifacts/npm-launcher/*
+
+      - name: Upload manual preview artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v6
+        with:
+          name: preview-${{ github.ref_name }}-${{ matrix.name }}
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            artifacts/*
+            !artifacts/npm-launcher
+            artifacts/npm-launcher/*
+
+      - name: Upload release files
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-${{ matrix.name }}
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            artifacts/stable-*-update.json
+            artifacts/npm-launcher/*.tar.gz
+            artifacts/electron/*.AppImage
+            artifacts/electron/*.exe
+
+  cleanup-dev-artifacts:
+    name: Cleanup old dev artifacts
+    if: github.event_name == 'push' && github.ref_name == 'dev'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+
+    steps:
+      - name: Delete artifacts from older dev runs
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const currentRunId = context.runId;
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+
+            for (const artifact of artifacts) {
+              const workflowRun = artifact.workflow_run;
+              if (!workflowRun) {
+                continue;
+              }
+
+              if (workflowRun.head_branch !== "dev") {
+                continue;
+              }
+
+              if (workflowRun.id === currentRunId) {
+                continue;
+              }
+
+              if (!artifact.name.startsWith("dev-")) {
+                core.info(
+                  `Skipping unrelated artifact ${artifact.name} (${artifact.id}) from dev run ${workflowRun.id}`,
+                );
+                continue;
+              }
+
+              core.info(
+                `Deleting artifact ${artifact.name} (${artifact.id}) from dev run ${workflowRun.id}`,
+              );
+              await github.rest.actions.deleteArtifact({
+                owner,
+                repo,
+                artifact_id: artifact.id,
+              });
+            }
+
+  publish-release:
+    name: Publish GitHub release
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download built artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: List release assets
+        run: find release-assets -maxdepth 2 -type f \( -name 'stable-*-update.json' -o -name '*.tar.gz' -o -name '*.AppImage' -o -name '*.exe' \) -print | sort
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mapfile -d '' assets < <(find release-assets -type f \( -name 'stable-*-update.json' -o -name '*.tar.gz' -o -name '*.AppImage' -o -name '*.exe' \) -print0 | sort -z)
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "No release assets found"
+            exit 1
+          fi
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" --title "$GITHUB_REF_NAME" --generate-notes
+          fi

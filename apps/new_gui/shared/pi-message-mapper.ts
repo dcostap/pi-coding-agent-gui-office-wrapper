@@ -1,0 +1,422 @@
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { Message, ToolResultImage } from "./desktop-contracts";
+
+type TextPart = {
+  type?: string;
+  text?: string;
+};
+
+type ThinkingPart = {
+  type?: string;
+  thinking?: string;
+  redacted?: boolean;
+};
+
+type RuntimeMessage = {
+  role?: string;
+  content?:
+    | string
+    | Array<
+        | TextPart
+        | {
+            type?: string;
+            mimeType?: string;
+            data?: string;
+          }
+        | {
+            type?: string;
+            name?: string;
+          }
+      >;
+  timestamp?: string | number;
+  errorMessage?: string;
+  toolName?: string;
+  isError?: boolean;
+  command?: string;
+  output?: string;
+  exitCode?: number;
+  cancelled?: boolean;
+  truncated?: boolean;
+  customType?: string;
+  summary?: string;
+};
+
+type SessionBranchEntry = {
+  type: string;
+  id: string;
+  firstKeptEntryId?: string;
+};
+
+function splitParagraphs(text: string) {
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+}
+
+function normalizeThinkingHeader(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const markdownHeading = trimmed.match(/^#{1,6}\s+(.+)$/);
+  if (markdownHeading?.[1]) {
+    return markdownHeading[1].trim();
+  }
+
+  const boldOnly = trimmed.match(/^\*\*(.+?)\*\*$/);
+  if (boldOnly?.[1]) {
+    return boldOnly[1].trim();
+  }
+
+  const underscoreBoldOnly = trimmed.match(/^__(.+?)__$/);
+  if (underscoreBoldOnly?.[1]) {
+    return underscoreBoldOnly[1].trim();
+  }
+
+  return null;
+}
+
+function getTextParts(content: RuntimeMessage["content"]) {
+  if (!Array.isArray(content)) {
+    return [] as string[];
+  }
+
+  const textParts: string[] = [];
+  for (const part of content) {
+    if (part?.type === "text" && typeof (part as TextPart).text === "string") {
+      textParts.push((part as TextPart).text ?? "");
+    }
+  }
+
+  return textParts;
+}
+
+function getThinkingParts(content: RuntimeMessage["content"]) {
+  if (!Array.isArray(content)) {
+    return [] as ThinkingPart[];
+  }
+
+  const thinkingParts: ThinkingPart[] = [];
+  for (const part of content) {
+    if (part?.type === "thinking" && typeof (part as ThinkingPart).thinking === "string") {
+      thinkingParts.push(part as ThinkingPart);
+    }
+  }
+
+  return thinkingParts;
+}
+
+function getImageCount(content: RuntimeMessage["content"]) {
+  if (!Array.isArray(content)) {
+    return 0;
+  }
+
+  let imageCount = 0;
+  for (const part of content) {
+    if (part?.type === "image") {
+      imageCount += 1;
+    }
+  }
+
+  return imageCount;
+}
+
+function getToolResultImages(content: RuntimeMessage["content"]): ToolResultImage[] {
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  const images: ToolResultImage[] = [];
+  for (const [index, part] of content.entries()) {
+    if (part?.type !== "image") {
+      continue;
+    }
+
+    const imagePart = part as { data?: unknown; mimeType?: unknown };
+    if (typeof imagePart.data !== "string" || imagePart.data.trim().length === 0) {
+      continue;
+    }
+
+    const mimeType =
+      typeof imagePart.mimeType === "string" && imagePart.mimeType.trim().length > 0
+        ? imagePart.mimeType.trim()
+        : "image/png";
+    const data = imagePart.data.trim();
+
+    images.push({
+      src: data.startsWith("data:") ? data : `data:${mimeType};base64,${data}`,
+      mimeType,
+      alt: `Tool result image ${index + 1}`,
+    });
+  }
+
+  return images;
+}
+
+function extractUserContent(content: RuntimeMessage["content"]) {
+  if (typeof content === "string") {
+    return content.trim() ? [content.trim()] : [];
+  }
+
+  if (!Array.isArray(content)) {
+    return [] as string[];
+  }
+
+  const text = getTextParts(content).join("\n").trim();
+  const imageCount = getImageCount(content);
+  const imageLabels = Array.from(
+    { length: imageCount },
+    (_, index) => `Attached image ${index + 1}`,
+  );
+
+  return [text, ...imageLabels].filter(Boolean);
+}
+
+function extractDisplayContent(content: RuntimeMessage["content"]) {
+  if (typeof content === "string") {
+    return splitParagraphs(content);
+  }
+
+  if (!Array.isArray(content)) {
+    return [] as string[];
+  }
+
+  const textParts = getTextParts(content).flatMap((part) => splitParagraphs(part));
+  const imageCount = getImageCount(content);
+  const imageLabels = Array.from(
+    { length: imageCount },
+    (_, index) => `Attached image ${index + 1}`,
+  );
+
+  return [...textParts, ...imageLabels].filter(Boolean);
+}
+
+function normalizeSystemLabel(role: string | undefined) {
+  const label = role?.trim() || "message";
+  return label === "system" ? "System" : label;
+}
+
+function extractAssistantContent(message: RuntimeMessage) {
+  const content = getTextParts(message.content)
+    .flatMap((part) => splitParagraphs(part))
+    .filter(Boolean);
+
+  if (content.length > 0) {
+    return content;
+  }
+
+  if (message.errorMessage) {
+    return [message.errorMessage];
+  }
+
+  return [] as string[];
+}
+
+function extractAssistantThinking(message: RuntimeMessage) {
+  const thinkingParts = getThinkingParts(message.content);
+  const thinkingContent: string[] = [];
+  const thinkingHeaders: string[] = [];
+
+  for (const part of thinkingParts) {
+    for (const paragraph of splitParagraphs(part.thinking ?? "")) {
+      thinkingContent.push(paragraph);
+
+      const heading = normalizeThinkingHeader(paragraph);
+      if (heading) {
+        thinkingHeaders.push(heading);
+      }
+    }
+  }
+
+  return {
+    thinkingContent,
+    thinkingHeaders,
+    thinkingRedacted: thinkingParts.some((part) => Boolean(part.redacted)),
+  };
+}
+
+export function normalizeThreadTitle(value: unknown) {
+  const text = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) {
+    return "New thread";
+  }
+
+  return text.length > 72 ? `${text.slice(0, 69)}...` : text;
+}
+
+export function mapAgentMessageToUiMessage(message: AgentMessage, index: number): Message | null {
+  const runtimeMessage = message as RuntimeMessage;
+  const id = `${runtimeMessage.timestamp ?? index}-${runtimeMessage.role ?? "message"}`;
+
+  switch (runtimeMessage.role) {
+    case "user": {
+      const content = extractUserContent(runtimeMessage.content);
+      if (content.length === 0) {
+        return null;
+      }
+
+      return {
+        id,
+        role: "user",
+        content,
+      };
+    }
+
+    case "assistant": {
+      const content = extractAssistantContent(runtimeMessage);
+      const { thinkingContent, thinkingHeaders, thinkingRedacted } =
+        extractAssistantThinking(runtimeMessage);
+
+      if (content.length === 0 && thinkingContent.length === 0) {
+        return null;
+      }
+
+      return {
+        id,
+        role: "assistant",
+        content,
+        thinkingContent: thinkingContent.length > 0 ? thinkingContent : undefined,
+        thinkingHeaders: thinkingHeaders.length > 0 ? [...new Set(thinkingHeaders)] : undefined,
+        thinkingRedacted: thinkingRedacted || undefined,
+      };
+    }
+
+    case "toolResult": {
+      const text = extractUserContent(runtimeMessage.content);
+      const images = getToolResultImages(runtimeMessage.content);
+      return {
+        id,
+        role: "toolResult",
+        toolName: runtimeMessage.toolName ?? "tool",
+        content:
+          text.length > 0 ? text : [runtimeMessage.isError ? "Tool failed." : "Tool finished."],
+        images: images.length > 0 ? images : undefined,
+        isError: Boolean(runtimeMessage.isError),
+      };
+    }
+
+    case "bashExecution": {
+      return {
+        id,
+        role: "bashExecution",
+        command: runtimeMessage.command ?? "",
+        output: splitParagraphs(runtimeMessage.output ?? "").slice(0, 12),
+        exitCode: runtimeMessage.exitCode ?? null,
+        cancelled: Boolean(runtimeMessage.cancelled),
+        truncated: Boolean(runtimeMessage.truncated),
+      };
+    }
+
+    case "custom": {
+      const content = extractDisplayContent(runtimeMessage.content);
+      if (content.length === 0) {
+        return null;
+      }
+
+      return {
+        id,
+        role: "custom",
+        customType: runtimeMessage.customType ?? "custom",
+        content,
+      };
+    }
+
+    case "system": {
+      const content = extractDisplayContent(runtimeMessage.content);
+      if (content.length === 0) {
+        return null;
+      }
+
+      return {
+        id,
+        role: "system",
+        label: "System",
+        content,
+      };
+    }
+
+    case "branchSummary":
+    case "compactionSummary": {
+      if (!runtimeMessage.summary?.trim()) {
+        return null;
+      }
+
+      return {
+        id,
+        role: runtimeMessage.role,
+        content: splitParagraphs(runtimeMessage.summary),
+      };
+    }
+
+    default: {
+      const content = extractDisplayContent(runtimeMessage.content);
+      if (content.length === 0) {
+        return null;
+      }
+
+      return {
+        id,
+        role: "system",
+        label: normalizeSystemLabel(runtimeMessage.role),
+        content,
+      };
+    }
+  }
+}
+
+export function mapAgentMessagesToUiMessages(messages: AgentMessage[]) {
+  return messages
+    .map((message, index) => mapAgentMessageToUiMessage(message, index))
+    .filter((message): message is Message => message !== null);
+}
+
+export function getFirstUserTurnTitle(messages: Message[]) {
+  const firstUserMessage = messages.find((message) => message.role === "user") as
+    | Extract<Message, { role: "assistant" | "user" }>
+    | undefined;
+  return normalizeThreadTitle(firstUserMessage?.content[0]);
+}
+
+export function getPreviousMessageCount(entries: SessionBranchEntry[]) {
+  let compactionIndex = -1;
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (entries[index]?.type === "compaction") {
+      compactionIndex = index;
+      break;
+    }
+  }
+
+  if (compactionIndex === -1) {
+    return 0;
+  }
+
+  const compactionEntry = entries[compactionIndex];
+  const firstKeptEntryId = compactionEntry?.firstKeptEntryId;
+
+  if (!firstKeptEntryId) {
+    return 0;
+  }
+
+  let count = 0;
+
+  for (let index = 0; index < compactionIndex; index += 1) {
+    const entry = entries[index];
+    if (entry?.id === firstKeptEntryId) {
+      break;
+    }
+
+    if (
+      entry?.type === "message" ||
+      entry?.type === "custom_message" ||
+      entry?.type === "branch_summary"
+    ) {
+      count += 1;
+    }
+  }
+
+  return count;
+}

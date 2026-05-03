@@ -1,0 +1,15 @@
+node_modules/
+package-lock.json
+dist/
+build/
+artifacts/
+.DS_Store
+*.log
+coverage/
+
+.pi/semantic-grep.sqlite
+
+.pi/semantic-grep.sqlite-shm
+.pi/semantic-grep.sqlite-wal
+!src/app/features/chat/artifacts/
+!src/app/features/chat/artifacts/**

@@ -1,0 +1,10 @@
+- Use Bun for installs and scripts; keep the app runtime on Node.js/Electron.
+- In dev, assume the app dev server is already running; do not start it manually, and use Electron CDP at `127.0.0.1:39217`.
+- You MUST NOT run typechecks and tests manually; however, do not bypass pre-commit/pre-push hooks. Let hooks run their configured checks when committing or pushing unless the user explicitly instructs otherwise.
+- Prefer `src/electron/main/**`, `src/electron/preload/**`, and `shared/*` contracts over ad-hoc desktop IPC shims.
+- Keep UI changes optimistic and reuse existing patterns over one-offs.
+- For major changes, validate with a commit and leave the repo committed.
+- This repository uses nested AGENTS.md files to flag folder-specific guidelines. They are loaded automatically. No need to read them.
+- Consider creating new, small AGENTS.md files whenever patterns are observed.
+- AGENTS.md files are here to help you - if they are confusing, they should be edited to suit.
+- Popovers, menus, and custom select dropdowns must close on Escape and when clicking outside, matching native control expectations. Escape handlers for nested popovers must run in capture phase and stop propagation so parent views/dialogs do not also close.

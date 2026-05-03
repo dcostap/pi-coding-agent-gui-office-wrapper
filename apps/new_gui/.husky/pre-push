@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+
+set -e
+
+bun run prepush:clean
+bun run prepush:check

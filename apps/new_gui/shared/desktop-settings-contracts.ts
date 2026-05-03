@@ -1,0 +1,86 @@
+import type {
+  ComposerState,
+  ComposerStreamingBehavior,
+  ComposerThinkingLevel,
+} from "./desktop-composer-contracts";
+import type { DictationModelId } from "./desktop-dictation-contracts";
+import type {
+  ProjectDiffDefaultBaseline,
+  ProjectDiffRenderMode,
+} from "./desktop-project-git-contracts";
+import type { Project } from "./desktop-thread-contracts";
+
+export type ModelSelection = {
+  provider: string;
+  id: string;
+};
+
+export type ProjectDeletionMode = "pi-only" | "full-clean";
+export type GitOpsMode = "commit" | "commit-push";
+
+export type AppSettings = {
+  chatModel: ModelSelection | null;
+  chatThinkingLevel: ComposerThinkingLevel | null;
+  codeModel: ModelSelection | null;
+  codeThinkingLevel: ComposerThinkingLevel | null;
+  gitCommitMessageModel: ModelSelection | null;
+  gitCommitMessageThinkingLevel: ComposerThinkingLevel;
+  skillCreatorModel: ModelSelection | null;
+  skillCreatorThinkingLevel: ComposerThinkingLevel;
+  composerStreamingBehavior: ComposerStreamingBehavior;
+  dictationModelId: DictationModelId | null;
+  dictationMaxDurationSeconds: number;
+  showDictationButton: boolean;
+  favoriteFolders: string[];
+  projectImportState: boolean | null;
+  preferredProjectLocation: string | null;
+  initializeGitOnProjectCreate: boolean;
+  gitOpsDefaultMode: GitOpsMode;
+  gitDiffBaselineDefault: ProjectDiffDefaultBaseline;
+  gitDiffRenderModeDefault: ProjectDiffRenderMode;
+  gitDiffFileTreeDefaultVisible: boolean;
+  projectDeletionMode: ProjectDeletionMode;
+  useAgentsSkillsPaths: boolean;
+  piTuiTakeover: boolean;
+};
+
+export type PiTransportMode = "sse" | "websocket" | "auto";
+export type PiQueueMode = "all" | "one-at-a-time";
+export type PiDoubleEscapeAction = "fork" | "tree" | "none";
+export type PiTreeFilterMode = "default" | "no-tools" | "user-only" | "labeled-only" | "all";
+
+export type PiSettings = {
+  autoCompact: boolean;
+  enableSkillCommands: boolean;
+  hideThinkingBlock: boolean;
+  quietStartup: boolean;
+  showImages: boolean;
+  autoResizeImages: boolean;
+  blockImages: boolean;
+  collapseChangelog: boolean;
+  enableInstallTelemetry: boolean;
+  showHardwareCursor: boolean;
+  clearOnShrink: boolean;
+  transport: PiTransportMode;
+  steeringMode: PiQueueMode;
+  followUpMode: PiQueueMode;
+  doubleEscapeAction: PiDoubleEscapeAction;
+  treeFilterMode: PiTreeFilterMode;
+  editorPaddingX: number;
+  autocompleteMaxVisible: number;
+  imageWidthCells: number;
+};
+
+export type ShellState = {
+  platform: string;
+  mockMode: boolean;
+  productName: string;
+  cwd: string;
+  resolvedCwd?: string;
+  agentDir: string;
+  sessionDir: string;
+  projects: Project[];
+  appSettings: AppSettings;
+  piSettings: PiSettings;
+  composer: ComposerState;
+};

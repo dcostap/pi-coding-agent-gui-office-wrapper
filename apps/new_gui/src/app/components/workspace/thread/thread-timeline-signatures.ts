@@ -1,0 +1,157 @@
+import type { Message } from "../../../types";
+import { type TimelineRow, isTurnRowCollapsible } from "./timeline-row";
+
+function isToolCallRole(message: Message | undefined) {
+  return message?.role === "toolResult" || message?.role === "bashExecution";
+}
+
+function getJoinedLength(parts: string[] | undefined, separatorLength: number) {
+  if (!parts || parts.length === 0) {
+    return 0;
+  }
+
+  let length = separatorLength * (parts.length - 1);
+  for (const part of parts) {
+    length += part.length;
+  }
+
+  return length;
+}
+
+export function getMessageRenderSignature(message: Message | undefined) {
+  if (!message) {
+    return "empty";
+  }
+
+  switch (message.role) {
+    case "user":
+    case "toolResult":
+    case "custom":
+    case "system":
+    case "branchSummary":
+    case "compactionSummary":
+      return `${message.id}:${message.role}:${getJoinedLength(message.content, 1)}`;
+    case "assistant":
+      return `${message.id}:${message.role}:${getJoinedLength(message.content, 1)}:${getJoinedLength(message.thinkingContent, 1)}:${getJoinedLength(message.thinkingHeaders, 1)}`;
+    case "bashExecution":
+      return `${message.id}:${message.role}:${message.command.length}:${getJoinedLength(message.output, 1)}`;
+    default:
+      return "unknown";
+  }
+}
+
+export function getStreamingAssistantMessageId(messages: Message[], isStreaming: boolean) {
+  if (!isStreaming) {
+    return null;
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === "assistant") {
+      return message.id;
+    }
+  }
+
+  return null;
+}
+
+export function getStreamingToolGroupId(
+  rows: TimelineRow[],
+  messages: Message[],
+  isStreaming: boolean,
+) {
+  if (!isStreaming) {
+    return null;
+  }
+
+  const latestMessage = messages[messages.length - 1];
+  if (!isToolCallRole(latestMessage)) {
+    return null;
+  }
+
+  for (let rowIndex = rows.length - 1; rowIndex >= 0; rowIndex -= 1) {
+    const row = rows[rowIndex];
+    if (!row) {
+      continue;
+    }
+
+    if (row.kind === "tool-group") {
+      if (row.messages.some((message) => message.id === latestMessage.id)) {
+        return row.id;
+      }
+
+      continue;
+    }
+
+    if (row.kind !== "turn") {
+      continue;
+    }
+
+    for (let itemIndex = row.items.length - 1; itemIndex >= 0; itemIndex -= 1) {
+      const item = row.items[itemIndex];
+      if (!item) {
+        continue;
+      }
+
+      if (item.kind !== "tool-group") {
+        continue;
+      }
+
+      if (item.messages.some((message) => message.id === latestMessage.id)) {
+        return item.id;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function getRowStructureSignature(
+  rows: TimelineRow[],
+  collapsedRowIds: Record<string, boolean>,
+) {
+  let signature = "";
+
+  for (const row of rows) {
+    if (signature) {
+      signature += "||";
+    }
+
+    if (row.kind === "history-divider") {
+      signature += `${row.id}:${row.hiddenCount}`;
+      continue;
+    }
+
+    if (row.kind === "turn") {
+      signature += `${row.id}:${collapsedRowIds[row.id] ? "collapsed" : "expanded"}:${row.items.length}`;
+      continue;
+    }
+
+    if (row.kind === "summary") {
+      signature += `${row.id}:${collapsedRowIds[row.id] ? "collapsed" : "expanded"}`;
+      continue;
+    }
+
+    if (row.kind === "tool-group") {
+      signature += `${row.id}:${row.messages.length}`;
+      continue;
+    }
+
+    signature += `${row.id}:${row.message.id}`;
+  }
+
+  return signature;
+}
+
+export function getFoldableRows(rows: TimelineRow[]) {
+  return rows.filter(
+    (row): row is Extract<TimelineRow, { kind: "turn" | "summary" }> =>
+      row.kind === "summary" || (row.kind === "turn" && isTurnRowCollapsible(row)),
+  );
+}
+
+export function getCollapsibleRowKey(row: TimelineRow, collapsedRowIds: Record<string, boolean>) {
+  return row.kind === "turn" || row.kind === "summary"
+    ? `${row.id}:${collapsedRowIds[row.id] ? "collapsed" : "expanded"}`
+    : row.id;
+}
