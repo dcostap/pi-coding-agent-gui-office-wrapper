@@ -1,6 +1,5 @@
 import { FolderPlus, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { parseGitHubRepositoryUrl } from "../../../../../shared/github-repository-url";
 import type { AppSettings, DesktopActionInvoker } from "../../../desktop/types";
 import { useDesktopBridgeAvailable } from "../../../hooks/useDesktopBridge";
 import { useDismissibleLayer } from "../../../hooks/useDismissibleLayer";
@@ -166,18 +165,13 @@ export function SidebarProjectsSection({
       return;
     }
 
-    const repository = parseGitHubRepositoryUrl(draft);
-    const pendingProjectName = repository?.folderName ?? draft;
-    setPendingProject({ key: `${Date.now()}:${draft}`, name: pendingProjectName });
+    setPendingProject({ key: `${Date.now()}:${draft}`, name: draft });
     setProjectNameDraft("");
     setCreateOpen(false);
     setCreateBusy(true);
 
     try {
-      const result = await onAction(
-        "project.add",
-        repository ? { repoUrl: repository.canonicalUrl } : { projectName: draft },
-      );
+      const result = await onAction("project.add", { projectName: draft });
       const error = typeof result?.result?.error === "string" ? result.result.error : null;
 
       if (error) {
@@ -196,7 +190,7 @@ export function SidebarProjectsSection({
 
       setPendingProject(null);
     } catch (error) {
-      setCreateErrorMessage(error instanceof Error ? error.message : "Unable to add project.");
+      setCreateErrorMessage(error instanceof Error ? error.message : "No se pudo añadir el proyecto.");
       setProjectNameDraft(draft);
       setCreateOpen(true);
       setPendingProject(null);
@@ -230,7 +224,7 @@ export function SidebarProjectsSection({
             {showProjectCreate ? (
               <IconButton
                 ref={createButtonRef}
-                label="Add new project"
+                label="Añadir proyecto"
                 tooltipPlacement="right"
                 onClick={() => {
                   if (!appSettings.preferredProjectLocation) {

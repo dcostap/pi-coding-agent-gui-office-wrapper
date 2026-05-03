@@ -46,7 +46,7 @@ export function SidebarProjectsCreatePopover({
       ref={panelRef}
       id={menuId}
       open
-      aria-label="Create project"
+      aria-label="Añadir proyecto"
       data-open={open ? "true" : "false"}
       className="sidebar-popover-panel sidebar-project-create-popover motion-popover"
     >
@@ -67,8 +67,8 @@ export function SidebarProjectsCreatePopover({
             }
           }}
           className="sidebar-project-create-input"
-          placeholder="Project name or GitHub URL"
-          aria-label="Project name or GitHub repository URL"
+          placeholder="Nombre del proyecto"
+          aria-label="Nombre del proyecto"
         />
 
         <button
@@ -77,8 +77,8 @@ export function SidebarProjectsCreatePopover({
           onClick={onCreate}
           disabled={!canCreate}
           data-enabled={canCreate ? "true" : "false"}
-          aria-label={busy ? "Adding project" : "Add project"}
-          data-tooltip={busy ? "Adding project" : "Add project"}
+          aria-label={busy ? "Añadiendo proyecto" : "Añadir proyecto"}
+          data-tooltip={busy ? "Añadiendo proyecto" : "Añadir proyecto"}
         >
           <FolderPlus size={15} />
         </button>
