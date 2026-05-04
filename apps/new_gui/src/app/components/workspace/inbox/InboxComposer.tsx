@@ -393,7 +393,7 @@ export function InboxComposer({
   return (
     <div
       ref={composerPanelRef}
-      className="grid gap-0 overflow-visible rounded-[20px] border border-[rgba(169,178,215,0.06)] bg-[#272a39] shadow-none"
+      className="grid gap-0 overflow-visible rounded-[20px] border border-white/10 bg-[rgba(24,24,24,0.82)] shadow-none backdrop-blur-xl"
       aria-label="Inbox composer panel"
     >
       <div className="relative">
@@ -460,7 +460,7 @@ export function InboxComposer({
                     role="listbox"
                     tabIndex={-1}
                     aria-label="Composer slash commands"
-                    className="absolute right-0 bottom-full left-0 z-20 max-h-64 scroll-py-1.5 overflow-auto rounded-xl border border-[rgba(169,178,215,0.12)] bg-[#202332] p-1.5 shadow-[0_16px_48px_rgba(0,0,0,0.38)]"
+                    className="absolute right-0 bottom-full left-0 z-20 max-h-64 scroll-py-1.5 overflow-auto rounded-xl border border-white/10 bg-[rgba(24,24,24,0.94)] p-1.5 shadow-[0_16px_48px_rgba(0,0,0,0.38)] backdrop-blur-xl"
                   >
                     {slashCommands.commands.length > 0 ? (
                       slashCommands.commands.map((command, index) => {
@@ -486,8 +486,8 @@ export function InboxComposer({
                               className={cn(
                                 "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left",
                                 selected
-                                  ? "bg-[rgba(169,178,215,0.14)] text-[color:var(--text)]"
-                                  : "text-[color:var(--muted)] hover:bg-[rgba(169,178,215,0.08)] hover:text-[color:var(--text)]",
+                                  ? "bg-white/[0.09] text-[color:var(--text)]"
+                                  : "text-[color:var(--muted)] hover:bg-white/[0.055] hover:text-[color:var(--text)]",
                               )}
                               onPointerEnter={() => slashCommands.setSelectedIndex(index)}
                               onMouseDown={(event) => event.preventDefault()}
@@ -595,7 +595,7 @@ export function InboxComposer({
         </output>
       ) : null}
 
-      <div className="h-px bg-[rgba(169,178,215,0.07)]" />
+      <div className="h-px bg-white/10" />
 
       <div className="flex items-center justify-end gap-1.5 px-4 pt-2 pb-3 text-[color:var(--muted)] max-md:flex-wrap">
         <div className="relative mr-auto inline-flex h-7 items-center">

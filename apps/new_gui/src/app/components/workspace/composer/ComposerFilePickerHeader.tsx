@@ -31,7 +31,7 @@ export function ComposerFilePickerHeader({
   onSearchQueryChange,
 }: ComposerFilePickerHeaderProps) {
   return (
-    <div className="flex h-11 min-w-0 items-center justify-between gap-2 overflow-hidden border-b border-[rgba(169,178,215,0.08)] px-3 py-2">
+    <div className="flex h-11 min-w-0 items-center justify-between gap-2 overflow-hidden border-b border-white/10 px-3 py-2">
       <div className="flex min-w-0 items-center gap-1 overflow-hidden">
         {picker?.parentPath ? (
           <button

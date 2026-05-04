@@ -38,7 +38,7 @@ function getMeterTone(percent: number | null | undefined) {
     return "#f2c27f";
   }
 
-  return "#9bb7ff";
+  return "#d6d6d6";
 }
 
 export function ComposerContextMeter({
@@ -91,13 +91,13 @@ export function ComposerContextMeter({
             background: `conic-gradient(${tone} ${meterPercent * 3.6}deg, rgba(255,255,255,0.08) 0deg)`,
           }}
         />
-        <span className="absolute inset-[11px] rounded-full bg-[#272a39]" />
+        <span className="absolute inset-[11px] rounded-full bg-[rgba(24,24,24,0.96)]" />
       </button>
 
       {open ? (
         <div
           ref={popoverRef}
-          className="absolute bottom-full left-0 z-[130] grid w-56 gap-2 rounded-xl border border-[rgba(169,178,215,0.18)] bg-[#2d3040] p-3 text-[12px] text-[color:var(--muted)] shadow-[0_18px_44px_rgba(0,0,0,0.4)]"
+          className="absolute bottom-full left-0 z-[130] grid w-56 gap-2 rounded-xl border border-white/10 bg-[rgba(24,24,24,0.94)] p-3 text-[12px] text-[color:var(--muted)] shadow-[0_18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl"
           onMouseDown={(event) => event.preventDefault()}
         >
           <div className="grid gap-1">
@@ -130,8 +130,8 @@ export function ComposerContextMeter({
             </div>
           ) : null}
           {isCompacting ? (
-            <div className="rounded-lg border border-[rgba(155,183,255,0.2)] bg-[rgba(155,183,255,0.08)] px-2 py-1.5 text-[11px] text-[#cbd7ff]">
-              Compacting session context…
+            <div className="rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 text-[11px] text-[color:var(--text)]">
+              Compactando contexto de la sesión…
             </div>
           ) : null}
           <button

@@ -1,5 +1,5 @@
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
-import { ChevronDown, ChevronRight, Folder, FolderOpen, Github, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FolderOpen, Github, MoreHorizontal, SquarePen } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
@@ -180,7 +180,7 @@ export function ProjectRow({
             onClick={onCreateSession}
             aria-label={`Iniciar una nueva sesión en ${name}`}
           >
-            <Plus size={14} />
+            <SquarePen size={14} />
           </button>
         </Tooltip>
 

@@ -227,7 +227,7 @@ export function ComposerModelPopover({
             ref={modelSearchRef}
             value={modelSearch}
             onChange={(event) => setModelSearch(event.currentTarget.value)}
-            className="h-8 w-full rounded-lg border border-[rgba(169,178,215,0.14)] bg-[rgba(255,255,255,0.055)] px-2.5 pl-8 text-[11px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
+            className="h-8 w-full rounded-lg border border-white/10 bg-white/[0.055] px-2.5 pl-8 text-[11px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
             placeholder={`Search ${modelsForProvider.length} models…`}
             aria-label="Search models"
           />
@@ -236,7 +236,7 @@ export function ComposerModelPopover({
       {openMenuItems.length > 0 ? (
         <>
           <MenuList items={openMenuItems} />
-          <div className="mx-2 mb-1 h-px bg-[rgba(169,178,215,0.08)]" />
+          <div className="mx-2 mb-1 h-px bg-white/10" />
         </>
       ) : showModelSearch ? (
         <div className="px-2 py-3 text-[11px] text-[color:var(--muted)]">No matching models</div>

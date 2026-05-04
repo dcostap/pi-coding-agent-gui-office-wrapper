@@ -180,6 +180,11 @@ button[data-tooltip][aria-disabled="true"]::after {
   color: #929292;
 }
 
+.composer-prompt-textarea {
+  font-size: 16px;
+  line-height: 1.45;
+}
+
 .composer-footer-text {
   font-size: 12px;
   line-height: 1;

@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import type { ComposerQueuedPrompt } from "../../../desktop/types";
-import { compactCardClass, compactIconButtonClass } from "../../../ui/classes";
+import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
 
 type QueuedPromptsCardProps = {
@@ -23,11 +23,11 @@ export function QueuedPromptsCard({
   return (
     <div
       className={cn(
-        "relative -left-1 mx-auto grid w-full max-w-[664px] gap-1.5 rounded-t-xl rounded-b-none border border-[color:var(--border)] bg-[#272a39] px-2.5 py-2",
+        "relative -left-1 mx-auto grid w-full max-w-[664px] gap-1.5 rounded-t-2xl rounded-b-none border border-white/10 bg-[rgba(24,24,24,0.82)] px-2.5 py-2 shadow-[0_-10px_32px_rgba(0,0,0,0.22)] backdrop-blur-xl",
       )}
     >
       <div className="pl-3.5 text-[12px] text-[color:var(--muted)]">
-        Queued messages. Click to edit.
+        Mensajes en cola. Haz clic para editar.
       </div>
 
       <div className="grid gap-1">
@@ -38,8 +38,7 @@ export function QueuedPromptsCard({
             <div
               key={prompt.id}
               className={cn(
-                compactCardClass,
-                "group grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-xl border-transparent px-1 py-0 text-[12px] shadow-none hover:border-[color:var(--border)]",
+                "group grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-xl border border-transparent bg-white/[0.035] px-1 py-0 text-[12px] shadow-none transition-colors hover:border-white/10 hover:bg-white/[0.06]",
                 isPending && "opacity-60",
               )}
             >
@@ -56,9 +55,9 @@ export function QueuedPromptsCard({
                 type="button"
                 className={cn(compactIconButtonClass, "mr-1 shrink-0")}
                 onClick={() => onRemovePrompt(prompt)}
-                aria-label="Remove queued"
+                aria-label="Quitar de la cola"
                 disabled={isPending}
-                data-tooltip="Remove queued"
+                data-tooltip="Quitar de la cola"
               >
                 <X size={12} />
               </button>

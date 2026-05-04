@@ -1,4 +1,4 @@
-import { Archive, FolderOpen, Star, Trash2 } from "lucide-react";
+import { Archive, FolderOpen, Trash2 } from "lucide-react";
 import { type ReactNode, type RefObject, useState } from "react";
 import type { DesktopAction } from "../../desktop/actions";
 import type { DesktopActionInvoker } from "../../desktop/types";
@@ -33,7 +33,6 @@ export function ProjectActionMenu({
   projectId,
   projectName,
   canDelete = true,
-  pinned = false,
   panelRef,
   onAction,
   onClose,
@@ -63,11 +62,6 @@ export function ProjectActionMenu({
       icon: <FolderOpen size={14} />,
       title: "Abrir carpeta",
       action: "project.open-in-file-manager",
-    },
-    {
-      icon: <Star size={14} className={pinned ? "fill-current" : undefined} />,
-      title: pinned ? "Quitar de favoritos" : "Marcar como favorito",
-      action: "project.pin",
     },
     {
       icon: <Archive size={14} />,

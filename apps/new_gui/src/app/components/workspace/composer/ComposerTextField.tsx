@@ -227,7 +227,7 @@ export function ComposerTextField({
           ref={textareaRef}
           rows={1}
           className={cn(
-            "m-0 w-full min-h-6 resize-none overflow-hidden bg-transparent p-0 text-[14px] leading-[1.45] text-[color:var(--text)] outline-none transition-opacity duration-150",
+            "composer-prompt-textarea m-0 w-full min-h-6 resize-none overflow-hidden bg-transparent p-0 text-[color:var(--text)] outline-none transition-opacity duration-150",
             readOnly && "cursor-wait opacity-45",
             placeholderTone === "error"
               ? "placeholder:text-[#f2a7a7]"

@@ -111,7 +111,7 @@ export function ComposerPromptInputPanel({
                   role="listbox"
                   tabIndex={-1}
                   aria-label="Composer slash commands"
-                  className="absolute right-0 bottom-full left-0 z-20 max-h-64 scroll-py-1.5 overflow-auto rounded-xl border border-[rgba(169,178,215,0.12)] bg-[#202332] p-1.5 shadow-[0_16px_48px_rgba(0,0,0,0.38)]"
+                  className="absolute right-0 bottom-full left-0 z-20 max-h-64 scroll-py-1.5 overflow-auto rounded-xl border border-white/10 bg-[rgba(24,24,24,0.94)] p-1.5 shadow-[0_16px_48px_rgba(0,0,0,0.38)] backdrop-blur-xl"
                 >
                   {slashCommands.commands.length > 0 ? (
                     slashCommands.commands.map((command, index) => {
@@ -138,8 +138,8 @@ export function ComposerPromptInputPanel({
                             className={cn(
                               "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left",
                               selected
-                                ? "bg-[rgba(169,178,215,0.14)] text-[color:var(--text)]"
-                                : "text-[color:var(--muted)] hover:bg-[rgba(169,178,215,0.08)] hover:text-[color:var(--text)]",
+                                ? "bg-white/[0.09] text-[color:var(--text)]"
+                                : "text-[color:var(--muted)] hover:bg-white/[0.055] hover:text-[color:var(--text)]",
                             )}
                             onPointerEnter={() => slashCommands.setSelectedIndex(index)}
                             onMouseDown={(event) => event.preventDefault()}
@@ -235,7 +235,7 @@ export function ComposerPromptInputPanel({
 
           <div className="inline-flex h-8 items-center justify-end gap-2">
             {extensionRunning ? (
-              <div className="inline-flex h-6 items-center gap-1.5 rounded-full border border-[rgba(169,178,215,0.14)] bg-[rgba(255,255,255,0.045)] px-2.5 text-[12px] text-[color:var(--muted)]">
+              <div className="inline-flex h-6 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.045] px-2.5 text-[12px] text-[color:var(--muted)]">
                 <Loader2 size={12} className="animate-spin" />
                 <span>Pi extension running</span>
               </div>
@@ -243,7 +243,7 @@ export function ComposerPromptInputPanel({
             <button
               type="button"
               className={cn(
-                "group inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#f2bf20]/40 bg-[#f2bf20]/10 text-[#f2bf20] shadow-[0_0_0_rgba(242,191,32,0)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[#f2bf20]/70 hover:bg-[#f2bf20] hover:text-[#151515] hover:shadow-[0_8px_22px_rgba(242,191,32,0.22)] active:translate-y-0 active:scale-95 disabled:pointer-events-none disabled:border-white/10 disabled:bg-white/[0.035] disabled:text-[color:var(--muted-2)] disabled:opacity-55",
+                "group inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-[color:var(--text)] shadow-[0_0_0_rgba(255,255,255,0)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.12] hover:text-white hover:shadow-[0_8px_22px_rgba(0,0,0,0.18)] active:translate-y-0 active:scale-95 disabled:pointer-events-none disabled:border-white/10 disabled:bg-white/[0.035] disabled:text-[color:var(--muted-2)] disabled:opacity-55",
               )}
               onClick={onSubmit}
               disabled={!canSubmit || inputLocked}
