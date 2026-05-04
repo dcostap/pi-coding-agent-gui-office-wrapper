@@ -76,8 +76,10 @@ export function CodeWorkspaceView({
     shellState,
     state,
   } = controller;
-  const showWorkspaceFooter = state.activeView === "thread" || state.activeView === "gitops";
+  const showPromptComposer = state.activeView === "thread" || state.activeView === "code";
+  const showWorkspaceFooter = showPromptComposer || state.activeView === "gitops";
   const showThreadFooter = state.activeView === "thread";
+  const showLandingComposer = state.activeView === "code";
   const showDiffInMainView = state.activeView === "gitops";
   const showDesktopTerminalDrawer = state.activeView === "thread" && terminalDrawerVisible;
   const gitOpsFileTreeStateKey = `${composerProjectId}:${terminalSessionPath ?? "project"}`;
@@ -103,7 +105,7 @@ export function CodeWorkspaceView({
   const hasThreadConversation = showThreadFooter && (activeThreadData?.messages.length ?? 0) > 0;
   const [threadContentVisible, setThreadContentVisible] = useState(hasThreadConversation);
   const previousHasThreadConversationRef = useRef(hasThreadConversation);
-  const centerThreadFooter = showThreadFooter && !hasThreadConversation;
+  const centerThreadFooter = showPromptComposer && !hasThreadConversation;
   const footerInset = showWorkspaceFooter && !centerThreadFooter ? footerHeight : 0;
 
   useEffect(() => {
@@ -153,7 +155,7 @@ export function CodeWorkspaceView({
   const terminalDrawerInsetStyle = showDesktopTerminalDrawer
     ? { right: TERMINAL_DRAWER_OFFSET }
     : undefined;
-  const threadFooterStyle = showThreadFooter
+  const threadFooterStyle = showPromptComposer
     ? {
         ...terminalDrawerInsetStyle,
         top: centerThreadFooter ? "50%" : `calc(100% - ${footerHeight}px)`,
@@ -257,9 +259,9 @@ export function CodeWorkspaceView({
           ref={footerRef}
           className={cn(
             "motion-terminal-drawer-offset pointer-events-none absolute inset-x-0 z-10 px-5 pb-4",
-            showThreadFooter ? "transition-[top,transform] duration-300 ease-out" : "bottom-0",
+            showPromptComposer ? "transition-[top,transform] duration-300 ease-out" : "bottom-0",
             centerThreadFooter && "-translate-y-1/2",
-            showThreadFooter && !centerThreadFooter && "translate-y-0",
+            showPromptComposer && !centerThreadFooter && "translate-y-0",
           )}
           style={threadFooterStyle}
         >
@@ -326,6 +328,11 @@ export function CodeWorkspaceView({
                   </div>
                 ) : (
                   <div className="grid gap-0">
+                    {showLandingComposer ? (
+                      <div className="mb-4 text-center text-[clamp(28px,4vw,44px)] font-medium tracking-[-0.03em] text-[color:var(--text)]">
+                        Nuevo chat
+                      </div>
+                    ) : null}
                     <QueuedPromptsCard
                       prompts={activeComposerState?.queuedPrompts ?? []}
                       pendingPromptIds={pendingQueuedPromptIdsForSession}
