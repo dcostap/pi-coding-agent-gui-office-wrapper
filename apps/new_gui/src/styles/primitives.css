@@ -160,15 +160,24 @@ button[data-tooltip][aria-disabled="true"]::after {
 
 .app-titlebar {
   -webkit-app-region: drag;
-  background: rgba(31, 31, 31, 0.66);
-  backdrop-filter: blur(24px) saturate(135%);
-  -webkit-backdrop-filter: blur(24px) saturate(135%);
+  background: rgba(31, 31, 31, 0.36);
+  backdrop-filter: blur(34px) saturate(160%);
+  -webkit-backdrop-filter: blur(34px) saturate(160%);
 }
 
 .app-titlebar button,
 .app-titlebar .tooltip-anchor,
 .app-titlebar-menu-popover {
   -webkit-app-region: no-drag;
+}
+
+.app-titlebar-sidebar-toggle {
+  color: #7f7f7f;
+}
+
+.app-titlebar-sidebar-toggle:hover,
+.app-titlebar-sidebar-toggle:focus-visible {
+  color: #929292;
 }
 
 .composer-footer-text {

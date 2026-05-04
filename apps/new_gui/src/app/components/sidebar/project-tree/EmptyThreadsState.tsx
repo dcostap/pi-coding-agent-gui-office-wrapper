@@ -1,3 +1,9 @@
 export function EmptyThreadsState() {
-  return <div className="px-2.5 py-2 text-[13px] text-[color:var(--muted-2)]">No threads</div>;
+  return (
+    <div className="sidebar-empty-threads-row">
+      <span aria-hidden="true" />
+      <span className="truncate">Sin chats</span>
+      <span aria-hidden="true" />
+    </div>
+  );
 }

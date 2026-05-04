@@ -1,4 +1,5 @@
-import { SquarePen } from "lucide-react";
+import { FolderPlus, SquarePen } from "lucide-react";
+import { useState } from "react";
 import type { AppSettings, DesktopActionInvoker, InboxThread } from "../../desktop/types";
 import type { ChatSidebarState } from "../../desktop/types";
 import type { Project, View } from "../../types";
@@ -18,7 +19,6 @@ type SidebarProps = {
   protectedProjectId?: string | null;
   activeView: View;
   selectedInboxSessionPath: string | null;
-  selectedProjectId: string;
   selectedThreadId: string | null;
   selectedChatGroupId: string | null;
   settingsOpen: boolean;
@@ -56,7 +56,6 @@ export function Sidebar({
   protectedProjectId = null,
   activeView,
   selectedInboxSessionPath,
-  selectedProjectId,
   selectedThreadId,
   selectedChatGroupId,
   projectScopeLockActive,
@@ -64,7 +63,7 @@ export function Sidebar({
   terminalRunningSessionPaths,
   collapsedProjectIds,
   onAction,
-
+  onShowView,
 
   onDismissInboxThread,
   onCreateChatGroup,
@@ -79,6 +78,7 @@ export function Sidebar({
   onThreadOpen,
   onToggleProjectCollapse,
 }: SidebarProps) {
+  const [projectCreateRequestId, setProjectCreateRequestId] = useState(0);
   const showModeSelection = activeView !== "extensions" && activeView !== "skills";
 
   return (
@@ -95,7 +95,17 @@ export function Sidebar({
             active={false}
             onClick={onStartUnassignedChat}
           />
-
+          <NavButton
+            icon={<FolderPlus size={16} />}
+            label="Nuevo proyecto"
+            active={false}
+            onClick={() => {
+              setProjectCreateRequestId((current) => current + 1);
+              if (activeView === "chat" || activeView === "inbox") {
+                onShowView("code");
+              }
+            }}
+          />
         </nav>
       ) : null}
 
@@ -128,8 +138,8 @@ export function Sidebar({
           protectedProjectId={protectedProjectId}
           projectScopeLockActive={projectScopeLockActive}
           projects={projects}
-          selectedProjectId={selectedProjectId}
           selectedThreadId={selectedThreadId}
+          projectCreateRequestId={projectCreateRequestId}
           terminalRunningProjectIds={terminalRunningProjectIds}
           terminalRunningSessionPaths={terminalRunningSessionPaths}
           collapsedProjectIds={collapsedProjectIds}

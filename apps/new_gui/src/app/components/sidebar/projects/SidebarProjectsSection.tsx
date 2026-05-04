@@ -5,7 +5,6 @@ import { useDesktopBridgeAvailable } from "../../../hooks/useDesktopBridge";
 import { useDismissibleLayer } from "../../../hooks/useDismissibleLayer";
 import type { Project, Thread, View } from "../../../types";
 import { cn } from "../../../utils/cn";
-import { IconButton } from "../../common/IconButton";
 import { ProjectTree } from "../ProjectTree";
 import { ThreadRow } from "../project-tree/ThreadRow";
 import { SidebarProjectsCreatePopover } from "./SidebarProjectsCreatePopover";
@@ -36,8 +35,8 @@ type SidebarProjectsSectionProps = {
   protectedProjectId?: string | null;
   projectScopeLockActive: boolean;
   projects: Project[];
-  selectedProjectId: string;
   selectedThreadId: string | null;
+  projectCreateRequestId: number;
   terminalRunningProjectIds: ReadonlySet<string>;
   terminalRunningSessionPaths: ReadonlySet<string>;
   collapsedProjectIds: Record<string, boolean>;
@@ -56,8 +55,8 @@ export function SidebarProjectsSection({
   protectedProjectId = null,
   projectScopeLockActive,
   projects,
-  selectedProjectId,
   selectedThreadId,
+  projectCreateRequestId,
   terminalRunningProjectIds,
   terminalRunningSessionPaths,
   collapsedProjectIds,
@@ -79,7 +78,6 @@ export function SidebarProjectsSection({
     activeView === "skills";
   const selectionModeActive =
     (activeView === "extensions" || activeView === "skills") && projectScopeLockActive;
-  const showProjectCreate = activeView !== "extensions" && activeView !== "skills";
   const [searchQuery, setSearchQuery] = useState("");
   const filterMode: SidebarProjectsFilterMode = "all";
   const [createOpen, setCreateOpen] = useState(false);
@@ -89,7 +87,7 @@ export function SidebarProjectsSection({
   const [createdProjectIds, setCreatedProjectIds] = useState<string[]>([]);
   const [pendingProject, setPendingProject] = useState<PendingProject | null>(null);
   const desktopBridgeAvailable = useDesktopBridgeAvailable();
-  const createButtonRef = useRef<HTMLButtonElement>(null);
+  const lastProjectCreateRequestIdRef = useRef(0);
   const createPanelRef = useRef<HTMLDialogElement>(null);
   const [unassignedChatsExpanded, setUnassignedChatsExpanded] = useState(true);
 
@@ -185,6 +183,27 @@ export function SidebarProjectsSection({
   }, [autoExpandedProjectIds, collapsedProjectIds, searchQuery]);
 
 
+  useEffect(() => {
+    if (
+      projectCreateRequestId === 0 ||
+      projectCreateRequestId === lastProjectCreateRequestIdRef.current
+    ) {
+      return;
+    }
+
+    lastProjectCreateRequestIdRef.current = projectCreateRequestId;
+    if (activeView === "extensions" || activeView === "skills") {
+      return;
+    }
+
+    if (!appSettings.preferredProjectLocation) {
+      setCreateErrorMessage("La ubicaci�n del proyecto no est� configurada.");
+    } else {
+      setCreateErrorMessage(null);
+    }
+    setCreateOpen(true);
+  }, [activeView, appSettings.preferredProjectLocation, projectCreateRequestId]);
+
   const dismissCreate = useCallback(() => {
     setCreateOpen(false);
   }, []);
@@ -192,7 +211,7 @@ export function SidebarProjectsSection({
   useDismissibleLayer({
     open: createOpen,
     onDismiss: dismissCreate,
-    refs: [createButtonRef, createPanelRef],
+    refs: [createPanelRef],
   });
 
   const handleCreateProject = async () => {
@@ -257,7 +276,7 @@ export function SidebarProjectsSection({
           className="sidebar-search-field"
           data-active={searchQuery.trim().length > 0 ? "true" : "false"}
         >
-          <Search size={14} className="sidebar-search-icon" />
+          <Search size={16} className="sidebar-search-icon" />
           <input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
@@ -266,27 +285,6 @@ export function SidebarProjectsSection({
             aria-label="Buscar proyectos"
           />
         </label>
-        {showProjects ? (
-          <div className="sidebar-action-group">
-            {showProjectCreate ? (
-              <IconButton
-                ref={createButtonRef}
-                label="Añadir proyecto"
-                tooltipPlacement="right"
-                onClick={() => {
-                  if (!appSettings.preferredProjectLocation) {
-                    setCreateErrorMessage("La ubicaci�n del proyecto no est� configurada.");
-                  } else {
-                    setCreateErrorMessage(null);
-                  }
-
-                  setCreateOpen(true);
-                }}
-                icon={<FolderPlus size={15} />}
-              />
-            ) : null}
-          </div>
-        ) : null}
 
         {createOpen ? (
           <SidebarProjectsCreatePopover
@@ -383,7 +381,6 @@ export function SidebarProjectsSection({
                         unread={Boolean(thread.unread)}
                         isSelected={
                           selectedThreadId === thread.id &&
-                          selectedProjectId === thread.projectId &&
                           (activeView === "thread" || activeView === "gitops")
                         }
                         title={thread.title}
@@ -417,7 +414,6 @@ export function SidebarProjectsSection({
             <ProjectTree
               projects={visibleProjects}
               protectedProjectId={protectedProjectId}
-              selectedProjectId={selectedProjectId}
               selectedThreadId={selectedThreadId}
               terminalRunningSessionPaths={terminalRunningSessionPaths}
               activeView={activeView}

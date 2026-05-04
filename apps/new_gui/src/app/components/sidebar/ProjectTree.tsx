@@ -29,7 +29,6 @@ import { useProjectMenuDismiss } from "./project-tree/useProjectMenuDismiss";
 type ProjectTreeProps = {
   projects: Project[];
   protectedProjectId?: string | null;
-  selectedProjectId: string;
   selectedThreadId: string | null;
   terminalRunningSessionPaths: ReadonlySet<string>;
   activeView: View;
@@ -86,7 +85,6 @@ function SortableProjectItem({ projectId, disabled = false, children }: Sortable
 export function ProjectTree({
   projects,
   protectedProjectId = null,
-  selectedProjectId,
   selectedThreadId,
   terminalRunningSessionPaths,
   activeView,
@@ -195,7 +193,7 @@ export function ProjectTree({
                         actionMenuId={actionMenuId}
                         actionMenuOpen={projectMenuOpen}
                         dragHandleProps={dragHandleProps}
-                        isActive={selectionModeActive && selectedProjectId === project.id}
+                        isActive={false}
                         isDragging={isDragging}
                         isEditing={editingProjectId === project.id}
                         isExpanded={effectiveIsExpanded}

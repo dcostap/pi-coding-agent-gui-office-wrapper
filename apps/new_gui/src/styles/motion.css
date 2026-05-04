@@ -2,20 +2,27 @@
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
-  transform: translateY(-4px);
-  transition: grid-template-rows 180ms ease, opacity 180ms ease, transform 180ms ease, margin-top
-    180ms ease;
+  transform: translateY(-5px) scaleY(0.985);
+  transform-origin: top;
+  transition: grid-template-rows 240ms var(--motion-ease-standard), opacity 170ms ease-out,
+    transform 240ms var(--motion-ease-standard), margin-top 240ms var(--motion-ease-standard);
 }
 
 .motion-collapse-panel[data-open="true"] {
   grid-template-rows: 1fr;
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scaleY(1);
 }
 
 .motion-collapse-panel__inner {
   min-height: 0;
   overflow: hidden;
+  transform: translateY(-3px);
+  transition: transform 240ms var(--motion-ease-standard), filter 240ms var(--motion-ease-standard);
+}
+
+.motion-collapse-panel[data-open="true"] .motion-collapse-panel__inner {
+  transform: translateY(0);
 }
 
 .motion-popover {

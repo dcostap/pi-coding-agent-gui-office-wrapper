@@ -1,5 +1,5 @@
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
-import { ChevronDown, ChevronRight, Folder, Github, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FolderOpen, Github, MoreHorizontal, Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
@@ -36,7 +36,6 @@ type ProjectRowProps = {
 export function ProjectRow({
   actionMenuId,
   actionMenuOpen,
-  dragHandleProps,
   canEdit,
   canToggleExpanded,
   isActive,
@@ -120,9 +119,11 @@ export function ProjectRow({
         disabled={!canToggleExpanded}
       >
         {hasRepoOrigin ? (
-          <Github size={12} className="sidebar-project-icon sidebar-project-origin-icon" />
+          <Github size={14} className="sidebar-project-icon sidebar-project-origin-icon" />
+        ) : isExpanded ? (
+          <FolderOpen size={14} className="sidebar-project-icon sidebar-project-origin-icon" />
         ) : (
-          <Folder size={12} className="sidebar-project-icon sidebar-project-origin-icon" />
+          <Folder size={14} className="sidebar-project-icon sidebar-project-origin-icon" />
         )}
         {isExpanded ? (
           <ChevronDown size={12} className="sidebar-project-icon sidebar-project-chevron-icon" />
@@ -155,21 +156,14 @@ export function ProjectRow({
           />
         </div>
       ) : (
-        <button
-          type="button"
-          className={cn(
-            "sidebar-project-button",
-            dragHandleProps ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-          )}
-          {...dragHandleProps?.attributes}
-          {...dragHandleProps?.listeners}
+        <div
+          className="sidebar-project-button"
           onClick={handleRowClick}
           onDoubleClick={canEdit ? handleRowDoubleClick : undefined}
           data-active={isActive ? "true" : "false"}
-          aria-current={isActive ? "page" : undefined}
         >
           <span className="sidebar-project-title">{name}</span>
-        </button>
+        </div>
       )}
 
       <div

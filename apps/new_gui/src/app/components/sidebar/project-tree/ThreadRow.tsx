@@ -41,14 +41,17 @@ export function ThreadRow({
       ) : unread ? (
         <span className="sidebar-thread-pin-indicator" aria-hidden="true" />
       ) : (
-        <Tooltip content={pinned ? "Unmark favourite" : "Mark favourite"} placement="right">
+        <Tooltip
+          content={pinned ? "Quitar chat de favoritos" : "Marcar chat como favorito"}
+          placement="right"
+        >
           <button
             type="button"
             className="sidebar-thread-pin"
             onClick={onPin}
             data-pinned={pinned ? "true" : "false"}
             data-selected={isSelected ? "true" : "false"}
-            aria-label={pinned ? "Unmark favourite" : "Mark favourite"}
+            aria-label={pinned ? "Quitar chat de favoritos" : "Marcar chat como favorito"}
             aria-pressed={pinned}
           >
             <Star size={12} className={cn("absolute inset-0 m-auto", pinned && "fill-current")} />
@@ -58,7 +61,7 @@ export function ThreadRow({
 
       <button
         type="button"
-        className="sidebar-thread-button cursor-pointer"
+        className="sidebar-thread-button"
         onClick={onOpen}
         aria-current={isSelected ? "page" : undefined}
       >
@@ -75,15 +78,12 @@ export function ThreadRow({
             {age}
           </span>
         )}
-        <Tooltip content="Archive thread" placement="right" className="sidebar-thread-meta-action">
+        <Tooltip content="Archivar chat" placement="right" className="sidebar-thread-meta-action">
           <button
             type="button"
-            className={cn(
-              compactIconButtonClass,
-              "h-full w-full border-transparent bg-transparent hover:bg-transparent",
-            )}
+            className={cn(compactIconButtonClass, "text-white hover:text-white")}
             onClick={onArchive}
-            aria-label="Archive thread"
+            aria-label="Archivar chat"
           >
             <Archive size={12} />
           </button>
