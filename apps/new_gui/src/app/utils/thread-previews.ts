@@ -1,4 +1,5 @@
 import type { Message } from "../types";
+import { stripAnsi } from "./ansi";
 
 type ToolCallMessage = Extract<Message, { role: "toolResult" | "bashExecution" }>;
 
@@ -28,8 +29,8 @@ export function getToolCallTitle(message: ToolCallMessage) {
 
 export function getToolCallPreview(message: ToolCallMessage) {
   if (message.role === "toolResult") {
-    return message.content[0] ?? (message.isError ? "Tool failed." : "Tool finished.");
+    return stripAnsi(message.content[0] ?? (message.isError ? "Tool failed." : "Tool finished."));
   }
 
-  return message.command || "No command";
+  return stripAnsi(message.command || "No command");
 }

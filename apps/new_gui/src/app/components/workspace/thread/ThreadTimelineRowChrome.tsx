@@ -93,32 +93,33 @@ export function TimelineRowShell({
   ariaLabel,
   onToggle,
   toggleClassName,
+  togglePlacement = "left",
   children,
 }: {
   expanded?: boolean;
   ariaLabel?: string;
   onToggle?: () => void;
   toggleClassName?: string;
+  togglePlacement?: "left" | "right";
   children: ReactNode;
 }) {
+  const toggleButton = onToggle ? (
+    <button
+      type="button"
+      className={`${toggleClassName ?? "mt-1"} inline-flex h-5 w-5 items-center justify-center rounded-md text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)]`}
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-label={ariaLabel}
+    >
+      {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+    </button>
+  ) : null;
+
   return (
     <div className={chatRowShellClass} data-row-toggle-anchor={onToggle ? "true" : undefined}>
-      {onToggle ? (
-        <button
-          type="button"
-          className={`${toggleClassName ?? "mt-1"} inline-flex h-5 w-5 items-center justify-center rounded-md text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)]`}
-          onClick={onToggle}
-          aria-expanded={expanded}
-          aria-label={ariaLabel}
-          data-tooltip={ariaLabel}
-        >
-          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </button>
-      ) : (
-        <div />
-      )}
+      {togglePlacement === "left" ? toggleButton : <div />}
       <div className="min-w-0">{children}</div>
-      <div />
+      {togglePlacement === "right" ? toggleButton : <div />}
     </div>
   );
 }

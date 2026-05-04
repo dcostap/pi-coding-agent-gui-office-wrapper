@@ -2,6 +2,7 @@
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
+  pointer-events: none;
   transform: translateY(-5px) scaleY(0.985);
   transform-origin: top;
   transition: grid-template-rows 240ms var(--motion-ease-standard), opacity 170ms ease-out,
@@ -11,6 +12,7 @@
 .motion-collapse-panel[data-open="true"] {
   grid-template-rows: 1fr;
   opacity: 1;
+  pointer-events: auto;
   transform: translateY(0) scaleY(1);
 }
 

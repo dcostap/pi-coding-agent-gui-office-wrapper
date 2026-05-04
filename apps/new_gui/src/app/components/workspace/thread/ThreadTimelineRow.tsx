@@ -90,6 +90,7 @@ export function ThreadTimelineRow({
           ariaLabel="Expand turn"
           onToggle={onToggleTurnCollapse}
           toggleClassName={chevronOffsetClass}
+          togglePlacement="right"
         >
           <FoldedTimelineRow
             label={preview.label}
@@ -108,13 +109,10 @@ export function ThreadTimelineRow({
         ariaLabel="Collapse turn"
         onToggle={onToggleTurnCollapse}
         toggleClassName={chevronOffsetClass}
+        togglePlacement="right"
       >
         <div className="grid min-w-0 gap-3">
-          {row.userMessage ? (
-            <RowLeadToggleSurface onToggle={onToggleTurnCollapse}>
-              <ThreadMessage message={row.userMessage} />
-            </RowLeadToggleSurface>
-          ) : null}
+          {row.userMessage ? <ThreadMessage message={row.userMessage} /> : null}
           {row.items.map((item, index) => {
             if (row.userMessage || index > 0) {
               return renderTurnItem(item);

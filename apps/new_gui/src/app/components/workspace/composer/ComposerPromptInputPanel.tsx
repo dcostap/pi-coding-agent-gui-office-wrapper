@@ -178,7 +178,7 @@ export function ComposerPromptInputPanel({
                     return;
                   }
 
-                  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                  if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
                     slashCommands.submit();
                     return;
@@ -248,7 +248,7 @@ export function ComposerPromptInputPanel({
               onClick={onSubmit}
               disabled={!canSubmit || inputLocked}
               aria-label="Enviar prompt"
-              data-tooltip="Enviar · Ctrl + Enter"
+              data-tooltip="Enviar · Enter"
             >
               <ArrowRight
                 size={15}

@@ -1,7 +1,6 @@
 import path from "node:path";
 import { BrowserWindow, app, shell } from "electron";
 import { resolveConfiguredDevServerUrl } from "../../../../shared/dev-server";
-import { SMALL_WINDOW_MINIMUM_SIZE } from "../../../app/app-shell/small-window";
 import { isTrustedRendererUrl, shouldOpenUrlExternally } from "./navigation-security";
 import { getElectronBuildDirectory } from "../runtime/app-paths";
 import { getRendererDistDirectory } from "../runtime/app-paths";
@@ -41,8 +40,8 @@ export function createMainWindow() {
     autoHideMenuBar: true,
     width: 1480,
     height: 980,
-    minWidth: SMALL_WINDOW_MINIMUM_SIZE.width,
-    minHeight: SMALL_WINDOW_MINIMUM_SIZE.height,
+    minWidth: 320,
+    minHeight: 240,
     x: 120,
     y: 80,
     icon: getWindowIconPath(),

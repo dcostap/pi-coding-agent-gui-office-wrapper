@@ -1,7 +1,7 @@
 import { WORKSPACE_CHROME_MAX_WIDTH_CLASS } from "../../../ui/layout";
 
 export const CHAT_STICKY_BOTTOM_THRESHOLD_PX = 24;
-export const CHAT_ROW_GAP_PX = 16;
+export const CHAT_ROW_GAP_PX = 34;
 export const CHAT_TOP_PADDING_PX = 16;
 export const CHAT_BOTTOM_PADDING_PX = 32;
 export const CHAT_HISTORY_DIVIDER_HEIGHT_PX = 40;

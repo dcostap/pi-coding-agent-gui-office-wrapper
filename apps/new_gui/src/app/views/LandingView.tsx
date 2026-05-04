@@ -37,7 +37,7 @@ export function LandingView({ className }: LandingViewProps) {
           <span className="h-px bg-current opacity-75" />
         </div>
 
-        <p className="-mt-1 text-[18px] font-medium tracking-[0.08em] text-[#6f7f98]">v{OFFICE_AGENT_VERSION}</p>
+        <p className="-mt-1 text-[18px] font-medium tracking-[0.08em] text-[color:var(--muted)]">v{OFFICE_AGENT_VERSION}</p>
       </div>
     </section>
   );

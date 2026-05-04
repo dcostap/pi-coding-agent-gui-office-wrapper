@@ -1,6 +1,5 @@
 import { Archive, ChevronDown, ChevronRight } from "lucide-react";
 import type { DesktopActionInvoker } from "../../../desktop/types";
-import { useAnimatedPresence } from "../../../hooks/useAnimatedPresence";
 import type { Project, View } from "../../../types";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
@@ -56,12 +55,6 @@ function ProjectThreadsGroup({
   projectName: string;
   threadGroupId: string;
 }) {
-  const present = useAnimatedPresence(isExpanded);
-
-  if (!present) {
-    return null;
-  }
-
   return (
     <div
       id={threadGroupId}

@@ -351,13 +351,12 @@ export function SidebarProjectsSection({
                     <ChevronRight size={12} className="sidebar-project-icon sidebar-project-chevron-icon" />
                   )}
                 </button>
-                <button
-                  type="button"
-                  className="sidebar-project-button cursor-pointer"
+                <div
+                  className="sidebar-project-button"
                   onClick={() => setUnassignedChatsExpanded((expanded) => !expanded)}
                 >
                   <span className="sidebar-project-title">{UNASSIGNED_CHAT_PROJECT_NAME}</span>
-                </button>
+                </div>
                 <span className="pr-1 text-[11px] text-[color:var(--muted-2)]">
                   {unassignedChatThreads.length}
                 </span>

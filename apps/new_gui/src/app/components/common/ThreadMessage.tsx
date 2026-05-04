@@ -159,7 +159,7 @@ export const ThreadMessage = memo(function ThreadMessage({
 }: ThreadMessageProps) {
   if (message.role === "user") {
     return (
-      <div className="w-full min-w-0 rounded-2xl bg-[rgba(47,50,66,0.58)] px-3 py-2 text-[14px] leading-[1.58] text-[color:var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+      <div className="ml-auto w-fit max-w-[min(70%,36rem)] min-w-0 rounded-2xl bg-white/[0.075] px-4 py-2.5 text-[14px] leading-[1.55] text-[color:var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
         <div className="grid min-w-0 gap-3 [overflow-wrap:anywhere]">
           {message.content.map((paragraph) => (
             <MarkdownContent
@@ -192,7 +192,9 @@ export const ThreadMessage = memo(function ThreadMessage({
           />
         ) : null}
         {showAssistantContent ? (
-          <div className="px-4">{renderProse(message.content, message.format)}</div>
+          <div className="max-w-[min(78%,46rem)] px-0 text-[14px] leading-[1.62] text-[color:var(--text)]">
+            {renderProse(message.content, message.format)}
+          </div>
         ) : null}
       </div>
     );

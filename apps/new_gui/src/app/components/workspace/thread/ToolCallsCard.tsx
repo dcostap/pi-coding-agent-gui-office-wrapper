@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Message } from "../../../types";
+import { stripAnsi } from "../../../utils/ansi";
 import { getToolCallPreview, getToolCallTitle } from "../../../utils/thread-previews";
 import { ExpandablePanel } from "../../common/ExpandablePanel";
 
@@ -29,7 +30,7 @@ function renderToolCallBody(message: ToolCallMessage) {
             key={paragraph}
             className="m-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
           >
-            {paragraph}
+            {stripAnsi(paragraph)}
           </p>
         ))}
         {message.images && message.images.length > 0 ? (
@@ -51,13 +52,13 @@ function renderToolCallBody(message: ToolCallMessage) {
   return (
     <div className="grid min-w-0 gap-2 font-mono text-[12px] text-[color:var(--muted-2)]/84">
       <div className="whitespace-pre-wrap break-all text-[color:var(--muted-2)]/88">
-        $ {message.command}
+        $ {stripAnsi(message.command)}
       </div>
       {message.output.length > 0 ? (
         <div className="grid min-w-0 gap-1 whitespace-pre-wrap break-all [overflow-wrap:anywhere]">
           {message.output.map((line) => (
             <p key={line} className="m-0 min-w-0">
-              {line}
+              {stripAnsi(line)}
             </p>
           ))}
         </div>
