@@ -180,41 +180,6 @@ button[data-tooltip][aria-disabled="true"]::after {
   color: #929292;
 }
 
-.landing-orbit-field {
-  background-image: radial-gradient(circle, rgba(242, 191, 32, 0.22) 0 1px, transparent 1.5px),
-    linear-gradient(115deg, transparent 0%, rgba(242, 191, 32, 0.06) 46%, transparent 64%);
-  background-position: calc(var(--landing-spotlight-x) - 9rem)
-      calc(var(--landing-spotlight-y) - 9rem),
-    center;
-  background-size: 22px 22px, 100% 100%;
-  mask-image: radial-gradient(
-    circle 190px at var(--landing-spotlight-x) var(--landing-spotlight-y),
-    black 0%,
-    rgba(0, 0, 0, 0.7) 42%,
-    transparent 78%
-  );
-  -webkit-mask-image: radial-gradient(
-    circle 190px at var(--landing-spotlight-x) var(--landing-spotlight-y),
-    black 0%,
-    rgba(0, 0, 0, 0.7) 42%,
-    transparent 78%
-  );
-  opacity: 0.55;
-  transform: translate3d(0, 0, 0);
-  transition: background-position 160ms ease-out;
-}
-
-.landing-spotlight {
-  background: radial-gradient(
-    circle 230px at var(--landing-spotlight-x) var(--landing-spotlight-y),
-    rgba(242, 191, 32, 0.1),
-    rgba(169, 178, 215, 0.055) 34%,
-    transparent 72%
-  );
-  mix-blend-mode: screen;
-  transition: background 160ms ease-out;
-}
-
 .composer-footer-text {
   font-size: 12px;
   line-height: 1;
