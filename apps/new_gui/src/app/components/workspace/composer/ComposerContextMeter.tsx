@@ -97,7 +97,8 @@ export function ComposerContextMeter({
       {open ? (
         <div
           ref={popoverRef}
-          className="absolute bottom-full left-0 z-[130] grid w-56 gap-2 rounded-xl border border-white/10 bg-[rgba(24,24,24,0.94)] p-3 text-[12px] text-[color:var(--muted)] shadow-[0_18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl"
+          data-open={open ? "true" : "false"}
+          className="motion-popover absolute bottom-full left-0 z-[130] grid w-56 gap-2 rounded-xl border border-white/10 bg-[rgba(24,24,24,0.94)] p-3 text-[12px] text-[color:var(--muted)] shadow-[0_18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl"
           onMouseDown={(event) => event.preventDefault()}
         >
           <div className="grid gap-1">

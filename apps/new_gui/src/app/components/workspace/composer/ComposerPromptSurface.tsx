@@ -260,7 +260,7 @@ export function ComposerPromptSurface({
 
   const extensionRunning = extensionCommandRunning;
   const placeholderText =
-    errorMessage ?? "Escribe aquí · Enter para nueva línea · Ctrl + Enter para enviar";
+    errorMessage ?? "Escribe aquí · Enter para enviar · Shift + Enter para nueva línea";
   const attachmentButtonLabel = attachments.length > 0 ? "Manage attachments" : "Add attachment";
   const canStopComposer = (composerIsStreaming || extensionRunning) && !isSending && !!sessionPath;
 

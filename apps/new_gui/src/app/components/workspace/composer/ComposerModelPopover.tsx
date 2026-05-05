@@ -1,7 +1,7 @@
 import { Check, Search } from "lucide-react";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import type { ComposerModel, ComposerThinkingLevel } from "../../../desktop/types";
-import { menuOptionClass, popoverPanelClass, toolbarButtonClass } from "../../../ui/classes";
+import { menuOptionClass, popoverPanelClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
 import { SurfacePanel } from "../../common/SurfacePanel";
 
@@ -41,14 +41,13 @@ function TriggerButton({
     <button
       type="button"
       className={cn(
-        toolbarButtonClass,
-        "grid w-full gap-0.5 rounded-xl px-2.5 py-2 text-left hover:bg-[rgba(255,255,255,0.045)]",
+        "grid min-h-9 w-full grid-cols-[5.25rem_minmax(0,1fr)] items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[12px] transition-colors hover:bg-[rgba(255,255,255,0.045)]",
         active && "bg-[rgba(255,255,255,0.05)] text-[color:var(--text)]",
       )}
       onClick={onClick}
     >
-      <span className="text-[11px] text-[color:var(--muted)]">{label}</span>
-      <span className="min-w-0 truncate text-[12px] text-[color:var(--text)]">{value}</span>
+      <span className="block w-full text-right text-[11px] leading-none text-[color:var(--muted)]">{label}</span>
+      <span className="block min-w-0 truncate text-left text-[12px] leading-none text-[color:var(--text)]">{value}</span>
     </button>
   );
 }
@@ -213,7 +212,7 @@ export function ComposerModelPopover({
       ref={panelRef}
       id="composer-model-menu"
       className={cn(
-        "absolute bottom-[calc(100%+8px)] left-0 z-[60] grid w-52 max-w-[calc(100vw-2rem)] overflow-x-hidden rounded-2xl border-[color:var(--border-strong)] p-1.5 text-[12px] shadow-[0_18px_40px_rgba(0,0,0,0.28)]",
+        "absolute bottom-[calc(100%+8px)] left-0 z-[60] grid w-64 max-w-[calc(100vw-2rem)] overflow-x-hidden rounded-2xl border-[color:var(--border-strong)] p-1.5 text-[12px] shadow-[0_18px_40px_rgba(0,0,0,0.28)]",
         popoverPanelClass,
       )}
     >

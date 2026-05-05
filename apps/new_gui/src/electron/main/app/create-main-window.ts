@@ -28,7 +28,7 @@ function getRendererTrustConfig() {
 
 export function createMainWindow() {
   const mainWindow = new BrowserWindow({
-    title: "OfficeAgent",
+    title: "Castrosua IA",
     titleBarStyle: "hidden",
     titleBarOverlay: {
       color: "#00000000",

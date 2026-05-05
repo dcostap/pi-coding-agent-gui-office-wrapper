@@ -79,7 +79,6 @@ export function CodeWorkspaceView({
   const showPromptComposer = state.activeView === "thread" || state.activeView === "code";
   const showWorkspaceFooter = showPromptComposer || state.activeView === "gitops";
   const showThreadFooter = state.activeView === "thread";
-  const showLandingComposer = state.activeView === "code";
   const showDiffInMainView = state.activeView === "gitops";
   const showDesktopTerminalDrawer = state.activeView === "thread" && terminalDrawerVisible;
   const gitOpsFileTreeStateKey = `${composerProjectId}:${terminalSessionPath ?? "project"}`;
@@ -103,6 +102,7 @@ export function CodeWorkspaceView({
     visible: showWorkspaceFooter,
   });
   const hasThreadConversation = showThreadFooter && (activeThreadData?.messages.length ?? 0) > 0;
+  const showLandingComposer = state.activeView === "code" || (showThreadFooter && !hasThreadConversation);
   const [threadContentVisible, setThreadContentVisible] = useState(hasThreadConversation);
   const previousHasThreadConversationRef = useRef(hasThreadConversation);
   const centerThreadFooter = showPromptComposer && !hasThreadConversation;
@@ -329,7 +329,7 @@ export function CodeWorkspaceView({
                 ) : (
                   <div className="grid gap-0">
                     {showLandingComposer ? (
-                      <div className="mb-4 text-center text-[clamp(28px,4vw,44px)] font-medium tracking-[-0.03em] text-[color:var(--text)]">
+                      <div className="landing-new-chat-title mb-3 text-center text-[clamp(22px,3vw,32px)] font-medium tracking-[-0.025em] text-[color:var(--text)]">
                         Nuevo chat
                       </div>
                     ) : null}

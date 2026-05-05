@@ -11,7 +11,7 @@ import { AppUpdater } from "./updater/app-updater";
 let currentMainWindow: BrowserWindow | null = null;
 const devtoolsDebuggingPort = configureDevtoolsRemoteDebugging();
 
-app.setName("OfficeAgent");
+app.setName("Castrosua IA");
 
 async function openMainWindow() {
   const mainWindow = createMainWindow();

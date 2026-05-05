@@ -3,6 +3,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "@wterm/react/css";
 import "@fontsource-variable/inter";
+import "@fontsource-variable/exo-2";
 import "./styles.css";
 import App from "./App";
 import { installDevWebDesktopBridge } from "./app/dev-web-bridge";

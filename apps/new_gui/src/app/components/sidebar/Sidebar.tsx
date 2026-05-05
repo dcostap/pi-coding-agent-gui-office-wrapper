@@ -1,5 +1,5 @@
 import { FolderPlus, SquarePen } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { AppSettings, DesktopActionInvoker, InboxThread } from "../../desktop/types";
 import type { ChatSidebarState } from "../../desktop/types";
 import type { Project, View } from "../../types";
@@ -79,6 +79,7 @@ export function Sidebar({
   onToggleProjectCollapse,
 }: SidebarProps) {
   const [projectCreateRequestId, setProjectCreateRequestId] = useState(0);
+  const projectCreateButtonRef = useRef<HTMLButtonElement>(null);
   const showModeSelection = activeView !== "extensions" && activeView !== "skills";
 
   return (
@@ -96,6 +97,7 @@ export function Sidebar({
             onClick={onStartUnassignedChat}
           />
           <NavButton
+            ref={projectCreateButtonRef}
             icon={<FolderPlus size={16} />}
             label="Nuevo proyecto"
             active={false}
@@ -139,6 +141,7 @@ export function Sidebar({
           projectScopeLockActive={projectScopeLockActive}
           projects={projects}
           selectedThreadId={selectedThreadId}
+          projectCreateAnchorRef={projectCreateButtonRef}
           projectCreateRequestId={projectCreateRequestId}
           terminalRunningProjectIds={terminalRunningProjectIds}
           terminalRunningSessionPaths={terminalRunningSessionPaths}
@@ -147,6 +150,7 @@ export function Sidebar({
           onLoadProjectThreads={onLoadProjectThreads}
           onProjectSelect={onProjectSelect}
           onProjectReorder={onProjectReorder}
+          onStartUnassignedChat={onStartUnassignedChat}
           onThreadOpen={onThreadOpen}
           onToggleProjectCollapse={onToggleProjectCollapse}
         />

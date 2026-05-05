@@ -1,5 +1,6 @@
 import type { DraggableAttributes, DraggableSyntheticListeners } from "@dnd-kit/core";
 import { ChevronDown, ChevronRight, Folder, FolderOpen, Github, MoreHorizontal, SquarePen } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
@@ -22,6 +23,8 @@ type ProjectRowProps = {
   renameDraft: string;
   isEditing: boolean;
   showActions: boolean;
+  showActionMenu?: boolean;
+  projectIcon?: ReactNode;
   threadGroupId: string;
   onCancelEdit: () => void;
   onChangeRenameDraft: (value: string) => void;
@@ -46,6 +49,8 @@ export function ProjectRow({
   renameDraft,
   isEditing,
   showActions,
+  showActionMenu = true,
+  projectIcon,
   threadGroupId,
   onCancelEdit,
   onChangeRenameDraft,
@@ -118,7 +123,9 @@ export function ProjectRow({
         aria-controls={threadGroupId}
         disabled={!canToggleExpanded}
       >
-        {hasRepoOrigin ? (
+        {projectIcon ? (
+          <span className="sidebar-project-icon sidebar-project-origin-icon">{projectIcon}</span>
+        ) : hasRepoOrigin ? (
           <Github size={14} className="sidebar-project-icon sidebar-project-origin-icon" />
         ) : isExpanded ? (
           <FolderOpen size={14} className="sidebar-project-icon sidebar-project-origin-icon" />
@@ -159,10 +166,14 @@ export function ProjectRow({
         <div
           className="sidebar-project-button"
           onClick={handleRowClick}
-          onDoubleClick={canEdit ? handleRowDoubleClick : undefined}
           data-active={isActive ? "true" : "false"}
         >
-          <span className="sidebar-project-title">{name}</span>
+          <span
+            className="sidebar-project-title"
+            onDoubleClick={canEdit ? handleRowDoubleClick : undefined}
+          >
+            {name}
+          </span>
         </div>
       )}
 
@@ -173,33 +184,35 @@ export function ProjectRow({
         data-editing={isEditing ? "true" : "false"}
         data-visible={showActions ? "true" : "false"}
       >
-        <Tooltip content="Nueva sesión" placement="right">
+        <Tooltip content="Nuevo chat" placement="right">
           <button
             type="button"
             className={compactIconButtonClass}
             onClick={onCreateSession}
-            aria-label={`Iniciar una nueva sesión en ${name}`}
+            aria-label={`Iniciar un nuevo chat en ${name}`}
           >
             <SquarePen size={14} />
           </button>
         </Tooltip>
 
-        <Tooltip content="Acciones del proyecto" placement="right">
-          <button
-            type="button"
-            className={cn(
-              compactIconButtonClass,
-              actionMenuOpen && "bg-[rgba(255,255,255,0.05)] text-[color:var(--text)]",
-            )}
-            onClick={onToggleActions}
-            aria-label="Acciones del proyecto"
-            aria-haspopup="menu"
-            aria-expanded={actionMenuOpen}
-            aria-controls={actionMenuId}
-          >
-            <MoreHorizontal size={14} />
-          </button>
-        </Tooltip>
+        {showActionMenu ? (
+          <Tooltip content="Acciones del proyecto" placement="right">
+            <button
+              type="button"
+              className={cn(
+                compactIconButtonClass,
+                actionMenuOpen && "bg-[rgba(255,255,255,0.05)] text-[color:var(--text)]",
+              )}
+              onClick={onToggleActions}
+              aria-label="Acciones del proyecto"
+              aria-haspopup="menu"
+              aria-expanded={actionMenuOpen}
+              aria-controls={actionMenuId}
+            >
+              <MoreHorizontal size={14} />
+            </button>
+          </Tooltip>
+        ) : null}
       </div>
     </div>
   );

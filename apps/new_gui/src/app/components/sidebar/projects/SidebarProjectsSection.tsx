@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, FolderPlus, Search, SquarePen } from "lucide-react";
+import { MessageSquarePlus, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppSettings, DesktopActionInvoker } from "../../../desktop/types";
 import { useDesktopBridgeAvailable } from "../../../hooks/useDesktopBridge";
@@ -6,6 +6,8 @@ import { useDismissibleLayer } from "../../../hooks/useDismissibleLayer";
 import type { Project, Thread, View } from "../../../types";
 import { cn } from "../../../utils/cn";
 import { ProjectTree } from "../ProjectTree";
+import { ProjectRow } from "../project-tree/ProjectRow";
+import { ProjectThreadsGroup } from "../project-tree/ProjectThreadsList";
 import { ThreadRow } from "../project-tree/ThreadRow";
 import { SidebarProjectsCreatePopover } from "./SidebarProjectsCreatePopover";
 import {
@@ -36,6 +38,7 @@ type SidebarProjectsSectionProps = {
   projectScopeLockActive: boolean;
   projects: Project[];
   selectedThreadId: string | null;
+  projectCreateAnchorRef: React.RefObject<HTMLButtonElement | null>;
   projectCreateRequestId: number;
   terminalRunningProjectIds: ReadonlySet<string>;
   terminalRunningSessionPaths: ReadonlySet<string>;
@@ -44,6 +47,7 @@ type SidebarProjectsSectionProps = {
   onLoadProjectThreads: (projectId: string, options?: { chat?: boolean }) => Promise<unknown>;
   onProjectSelect: (projectId: string) => void;
   onProjectReorder: (projectIds: string[]) => void;
+  onStartUnassignedChat: () => void;
   onThreadOpen: (projectId: string, threadId: string, sessionPath: string) => void;
   onToggleProjectCollapse: (projectId: string) => void;
 };
@@ -56,6 +60,7 @@ export function SidebarProjectsSection({
   projectScopeLockActive,
   projects,
   selectedThreadId,
+  projectCreateAnchorRef,
   projectCreateRequestId,
   terminalRunningProjectIds,
   terminalRunningSessionPaths,
@@ -64,6 +69,7 @@ export function SidebarProjectsSection({
   onLoadProjectThreads,
   onProjectSelect,
   onProjectReorder,
+  onStartUnassignedChat,
   onThreadOpen,
   onToggleProjectCollapse,
 }: SidebarProjectsSectionProps) {
@@ -112,9 +118,23 @@ export function SidebarProjectsSection({
         .sort((left, right) => (right.lastModifiedMs ?? 0) - (left.lastModifiedMs ?? 0)),
     [unassignedChatProjects],
   );
-  const hasUnassignedChats =
-    unassignedChatThreads.length > 0 ||
-    unassignedChatProjects.some((project) => (project.threadCount ?? 0) > 0);
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const visibleUnassignedChatThreads = useMemo(
+    () =>
+      normalizedSearchQuery
+        ? unassignedChatThreads.filter((thread) =>
+            thread.title.toLowerCase().includes(normalizedSearchQuery),
+          )
+        : unassignedChatThreads,
+    [normalizedSearchQuery, unassignedChatThreads],
+  );
+  const unassignedProjectNameMatches = UNASSIGNED_CHAT_PROJECT_NAME.toLowerCase().includes(
+    normalizedSearchQuery,
+  );
+  const hasUnassignedChats = normalizedSearchQuery
+    ? unassignedProjectNameMatches || visibleUnassignedChatThreads.length > 0
+    : unassignedChatThreads.length > 0 ||
+      unassignedChatProjects.some((project) => (project.threadCount ?? 0) > 0);
 
   const { projects: visibleProjects, autoExpandedProjectIds } = useMemo(
     () =>
@@ -211,7 +231,7 @@ export function SidebarProjectsSection({
   useDismissibleLayer({
     open: createOpen,
     onDismiss: dismissCreate,
-    refs: [createPanelRef],
+    refs: [projectCreateAnchorRef, createPanelRef],
   });
 
   const handleCreateProject = async () => {
@@ -286,26 +306,28 @@ export function SidebarProjectsSection({
           />
         </label>
 
-        {createOpen ? (
-          <SidebarProjectsCreatePopover
-            menuId="sidebar-project-create-dialog"
-            open={createOpen}
-            draft={projectNameDraft}
-            defaultLocation={appSettings.preferredProjectLocation}
-            busy={createBusy}
-            errorMessage={createErrorMessage}
-            panelRef={createPanelRef}
-            onChangeDraft={setProjectNameDraft}
-            onCreate={() => {
-              void handleCreateProject();
-            }}
-            onClose={() => {
-              setCreateOpen(false);
-              setCreateErrorMessage(null);
-            }}
-          />
-        ) : null}
       </div>
+
+      {createOpen ? (
+        <SidebarProjectsCreatePopover
+          menuId="sidebar-project-create-dialog"
+          open={createOpen}
+          anchorRef={projectCreateAnchorRef}
+          draft={projectNameDraft}
+          defaultLocation={appSettings.preferredProjectLocation}
+          busy={createBusy}
+          errorMessage={createErrorMessage}
+          panelRef={createPanelRef}
+          onChangeDraft={setProjectNameDraft}
+          onCreate={() => {
+            void handleCreateProject();
+          }}
+          onClose={() => {
+            setCreateOpen(false);
+            setCreateErrorMessage(null);
+          }}
+        />
+      ) : null}
 
       {visibleProjects.length > 0 || pendingProject || hasUnassignedChats ? (
         <>
@@ -313,7 +335,7 @@ export function SidebarProjectsSection({
             <div className="sidebar-tree-item" aria-live="polite">
               <div className="sidebar-project-row sidebar-row-surface motion-surface-pulse">
                 <span className="sidebar-project-toggle" data-can-toggle="false">
-                  <FolderPlus
+                  <MessageSquarePlus
                     size={12}
                     className="sidebar-project-icon sidebar-project-origin-icon"
                   />
@@ -330,45 +352,37 @@ export function SidebarProjectsSection({
           ) : null}
           {hasUnassignedChats ? (
             <div className="sidebar-tree-item">
-              <div className="sidebar-project-row sidebar-row-surface">
-                <button
-                  type="button"
-                  className="sidebar-project-toggle"
-                  onClick={() => setUnassignedChatsExpanded((expanded) => !expanded)}
-                  data-can-toggle="true"
-                  aria-label={
-                    unassignedChatsExpanded
-                      ? "Contraer chats sin proyecto"
-                      : "Expandir chats sin proyecto"
-                  }
-                  aria-expanded={unassignedChatsExpanded}
-                  aria-controls={UNASSIGNED_CHATS_FAKE_PROJECT_ID}
-                >
-                  <SquarePen size={12} className="sidebar-project-icon sidebar-project-origin-icon" />
-                  {unassignedChatsExpanded ? (
-                    <ChevronDown size={12} className="sidebar-project-icon sidebar-project-chevron-icon" />
-                  ) : (
-                    <ChevronRight size={12} className="sidebar-project-icon sidebar-project-chevron-icon" />
-                  )}
-                </button>
-                <div
-                  className="sidebar-project-button"
-                  onClick={() => setUnassignedChatsExpanded((expanded) => !expanded)}
-                >
-                  <span className="sidebar-project-title">{UNASSIGNED_CHAT_PROJECT_NAME}</span>
-                </div>
-                <span className="pr-1 text-[11px] text-[color:var(--muted-2)]">
-                  {unassignedChatThreads.length}
-                </span>
-              </div>
-              {unassignedChatsExpanded ? (
-                <div
-                  id={UNASSIGNED_CHATS_FAKE_PROJECT_ID}
-                  className="motion-collapse-panel"
-                  data-open="true"
-                >
-                  <div className="motion-collapse-panel__inner">
-                    {unassignedChatThreads.map((thread) => (
+              <ProjectRow
+                actionMenuId="unassigned-chat-actions"
+                actionMenuOpen={false}
+                canEdit={false}
+                canToggleExpanded
+                isActive={false}
+                isDragging={false}
+                isExpanded={unassignedChatsExpanded}
+                hasRepoOrigin={false}
+                name={UNASSIGNED_CHAT_PROJECT_NAME}
+                renameDraft=""
+                isEditing={false}
+                showActions
+                showActionMenu={false}
+                projectIcon={<MessageSquarePlus size={14} />}
+                threadGroupId={UNASSIGNED_CHATS_FAKE_PROJECT_ID}
+                onCancelEdit={() => {}}
+                onChangeRenameDraft={() => {}}
+                onEdit={() => {}}
+                onCreateSession={onStartUnassignedChat}
+                onSelect={() => {}}
+                onSubmitEdit={() => {}}
+                onToggleActions={() => {}}
+                onToggleExpanded={() => setUnassignedChatsExpanded((expanded) => !expanded)}
+              />
+              <ProjectThreadsGroup
+                isExpanded={unassignedChatsExpanded}
+                threadGroupId={UNASSIGNED_CHATS_FAKE_PROJECT_ID}
+                projectName={UNASSIGNED_CHAT_PROJECT_NAME}
+              >
+                {visibleUnassignedChatThreads.map((thread) => (
                       <ThreadRow
                         key={`${thread.projectId}:${thread.id}`}
                         age={thread.age}
@@ -403,10 +417,8 @@ export function SidebarProjectsSection({
                           })
                         }
                       />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
+                ))}
+              </ProjectThreadsGroup>
             </div>
           ) : null}
           {visibleProjects.length > 0 ? (

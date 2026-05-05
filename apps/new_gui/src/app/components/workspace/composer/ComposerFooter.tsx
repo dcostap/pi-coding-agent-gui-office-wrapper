@@ -84,6 +84,7 @@ export function ComposerFooter({
           ref={modelButtonRef}
           label="Agente"
           icon={<Bot size={14} />}
+          tooltip={null}
           className={cn(workspaceFooterTextClass, "pr-8")}
           onClick={() => onSetOpenMenu((current) => (current === "model" ? null : "model"))}
           aria-haspopup="menu"

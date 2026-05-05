@@ -1,9 +1,10 @@
 import { FolderPlus } from "lucide-react";
-import { type RefObject, useEffect, useRef } from "react";
+import { type CSSProperties, type RefObject, useEffect, useRef, useState } from "react";
 
 type SidebarProjectsCreatePopoverProps = {
   menuId: string;
   open: boolean;
+  anchorRef: RefObject<HTMLElement | null>;
   draft: string;
   defaultLocation: string | null;
   busy: boolean;
@@ -17,6 +18,7 @@ type SidebarProjectsCreatePopoverProps = {
 export function SidebarProjectsCreatePopover({
   menuId,
   open,
+  anchorRef,
   draft,
   defaultLocation,
   busy,
@@ -27,6 +29,7 @@ export function SidebarProjectsCreatePopover({
   onClose,
 }: SidebarProjectsCreatePopoverProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [style, setStyle] = useState<CSSProperties>({});
   const canCreate = draft.trim().length > 0 && !busy && Boolean(defaultLocation);
 
   useEffect(() => {
@@ -34,8 +37,17 @@ export function SidebarProjectsCreatePopover({
       return;
     }
 
+    const anchor = anchorRef.current;
+    if (anchor) {
+      setStyle({
+        top: anchor.offsetTop + anchor.offsetHeight + 6,
+        left: anchor.offsetLeft,
+        width: anchor.offsetWidth,
+      });
+    }
+
     inputRef.current?.focus();
-  }, [open]);
+  }, [anchorRef, open]);
 
   if (!open) {
     return null;
@@ -49,6 +61,7 @@ export function SidebarProjectsCreatePopover({
       aria-label="Añadir proyecto"
       data-open={open ? "true" : "false"}
       className="sidebar-popover-panel sidebar-project-create-popover motion-popover"
+      style={style}
     >
       <div className="sidebar-project-create-row">
         <input

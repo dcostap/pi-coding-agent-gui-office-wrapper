@@ -294,10 +294,12 @@ export async function runPostDesktopActionEffects({
         revealProject: true,
       });
       dispatch({ type: "open-thread", projectId: nextProjectId, threadId, sessionPath });
-      await loadProjectThreads(nextProjectId);
-      applyProjectThreadToShellState(queryClient, nextProjectId, optimisticThread, {
-        revealProject: true,
-      });
+      if (!isLocalSessionPath(sessionPath)) {
+        await loadProjectThreads(nextProjectId);
+        applyProjectThreadToShellState(queryClient, nextProjectId, optimisticThread, {
+          revealProject: true,
+        });
+      }
     } else if (localFallback) {
       const optimisticThread = {
         id: localFallback.threadId,

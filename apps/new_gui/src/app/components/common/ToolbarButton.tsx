@@ -5,7 +5,7 @@ import { cn } from "../../utils/cn";
 type ToolbarButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
   label: ReactNode;
   icon: ReactNode;
-  tooltip?: string;
+  tooltip?: string | null;
   trailing?: boolean;
 };
 
@@ -20,7 +20,7 @@ export const ToolbarButton = forwardRef<HTMLButtonElement, ToolbarButtonProps>(
         type={type}
         className={cn(toolbarButtonClass, className)}
         onClick={onClick}
-        data-tooltip={tooltip ?? (typeof label === "string" ? label : undefined)}
+        data-tooltip={tooltip === null ? undefined : (tooltip ?? (typeof label === "string" ? label : undefined))}
         {...buttonProps}
       >
         {!trailing ? icon : null}

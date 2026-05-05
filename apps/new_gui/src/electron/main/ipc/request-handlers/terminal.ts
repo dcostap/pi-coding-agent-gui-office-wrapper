@@ -1,6 +1,7 @@
 import type { DesktopRequestHandlerMap } from "../../../../../shared/desktop-ipc";
 import type { TerminalManagerModule } from "../../runtime/desktop-runtime-contracts";
 
+
 type TerminalRequestHandlers = Pick<
   DesktopRequestHandlerMap,
   | "listTerminals"

@@ -180,6 +180,10 @@ button[data-tooltip][aria-disabled="true"]::after {
   color: #929292;
 }
 
+.landing-new-chat-title {
+  font-family: "Exo 2 Variable", "Exo 2", var(--font-sans, sans-serif);
+}
+
 .composer-prompt-textarea {
   font-size: 16px;
   line-height: 1.45;

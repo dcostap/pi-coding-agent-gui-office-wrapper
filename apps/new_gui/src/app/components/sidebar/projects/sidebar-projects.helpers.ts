@@ -161,19 +161,22 @@ export function getSidebarVisibleProjects(input: {
     const leftPriority = input.priorityProjectIds?.indexOf(left.id) ?? -1;
     const rightPriority = input.priorityProjectIds?.indexOf(right.id) ?? -1;
 
-    if (leftPriority === -1 && rightPriority === -1) {
-      return 0;
+    if (leftPriority !== -1 || rightPriority !== -1) {
+      if (leftPriority === -1) return 1;
+      if (rightPriority === -1) return -1;
+      return leftPriority - rightPriority;
     }
 
-    if (leftPriority === -1) {
-      return 1;
-    }
+    const leftLatest = Math.max(
+      left.latestModifiedMs ?? 0,
+      ...left.threads.map((thread) => thread.lastModifiedMs ?? 0),
+    );
+    const rightLatest = Math.max(
+      right.latestModifiedMs ?? 0,
+      ...right.threads.map((thread) => thread.lastModifiedMs ?? 0),
+    );
 
-    if (rightPriority === -1) {
-      return -1;
-    }
-
-    return leftPriority - rightPriority;
+    return rightLatest - leftLatest;
   });
 
   return {

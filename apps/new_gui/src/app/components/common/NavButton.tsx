@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { cn } from "../../utils/cn";
 
 type NavButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
@@ -7,18 +7,22 @@ type NavButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> 
   active?: boolean;
 };
 
-export function NavButton({
-  icon,
-  label,
-  active,
-  onClick,
-  type = "button",
-  className,
-  title,
-  ...buttonProps
-}: NavButtonProps) {
+export const NavButton = forwardRef<HTMLButtonElement, NavButtonProps>(function NavButton(
+  {
+    icon,
+    label,
+    active,
+    onClick,
+    type = "button",
+    className,
+    title,
+    ...buttonProps
+  },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type={type}
       className={cn("sidebar-nav-button", className)}
       onClick={onClick}
@@ -31,4 +35,4 @@ export function NavButton({
       <span className="sidebar-nav-button__label">{label}</span>
     </button>
   );
-}
+});

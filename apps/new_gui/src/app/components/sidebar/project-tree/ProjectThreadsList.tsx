@@ -44,7 +44,7 @@ function partitionProjectThreads(project: Project) {
   return { recentThreads, oldThreads };
 }
 
-function ProjectThreadsGroup({
+export function ProjectThreadsGroup({
   children,
   isExpanded,
   projectName,

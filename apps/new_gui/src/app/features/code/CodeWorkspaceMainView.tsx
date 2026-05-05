@@ -92,6 +92,22 @@ export function CodeWorkspaceMainView({
   onSelectProject,
 }: CodeWorkspaceMainViewProps) {
   if (activeView === "thread") {
+    if ((threadData?.messages.length ?? 0) === 0) {
+      return (
+        <div className="grid h-full content-start justify-items-center overflow-y-auto px-4 pb-6">
+          <LandingView
+            appSettings={appSettings}
+            className={workspaceContentClass}
+            projectName={currentProjectName}
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onAction={onAction}
+            onSelectProject={onSelectProject}
+          />
+        </div>
+      );
+    }
+
     return (
       <ThreadView
         key={threadData?.sessionPath ?? "new-thread"}
