@@ -41,7 +41,7 @@ export async function createProject(options: {
 }) {
   const preferredProjectLocation = options.preferredProjectLocation?.trim() ?? "";
   if (preferredProjectLocation.length === 0) {
-    throw new Error("Configura primero una ubicaci�n predeterminada para proyectos.");
+    throw new Error("Configura primero una ubicacion predeterminada para proyectos.");
   }
 
   const folderName = sanitizeProjectFolderName(options.projectName);
@@ -136,7 +136,7 @@ export async function createProjectFromGitHubUrl(options: {
 }) {
   const preferredProjectLocation = options.preferredProjectLocation?.trim() ?? "";
   if (preferredProjectLocation.length === 0) {
-    throw new Error("Configura primero una ubicaci�n predeterminada para proyectos.");
+    throw new Error("Configura primero una ubicacion predeterminada para proyectos.");
   }
 
   const repository = parseGitHubRepositoryUrl(options.repositoryUrl);

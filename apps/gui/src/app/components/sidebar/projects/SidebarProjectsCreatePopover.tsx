@@ -32,7 +32,8 @@ export function SidebarProjectsCreatePopover({
   const inputRef = useRef<HTMLInputElement>(null);
   const disclosure = useAnimatedDisclosure(open);
   const [style, setStyle] = useState<CSSProperties>({});
-  const canCreate = draft.trim().length > 0 && !busy && Boolean(defaultLocation);
+  void defaultLocation;
+  const canCreate = draft.trim().length > 0 && !busy;
 
   useEffect(() => {
     if (!open) {

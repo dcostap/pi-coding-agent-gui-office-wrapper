@@ -362,7 +362,7 @@ export function useAppShellController() {
     (groupId: string | null) => {
       const projectId = composerProjectId || shellState?.cwd || "";
       if (!projectId) {
-        showToast("No se pudo preparar el chat.");
+        showToast("La aplicacion aun esta preparando el chat. Intentalo de nuevo en un momento.");
         return;
       }
 
@@ -386,7 +386,7 @@ export function useAppShellController() {
   const handleStartUnassignedChat = useCallback(() => {
     const projectsRoot = shellState?.appSettings.preferredProjectLocation ?? shellState?.cwd ?? "";
     if (!projectsRoot) {
-      showToast("No se pudo preparar el chat sin proyecto.");
+      showToast("La aplicacion aun esta preparando los chats sin proyecto. Intentalo de nuevo en un momento.");
       return;
     }
 

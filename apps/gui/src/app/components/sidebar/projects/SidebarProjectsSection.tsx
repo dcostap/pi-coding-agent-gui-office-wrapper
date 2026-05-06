@@ -135,8 +135,7 @@ export function SidebarProjectsSection({
   );
   const hasUnassignedChats = normalizedSearchQuery
     ? unassignedProjectNameMatches || visibleUnassignedChatThreads.length > 0
-    : unassignedChatThreads.length > 0 ||
-      unassignedChatProjects.some((project) => (project.threadCount ?? 0) > 0);
+    : true;
 
   const { projects: visibleProjects, autoExpandedProjectIds } = useMemo(
     () =>
@@ -218,11 +217,7 @@ export function SidebarProjectsSection({
       return;
     }
 
-    if (!appSettings.preferredProjectLocation) {
-      setCreateErrorMessage("La ubicaci�n del proyecto no est� configurada.");
-    } else {
-      setCreateErrorMessage(null);
-    }
+    setCreateErrorMessage(null);
     setCreateOpen(true);
   }, [activeView, appSettings.preferredProjectLocation, projectCreateRequestId]);
 
@@ -242,11 +237,6 @@ export function SidebarProjectsSection({
     }
 
     setCreateErrorMessage(null);
-
-    if (!appSettings.preferredProjectLocation) {
-      setCreateErrorMessage("La ubicaci�n del proyecto no est� configurada.");
-      return;
-    }
 
     const draft = projectNameDraft.trim();
     if (!draft) {
