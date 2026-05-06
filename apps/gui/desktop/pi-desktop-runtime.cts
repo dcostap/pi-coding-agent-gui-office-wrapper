@@ -80,14 +80,17 @@ async function persistHostThreadUpdate(event: Extract<DesktopEvent, { type: "thr
   } catch {
     return;
   }
-  const timestamp = Date.now();
-  const threadId = upsertThreadSummary({
-    id: event.threadId,
-    cwd: event.projectId,
-    sessionPath: event.sessionPath,
-    title: event.thread.title,
-    lastModifiedMs: timestamp,
-  });
+  const timestamp = event.lastModifiedMs ?? Date.now();
+  const threadId = upsertThreadSummary(
+    {
+      id: event.threadId,
+      cwd: event.projectId,
+      sessionPath: event.sessionPath,
+      title: event.thread.title,
+      lastModifiedMs: timestamp,
+    },
+    { preserveLastModified: event.reason !== "start" && event.reason !== "external" },
+  );
 
   event.threadId = threadId;
   if (isChatSessionPath(event.sessionPath)) {
