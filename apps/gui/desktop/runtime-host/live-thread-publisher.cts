@@ -68,14 +68,20 @@ function buildLiveThreadData(runtime: PiRuntime) {
   });
 }
 
-export async function publishThreadUpdate(runtime: PiRuntime, reason: RuntimeThreadReason) {
+export async function publishThreadUpdate(
+  runtime: PiRuntime,
+  reason: RuntimeThreadReason,
+  options: { lastModifiedMs?: number } = {},
+) {
   const sessionPath = runtime.session.sessionFile;
   if (!sessionPath) return;
   const liveThread = buildLiveThreadData(runtime);
   if (!liveThread) return;
-  const timestamp = reason === "start"
-    ? getLatestRuntimeMessageTimestampMs(runtime, new Set(["user"])) ?? Date.now()
-    : Date.now();
+  const timestamp =
+    options.lastModifiedMs ??
+    (reason === "start"
+      ? getLatestRuntimeMessageTimestampMs(runtime, new Set(["user"])) ?? Date.now()
+      : Date.now());
   emitDesktopEvent({ type: "internal-thread-update", sessionPath });
   emitDesktopEvent({
     type: "thread-update",

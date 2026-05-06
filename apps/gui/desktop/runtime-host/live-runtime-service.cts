@@ -331,7 +331,7 @@ export async function sendComposerPrompt(
           request: { ...request, sessionPath: persistedSessionPath },
         });
       }
-      await publishThreadUpdate(runtime, "start").catch((error) =>
+      await publishThreadUpdate(runtime, "start", { lastModifiedMs: Date.now() }).catch((error) =>
         console.error("Composer prompt accepted but thread activity publish failed", error),
       );
       return "sent" as const;

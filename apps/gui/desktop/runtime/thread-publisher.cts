@@ -253,7 +253,11 @@ export function normalizeThreadDataForReason(
   return setThreadCompactingState(setThreadStreamingState(thread, false), false);
 }
 
-export async function publishThreadUpdate(runtime: PiRuntime, reason: RuntimeThreadReason) {
+export async function publishThreadUpdate(
+  runtime: PiRuntime,
+  reason: RuntimeThreadReason,
+  options: { lastModifiedMs?: number } = {},
+) {
   const sessionPath = runtime.session.sessionFile;
   if (!sessionPath) {
     return;
@@ -270,9 +274,11 @@ export async function publishThreadUpdate(runtime: PiRuntime, reason: RuntimeThr
 
   let threadId = runtime.session.sessionId;
   const projectId = runtime.cwd;
-  const timestamp = reason === "start"
-    ? getLatestRuntimeMessageTimestampMs(runtime, new Set(["user"])) ?? Date.now()
-    : Date.now();
+  const timestamp =
+    options.lastModifiedMs ??
+    (reason === "start"
+      ? getLatestRuntimeMessageTimestampMs(runtime, new Set(["user"])) ?? Date.now()
+      : Date.now());
   let hasPersistedSessionFile = false;
 
   try {

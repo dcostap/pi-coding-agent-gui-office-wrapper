@@ -170,7 +170,7 @@ export function getChatSidebarState(selectedGroupId: string | null = null): Chat
         LEFT JOIN chat_threads ON chat_threads.session_path = threads.session_path
         LEFT JOIN inbox_items ON inbox_items.session_path = threads.session_path
         WHERE threads.archived = 0
-        ORDER BY threads.pinned DESC, COALESCE(chat_threads.order_index, threads.last_modified_ms) DESC, threads.title COLLATE NOCASE ASC
+        ORDER BY threads.pinned DESC, threads.last_modified_ms DESC, threads.title COLLATE NOCASE ASC
       `,
     )
     .all() as ChatThreadGroupRow[];
