@@ -134,15 +134,16 @@ export function useAppShellController() {
     }
 
     const persistedProject = shellProjects.find((project) => project.id === localDraftProjectId);
-    if (!isUnassignedChatProjectId(localDraftProjectId)) {
-      return;
-    }
-    if (!persistedProject) {
+    const localDraftProject = localDraftProjects.find((project) => project.id === localDraftProjectId);
+    if (!persistedProject || !localDraftProject) {
       return;
     }
 
     const replacementThread = persistedProject.threads.find(
-      (thread) => thread.sessionPath && !isLocalSessionPath(thread.sessionPath),
+      (thread) =>
+        thread.sessionPath &&
+        !isLocalSessionPath(thread.sessionPath) &&
+        (thread.lastModifiedMs ?? 0) >= (localDraftProject.latestModifiedMs ?? 0),
     );
     if (replacementThread?.sessionPath) {
       setLocalDraftProjects((current) =>
@@ -160,7 +161,7 @@ export function useAppShellController() {
     if (!persistedProject.threadsLoaded && (persistedProject.threadCount ?? 0) > 0) {
       void loadProjectThreads(localDraftProjectId);
     }
-  }, [loadProjectThreads, shellProjects, state.selectedSessionPath]);
+  }, [loadProjectThreads, localDraftProjects, shellProjects, state.selectedSessionPath]);
 
   const { terminalRunningProjectIds, terminalRunningSessionPaths } = useRunningTerminalSessions();
   const refreshChatSidebarState = useCallback(
@@ -301,7 +302,34 @@ export function useAppShellController() {
     }) => {
       const currentDraftProjectId = getLocalDraftProjectId(state.selectedSessionPath);
       if (currentDraftProjectId === projectId) {
-        dispatch({ type: "show-view", view: "thread" });
+        dispatch({ type: "show-view", view: composerMode === "chat" ? "chat" : "thread" });
+        return;
+      }
+
+      const existingDraftProject = localDraftProjects.find((project) => project.id === projectId);
+      const existingDraftProjectReplaced = shellProjects
+        .find((project) => project.id === projectId)
+        ?.threads.some(
+          (thread) =>
+            !isLocalSessionPath(thread.sessionPath) &&
+            (thread.lastModifiedMs ?? 0) >= (existingDraftProject?.latestModifiedMs ?? 0),
+        );
+      const existingDraft = existingDraftProjectReplaced
+        ? undefined
+        : existingDraftProject?.threads.find(
+            (thread) => getLocalDraftChatGroupId(thread.sessionPath) === (chatGroupId ?? null),
+          );
+      if (existingDraftProjectReplaced) {
+        setLocalDraftProjects((current) => current.filter((project) => project.id !== projectId));
+      }
+      if (existingDraft?.sessionPath) {
+        dispatch({
+          type: "open-thread",
+          projectId,
+          threadId: existingDraft.id,
+          sessionPath: existingDraft.sessionPath,
+          view: composerMode === "chat" ? "chat" : "thread",
+        });
         return;
       }
 
@@ -343,7 +371,7 @@ export function useAppShellController() {
         }
       });
     },
-    [dispatch, loadComposerState, state.selectedSessionPath],
+    [dispatch, loadComposerState, localDraftProjects, shellProjects, state.selectedSessionPath],
   );
 
   const handleStartProjectChat = useCallback(
@@ -396,13 +424,37 @@ export function useAppShellController() {
       return;
     }
 
+    const existingUnassignedDraft = localDraftProjects.find((project) => isUnassignedChatProjectId(project.id));
+    const existingUnassignedDraftReplaced = existingUnassignedDraft
+      ? shellProjects
+          .find((project) => project.id === existingUnassignedDraft.id)
+          ?.threads.some(
+            (thread) =>
+              !isLocalSessionPath(thread.sessionPath) &&
+              (thread.lastModifiedMs ?? 0) >= (existingUnassignedDraft.latestModifiedMs ?? 0),
+          )
+      : false;
+    if (existingUnassignedDraftReplaced && existingUnassignedDraft) {
+      setLocalDraftProjects((current) => current.filter((project) => project.id !== existingUnassignedDraft.id));
+    }
+    const existingUnassignedThread = existingUnassignedDraftReplaced ? undefined : existingUnassignedDraft?.threads[0];
+    if (existingUnassignedDraft && existingUnassignedThread?.sessionPath) {
+      dispatch({
+        type: "open-thread",
+        projectId: existingUnassignedDraft.id,
+        threadId: existingUnassignedThread.id,
+        sessionPath: existingUnassignedThread.sessionPath,
+      });
+      return;
+    }
+
     const token = createUnassignedChatToken();
     openLocalDraftThread({
       projectId: createUnassignedChatProjectId(projectsRoot, token),
       projectName: UNASSIGNED_CHAT_PROJECT_NAME,
       token,
     });
-  }, [dispatch, openLocalDraftThread, shellState?.appSettings.preferredProjectLocation, shellState?.cwd, showToast, state.selectedSessionPath]);
+  }, [dispatch, localDraftProjects, openLocalDraftThread, shellProjects, shellState?.appSettings.preferredProjectLocation, shellState?.cwd, showToast, state.selectedSessionPath]);
 
   return {
     activeComposerState,
