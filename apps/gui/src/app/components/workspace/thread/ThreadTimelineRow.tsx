@@ -58,17 +58,17 @@ export function ThreadTimelineRow({
 
   if (row.kind === "history-divider") {
     return (
-      <TimelineRowShell>
+      <div className="flex w-full min-w-0 justify-center">
         <button
           type="button"
-          className="group flex w-full items-center justify-center py-1 text-[13px] text-[color:var(--muted-2)]"
+          className="group inline-flex max-w-full items-center justify-center py-1 text-[13px] text-[color:var(--muted-2)]"
           onClick={onJumpToEarlierMessages}
         >
-          <span className="rounded-[12px] px-3 py-1 transition-colors group-hover:bg-[rgba(255,255,255,0.03)] group-focus-visible:bg-[rgba(255,255,255,0.03)]">
+          <span className="rounded-[12px] px-3 py-1 text-center transition-colors group-hover:bg-[rgba(255,255,255,0.03)] group-focus-visible:bg-[rgba(255,255,255,0.03)]">
             {row.hiddenCount} earlier messages
           </span>
         </button>
-      </TimelineRowShell>
+      </div>
     );
   }
 
@@ -162,6 +162,7 @@ export function ThreadTimelineRow({
           ariaLabel={`Expand ${summaryLabel.toLowerCase()}`}
           onToggle={() => onToggleRowCollapse(row.id)}
           toggleClassName={chevronOffsetClass}
+          togglePlacement="right"
         >
           <div className="grid min-w-0 gap-3">
             {showCompactionDivider ? (
@@ -184,6 +185,7 @@ export function ThreadTimelineRow({
         ariaLabel={`Collapse ${summaryLabel.toLowerCase()}`}
         onToggle={() => onToggleRowCollapse(row.id)}
         toggleClassName={chevronOffsetClass}
+        togglePlacement="right"
       >
         <div className="grid min-w-0 gap-3">
           {showCompactionDivider ? (
