@@ -4,7 +4,7 @@
   "workspaces": [
     "apps/gateway",
     "apps/tui",
-    "apps/gui/*",
+    "apps/gui",
     "packages/*"
   ],
   "scripts": {
@@ -15,13 +15,12 @@
     "gateway:smoke:analytics": "npm run smoke:analytics --workspace @office-agent/gateway",
     "pi:managed": "npm run tui --workspace @office-agent/tui",
     "tui": "npm run tui --workspace @office-agent/tui",
-    "gui:dev": "npm run dev --workspace @office-agent/gui",
-    "gui:build": "npm run build --workspace @office-agent/gui",
-    "sandbox:smoke": "npm run test:sandbox:smoke --workspace @office-agent/gui",
-    "sandbox:smoke:workflows": "npm run test:sandbox:workflows --workspace @office-agent/gui",
-    "sandbox:smoke:python": "npm run test:sandbox:python --workspace @office-agent/gui",
-    "gui:package": "npm run package:win --workspace @office-agent/gui",
-    "gui:package:dir": "npm run package:win:dir --workspace @office-agent/gui"
+    "gui:dev": "npm run dev --workspace apps/gui",
+    "gui:build": "npm run build --workspace apps/gui",
+    "gui:typecheck": "npm run typecheck --workspace apps/gui",
+    "gui:test": "npm run test --workspace apps/gui",
+    "gui:package": "npm run build:release --workspace apps/gui",
+    "gui:package:dir": "npm run build --workspace apps/gui"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

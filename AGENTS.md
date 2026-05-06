@@ -4,7 +4,7 @@ OfficeAgent is an Electron GUI around a pinned Pi agent runtime.
 
 Key points for coding agents:
 
-- Main GUI: `apps/gui/desktop`.
+- Main GUI: `apps/gui`.
 - Shared runtime helpers: `packages/office-agent-runtime` and `packages/pi-sdk-driver`.
 - Windows sandbox helper: `native/windows-sandbox-helper`.
 - Planning/history docs live in `docs/planning/`; do not treat them as current requirements without checking code.
@@ -16,6 +16,5 @@ Useful checks:
 
 ```bash
 npm run build --workspace @pi-gui/pi-sdk-driver
-npm run build --workspace @office-agent/gui
-npm run sandbox:smoke
+cd apps/gui && bun run typecheck:web
 ```

@@ -1,4 +1,4 @@
 @echo off
 setlocal
-cd /d "%~dp0apps\new_gui"
+cd /d "%~dp0apps\gui"
 call bun run dev

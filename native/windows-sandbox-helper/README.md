@@ -47,7 +47,7 @@ Example launch request:
 cargo build --manifest-path native/windows-sandbox-helper/Cargo.toml
 ```
 
-Desktop packaging uses `apps/gui/desktop/scripts/build-windows-sandbox-helper.mjs` to copy the executable into `apps/gui/desktop/build/native/windows-sandbox-helper/`.
+Desktop packaging uses `apps/gui/scripts/build-windows-sandbox-helper.mjs` to copy the executable into `apps/gui/build/native/windows-sandbox-helper/`.
 
 ## Current launch behavior
 
