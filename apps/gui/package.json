@@ -28,7 +28,7 @@
     "publish:howcode:dry-run": "cd packages/howcode && npm publish --dry-run",
     "preview": "vite preview",
     "prepare": "test -d .git && husky || true",
-    "postinstall": "node -e \"require('electron/install')\" && electron-builder install-app-deps",
+    "postinstall": "node -e \"require('electron/install')\" && npm rebuild better-sqlite3 --runtime=electron --target=41.2.1 --disturl=https://electronjs.org/headers --build-from-source=false",
     "lint": "biome check --organize-imports-enabled=false .",
     "format": "biome format --write .",
     "typecheck": "bun run typecheck:web && bun run typecheck:desktop && bun run typecheck:electron && bun run typecheck:scripts",
