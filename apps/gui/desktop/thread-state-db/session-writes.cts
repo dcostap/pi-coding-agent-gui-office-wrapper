@@ -81,7 +81,10 @@ export function syncSessionSummaries(cwd: string, sessions: SessionSummaryRecord
   });
 }
 
-export function upsertThreadSummary(session: SessionSummaryRecord) {
+export function upsertThreadSummary(
+  session: SessionSummaryRecord,
+  options: { preserveLastModified?: boolean } = {},
+) {
   const db = getThreadStateDatabase();
   ensureProject(session.cwd);
 
@@ -124,10 +127,20 @@ export function upsertThreadSummary(session: SessionSummaryRecord) {
         id = excluded.id,
         cwd = excluded.cwd,
         title = excluded.title,
-        last_modified_ms = excluded.last_modified_ms,
+        last_modified_ms = CASE
+          WHEN ? THEN threads.last_modified_ms
+          ELSE excluded.last_modified_ms
+        END,
         updated_at = CURRENT_TIMESTAMP
     `,
-  ).run(threadId, session.cwd, session.sessionPath, session.title, session.lastModifiedMs);
+  ).run(
+    threadId,
+    session.cwd,
+    session.sessionPath,
+    session.title,
+    session.lastModifiedMs,
+    options.preserveLastModified ? 1 : 0,
+  );
 
   return threadId;
 }

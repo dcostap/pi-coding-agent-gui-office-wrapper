@@ -9,6 +9,7 @@ type QueryClientLike = {
 type ApplyProjectThreadOptions = {
   replaceSessionPath?: string | null;
   revealProject?: boolean;
+  preserveLastModified?: boolean;
 };
 
 function sameThread(left: Thread, right: Thread, replaceSessionPath: string | null) {
@@ -23,10 +24,17 @@ function sameThread(left: Thread, right: Thread, replaceSessionPath: string | nu
   return Boolean(replaceSessionPath && left.sessionPath === replaceSessionPath);
 }
 
-function mergeThread(existing: Thread | undefined, next: Thread): Thread {
+function mergeThread(
+  existing: Thread | undefined,
+  next: Thread,
+  options: { preserveLastModified: boolean },
+): Thread {
   return {
     ...existing,
     ...next,
+    age: options.preserveLastModified && existing ? existing.age : next.age,
+    lastModifiedMs:
+      options.preserveLastModified && existing ? existing.lastModifiedMs : next.lastModifiedMs,
     pinned: existing?.pinned ?? next.pinned,
     unread: next.unread ?? existing?.unread,
   };
@@ -40,6 +48,7 @@ export function applyProjectThreadToShellState(
 ) {
   const replaceSessionPath = options.replaceSessionPath ?? null;
   const revealProject = options.revealProject ?? false;
+  const preserveLastModified = options.preserveLastModified ?? false;
 
   queryClient.setQueryData(desktopQueryKeys.shellState(), (current) => {
     const currentState = current as ShellState | null | undefined;
@@ -57,7 +66,7 @@ export function applyProjectThreadToShellState(
         const existingThread = project.threads.find((candidate) =>
           sameThread(candidate, thread, replaceSessionPath),
         );
-        const nextThread = mergeThread(existingThread, thread);
+        const nextThread = mergeThread(existingThread, thread, { preserveLastModified });
         const remainingThreads = project.threads.filter(
           (candidate) => !sameThread(candidate, thread, replaceSessionPath),
         );

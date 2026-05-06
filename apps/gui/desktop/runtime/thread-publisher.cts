@@ -247,13 +247,16 @@ export async function publishThreadUpdate(runtime: PiRuntime, reason: RuntimeThr
   rememberSessionPath(sessionPath, projectId);
 
   if (hasPersistedSessionFile) {
-    threadId = upsertThreadSummary({
-      id: threadId,
-      cwd: projectId,
-      sessionPath,
-      title: thread.title,
-      lastModifiedMs: timestamp,
-    });
+    threadId = upsertThreadSummary(
+      {
+        id: threadId,
+        cwd: projectId,
+        sessionPath,
+        title: thread.title,
+        lastModifiedMs: timestamp,
+      },
+      { preserveLastModified: reason !== "start" },
+    );
     if (isChatSessionPath(sessionPath)) {
       upsertChatThread({ sessionPath, groupId: runtime.chatGroupId ?? null });
     }
