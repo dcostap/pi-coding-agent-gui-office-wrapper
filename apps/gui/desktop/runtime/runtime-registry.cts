@@ -39,6 +39,31 @@ export { withRuntimeMutationLock } from "./registry/runtime-registry-state.cts";
 import type { RuntimeRecord } from "./registry/runtime-registry-state.cts";
 import type { PiRuntime } from "./types.cts";
 
+const expectedUserPromptEvents = new WeakMap<PiRuntime, symbol[]>();
+
+export function markRuntimeUserPromptPending(runtime: PiRuntime) {
+  const token = Symbol("user-prompt");
+  expectedUserPromptEvents.set(runtime, [...(expectedUserPromptEvents.get(runtime) ?? []), token]);
+  return token;
+}
+
+export function clearRuntimeUserPromptPending(runtime: PiRuntime, token: symbol) {
+  const tokens = expectedUserPromptEvents.get(runtime);
+  if (!tokens) return;
+  const next = tokens.filter((entry) => entry !== token);
+  if (next.length === 0) expectedUserPromptEvents.delete(runtime);
+  else expectedUserPromptEvents.set(runtime, next);
+}
+
+function consumeExpectedUserPromptEvent(runtime: PiRuntime) {
+  const tokens = expectedUserPromptEvents.get(runtime);
+  if (!tokens || tokens.length === 0) return false;
+  const next = tokens.slice(1);
+  if (next.length === 0) expectedUserPromptEvents.delete(runtime);
+  else expectedUserPromptEvents.set(runtime, next);
+  return true;
+}
+
 const settingsRefreshController = createRuntimeSettingsRefreshController({
   getCachedRuntimeForSessionPath,
   getRuntimeRecords: getRuntimeRecordSnapshots,
@@ -185,7 +210,13 @@ async function createRuntime(options: {
     if (event.type === "message_end") {
       if (event.message.role === "user") {
         cancelLiveThreadUpdate(runtime);
-        void publishThreadUpdate(runtime, "start");
+        if (consumeExpectedUserPromptEvent(runtime)) {
+          void publishThreadUpdate(runtime, "start");
+        } else {
+          console.info(
+            `[howcode] suppressed replayed user message event while opening ${runtime.session.sessionFile}`,
+          );
+        }
       } else {
         if (event.message.role === "toolResult") {
           const toolCallId = "toolCallId" in event.message ? event.message.toolCallId : undefined;

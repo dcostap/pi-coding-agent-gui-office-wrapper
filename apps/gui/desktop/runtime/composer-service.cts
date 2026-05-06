@@ -26,7 +26,9 @@ import {
 import {
   createRuntimeForNewSession,
   getCachedRuntimeForSessionPath,
+  clearRuntimeUserPromptPending,
   getOrCreateRuntimeForSessionPath,
+  markRuntimeUserPromptPending,
   scheduleRuntimeDisposalForRuntime,
   withRuntimeMutationLock,
   abortRuntimeExtensionCommand,
@@ -138,6 +140,7 @@ async function promptAndReturnAfterPreflight({
     resolvePreflight = resolve;
   });
 
+  const promptToken = markRuntimeUserPromptPending(runtime);
   const promptPromise = runtime.session.prompt(message, {
     ...options,
     preflightResult: (success) => resolvePreflight(success),
@@ -146,6 +149,7 @@ async function promptAndReturnAfterPreflight({
   const accepted = await preflight;
   if (!accepted) {
     await promptPromise;
+    clearRuntimeUserPromptPending(runtime, promptToken);
     return;
   }
 
@@ -158,6 +162,7 @@ async function promptAndReturnAfterPreflight({
       });
     })
     .finally(() => {
+      clearRuntimeUserPromptPending(runtime, promptToken);
       scheduleRuntimeDisposalForRuntime(runtime);
     });
 }

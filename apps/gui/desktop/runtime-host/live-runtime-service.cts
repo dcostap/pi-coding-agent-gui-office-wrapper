@@ -29,7 +29,9 @@ import {
   createRuntimeForNewSession,
   getCachedRuntimeForSessionPath,
   getOrCreateRuntimeForSessionPath,
+  clearRuntimeUserPromptPending,
   reloadRuntimeSettingsIfSafe,
+  markRuntimeUserPromptPending,
   scheduleRuntimeDisposal,
   withRuntimeMutationLock,
   abortRuntimeExtensionCommand,
@@ -126,6 +128,7 @@ async function promptAndReturnAfterPreflight({
   const preflight = new Promise<boolean>((resolve) => {
     resolvePreflight = resolve;
   });
+  const promptToken = markRuntimeUserPromptPending(runtime);
   const promptPromise = runtime.session.prompt(message, {
     ...options,
     preflightResult: (success) => resolvePreflight(success),
@@ -133,6 +136,7 @@ async function promptAndReturnAfterPreflight({
   const accepted = await preflight;
   if (!accepted) {
     await promptPromise;
+    clearRuntimeUserPromptPending(runtime, promptToken);
     return;
   }
   promptPromise
@@ -144,6 +148,7 @@ async function promptAndReturnAfterPreflight({
       });
     })
     .finally(() => {
+      clearRuntimeUserPromptPending(runtime, promptToken);
       const runtimeKey = getPersistedSessionPath(runtime.session.sessionFile);
       if (runtimeKey) scheduleRuntimeDisposal(runtimeKey);
     });
