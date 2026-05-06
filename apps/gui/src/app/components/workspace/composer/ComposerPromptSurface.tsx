@@ -307,9 +307,8 @@ export function ComposerPromptSurface({
         data-attachment-drop-active={attachmentDragActive ? "true" : "false"}
       >
         <div className="composer-attachment-drop-glow" aria-hidden="true" />
-        <div className="composer-attachment-drop-hint" aria-hidden="true">
-          <span className="composer-attachment-drop-hint__dot" />
-          <span>Release to attach</span>
+        <div className="composer-attachment-drop-label" aria-hidden="true">
+          Suelta para adjuntar archivos
         </div>
         {/* Let the prompt column size itself to one line by default, then grow upward naturally as
             the textarea expands. */}
