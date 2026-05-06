@@ -5,6 +5,18 @@
   }
 }
 
+@keyframes attachmentShelfItemIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes activitySpinnerRotate {
   8.3% {
     transform: rotate(30deg);
@@ -53,6 +65,10 @@
   100% {
     transform: rotate(360deg);
   }
+}
+
+.attachment-shelf-item {
+  animation: attachmentShelfItemIn 160ms ease-out both;
 }
 
 .activity-spinner__rotor {

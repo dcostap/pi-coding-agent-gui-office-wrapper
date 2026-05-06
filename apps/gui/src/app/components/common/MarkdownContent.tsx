@@ -71,12 +71,32 @@ function MarkdownPre({ children, ...props }: HTMLAttributes<HTMLPreElement>) {
   );
 }
 
+function isLikelyLocalPath(value: string) {
+  const trimmed = value.trim();
+  return /^[A-Za-z]:[\\/]/.test(trimmed) || trimmed.startsWith("\\\\") || /^\/[\w .~/-]+/.test(trimmed);
+}
+
 function MarkdownInlineCode({ children }: { children?: ReactNode }) {
-  return (
-    <code className={cn(inlineCodeClass, "bg-[rgba(138,190,183,0.14)] text-[#8abeb7]")}>
-      {children}
-    </code>
-  );
+  const text = String(children ?? "").trim();
+  const className = cn(inlineCodeClass, "bg-[rgba(138,190,183,0.14)] text-[#8abeb7]");
+
+  if (text && isLikelyLocalPath(text)) {
+    return (
+      <button
+        type="button"
+        className={cn(
+          className,
+          "cursor-pointer border-0 text-left transition hover:bg-[rgba(138,190,183,0.22)] hover:text-[#a9d6d0]",
+        )}
+        onClick={() => void window.piDesktop?.openPath?.(text)}
+        title="Open file"
+      >
+        {children}
+      </button>
+    );
+  }
+
+  return <code className={className}>{children}</code>;
 }
 
 export function MarkdownContent({ markdown, tone = "default", className }: MarkdownContentProps) {

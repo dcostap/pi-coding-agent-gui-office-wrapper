@@ -62,7 +62,7 @@ export async function handleComposerDesktopAction(
         if (normalizedAttachmentPayload.rejected) {
           return handledAction({
             error:
-              "Could not send prompt because one or more attached files are no longer available.",
+              "Could not send prompt because one or more attachments are unavailable or unsupported. Attach files only; folders are not supported yet.",
           });
         }
       }

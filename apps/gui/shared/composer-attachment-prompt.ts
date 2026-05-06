@@ -1,5 +1,7 @@
 import type { ComposerAttachment } from "./desktop-data-contracts";
 
+export { parseComposerAttachmentBlock } from "./composer-attachment-block";
+
 function isExternalReference(path: string) {
   return /^https?:\/\//i.test(path);
 }
