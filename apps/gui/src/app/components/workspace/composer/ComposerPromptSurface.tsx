@@ -1,5 +1,5 @@
 import { Square } from "lucide-react";
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
 import type { ComposerProps } from "../Composer";
@@ -95,6 +95,9 @@ export function ComposerPromptSurface({
     onAction,
     onRestoredQueuedPromptApplied,
   });
+  const [attachmentDragActive, setAttachmentDragActive] = useState(false);
+  const dragDepthRef = useRef(0);
+  const attachmentDragResetTimerRef = useRef<number | null>(null);
   const dictationTranscribing = dictationInterimText.length > 0;
   const composerMode = activeView === "chat" ? "chat" : "code";
   const slashCommandPanelRef = useRef<HTMLDivElement>(null);
@@ -201,15 +204,66 @@ export function ComposerPromptSurface({
   }, [cancelDictation, dictationActive, dictationTranscribing]);
 
   useEffect(() => {
+    const clearDragResetTimer = () => {
+      if (attachmentDragResetTimerRef.current !== null) {
+        window.clearTimeout(attachmentDragResetTimerRef.current);
+        attachmentDragResetTimerRef.current = null;
+      }
+    };
+
+    const resetAttachmentDrag = () => {
+      clearDragResetTimer();
+      dragDepthRef.current = 0;
+      setAttachmentDragActive(false);
+    };
+
+    const isOutsideWindow = (event: DragEvent) => {
+      const x = event.clientX;
+      const y = event.clientY;
+      return x <= 0 || y <= 0 || x >= window.innerWidth || y >= window.innerHeight;
+    };
+
+    const handleGlobalDragEnter = (event: DragEvent) => {
+      if (!hasFilePayloadInClipboardData(event.dataTransfer)) {
+        return;
+      }
+
+      event.preventDefault();
+      dragDepthRef.current += 1;
+      setAttachmentDragActive(true);
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+    };
+
     const handleGlobalFileDrag = (event: DragEvent) => {
       if (!hasFilePayloadInClipboardData(event.dataTransfer)) {
         return;
       }
 
       event.preventDefault();
+      setAttachmentDragActive(true);
       if (event.dataTransfer) {
         event.dataTransfer.dropEffect = "copy";
       }
+    };
+
+    const handleGlobalDragLeave = (event: DragEvent) => {
+      if (!hasFilePayloadInClipboardData(event.dataTransfer)) {
+        return;
+      }
+
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+      if (dragDepthRef.current > 0) {
+        return;
+      }
+
+      if (!isOutsideWindow(event)) {
+        return;
+      }
+
+      clearDragResetTimer();
+      attachmentDragResetTimerRef.current = window.setTimeout(resetAttachmentDrag, 60);
     };
 
     const handleGlobalDrop = (event: DragEvent) => {
@@ -218,16 +272,20 @@ export function ComposerPromptSurface({
       }
 
       event.preventDefault();
+      resetAttachmentDrag();
       void handleDrop(event.dataTransfer);
     };
 
-    window.addEventListener("dragenter", handleGlobalFileDrag, true);
+    window.addEventListener("dragenter", handleGlobalDragEnter, true);
     window.addEventListener("dragover", handleGlobalFileDrag, true);
+    window.addEventListener("dragleave", handleGlobalDragLeave, true);
     window.addEventListener("drop", handleGlobalDrop, true);
 
     return () => {
-      window.removeEventListener("dragenter", handleGlobalFileDrag, true);
+      resetAttachmentDrag();
+      window.removeEventListener("dragenter", handleGlobalDragEnter, true);
       window.removeEventListener("dragover", handleGlobalFileDrag, true);
+      window.removeEventListener("dragleave", handleGlobalDragLeave, true);
       window.removeEventListener("drop", handleGlobalDrop, true);
     };
   }, [handleDrop]);
@@ -241,9 +299,18 @@ export function ComposerPromptSurface({
     <div className="relative left-1/2 grid w-[calc(100%-1rem)] -translate-x-1/2 grid-cols-[minmax(0,1fr)_1.75rem] items-end gap-1 overflow-visible">
       <div
         ref={composerPanelRef}
-        className="grid gap-0 overflow-visible rounded-[18px] border border-[rgba(255,255,255,0.075)] bg-[color:var(--panel)] shadow-[0_16px_48px_rgba(0,0,0,0.24)]"
+        className={cn(
+          "composer-attachment-drop-target relative grid gap-0 overflow-visible rounded-[18px] border border-[rgba(255,255,255,0.075)] bg-[color:var(--panel)] shadow-[0_16px_48px_rgba(0,0,0,0.24)]",
+          attachmentDragActive && "composer-attachment-drop-target--active",
+        )}
         aria-label="Composer panel"
+        data-attachment-drop-active={attachmentDragActive ? "true" : "false"}
       >
+        <div className="composer-attachment-drop-glow" aria-hidden="true" />
+        <div className="composer-attachment-drop-hint" aria-hidden="true">
+          <span className="composer-attachment-drop-hint__dot" />
+          <span>Release to attach</span>
+        </div>
         {/* Let the prompt column size itself to one line by default, then grow upward naturally as
             the textarea expands. */}
         <div className="relative">
