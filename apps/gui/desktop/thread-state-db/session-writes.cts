@@ -59,7 +59,7 @@ export function syncSessionSummaries(cwd: string, sessions: SessionSummaryRecord
         cwd = excluded.cwd,
         title = excluded.title,
         last_modified_ms = CASE
-          WHEN ? THEN excluded.last_modified_ms
+          WHEN ? THEN MAX(threads.last_modified_ms, excluded.last_modified_ms)
           ELSE threads.last_modified_ms
         END,
         updated_at = CURRENT_TIMESTAMP
@@ -133,7 +133,7 @@ export function upsertThreadSummary(
         title = excluded.title,
         last_modified_ms = CASE
           WHEN ? THEN threads.last_modified_ms
-          ELSE excluded.last_modified_ms
+          ELSE MAX(threads.last_modified_ms, excluded.last_modified_ms)
         END,
         updated_at = CURRENT_TIMESTAMP
     `,
