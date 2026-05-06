@@ -1,4 +1,4 @@
-import { Paperclip, Square, X } from "lucide-react";
+import { Square } from "lucide-react";
 import { type RefObject, useEffect, useRef } from "react";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
@@ -19,8 +19,6 @@ type ComposerPromptSurfaceProps = ComposerProps & {
 export function ComposerPromptSurface({
   activeView,
   composerPanelRef,
-  mainViewRef,
-  workspaceFooterRef,
   model,
   contextUsage,
   availableModels,
@@ -39,13 +37,11 @@ export function ComposerPromptSurface({
   sessionPath,
   dictationModelId,
   dictationMaxDurationSeconds,
-  favoriteFolders,
   onOpenTakeoverTerminal,
   onToggleTerminal,
   onToggleArtifacts,
   onOpenSettingsView,
   onRestoredQueuedPromptApplied,
-  onListAttachmentEntries,
   onAction,
   terminalVisible,
   artifactsVisible,
@@ -59,7 +55,6 @@ export function ComposerPromptSurface({
     attachments,
     cancelDictation,
     canSend,
-    clearAttachments,
     clearError,
     draft,
     dictationActive,
@@ -69,17 +64,9 @@ export function ComposerPromptSurface({
     inputLocked,
     isSending,
     isStreaming: composerIsStreaming,
-    pickerButtonRef,
-    pickerLoading,
-    pickerOpen,
-    pickerPanelRef,
-    pickerState,
     modelButtonRef,
     modelMenuOpen,
     modelMenuRef,
-    pickAttachments,
-    openPickerDirectory,
-    openPickerRoot,
     removeAttachment,
     runComposerAction,
     compact,
@@ -88,16 +75,11 @@ export function ComposerPromptSurface({
     setDraft,
     setOpenMenu,
     stop,
-    attachPickerAttachments,
     handleDrop,
-    togglePendingPickerAttachment,
     handlePaste,
     thinkingLevelLabels,
   } = useComposerController({
     activeView,
-    composerPanelRef,
-    mainViewRef,
-    workspaceFooterRef,
     model,
     projectId,
     chatGroupId,
@@ -112,7 +94,6 @@ export function ComposerPromptSurface({
     streamingBehaviorPreference,
     onAction,
     onRestoredQueuedPromptApplied,
-    onListAttachmentEntries,
   });
   const dictationTranscribing = dictationInterimText.length > 0;
   const composerMode = activeView === "chat" ? "chat" : "code";
@@ -198,19 +179,12 @@ export function ComposerPromptSurface({
   ]);
 
   useEffect(() => {
-    if (!pickerOpen && !dictationActive && !dictationTranscribing) {
+    if (!dictationActive && !dictationTranscribing) {
       return;
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") {
-        return;
-      }
-
-      if (pickerOpen) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        setOpenMenu(null);
         return;
       }
 
@@ -224,7 +198,7 @@ export function ComposerPromptSurface({
     return () => {
       window.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [cancelDictation, dictationActive, dictationTranscribing, pickerOpen, setOpenMenu]);
+  }, [cancelDictation, dictationActive, dictationTranscribing]);
 
   useEffect(() => {
     const handleGlobalFileDrag = (event: DragEvent) => {
@@ -261,53 +235,10 @@ export function ComposerPromptSurface({
   const extensionRunning = extensionCommandRunning;
   const placeholderText =
     errorMessage ?? "Escribe aquí · Enter para enviar · Shift + Enter para nueva línea";
-  const attachmentButtonLabel = attachments.length > 0 ? "Manage attachments" : "Add attachment";
   const canStopComposer = (composerIsStreaming || extensionRunning) && !isSending && !!sessionPath;
 
   return (
-    <div className="relative left-1/2 grid w-[calc(100%-1rem)] -translate-x-1/2 grid-cols-[1.75rem_minmax(0,1fr)_1.75rem] items-end gap-1 overflow-visible">
-      <div className="relative mb-[3.55rem] h-8 w-8 shrink-0 text-[color:var(--muted)]">
-        <div className="absolute bottom-0 left-0 flex w-7 flex-col-reverse items-center gap-1">
-          <button
-            ref={pickerButtonRef}
-            type="button"
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-            onClick={() => {
-              if (slashCommands.open) {
-                slashCommands.dismiss({ clearDraft: true });
-              }
-              pickAttachments();
-            }}
-            aria-label={attachmentButtonLabel}
-            data-tooltip={attachmentButtonLabel}
-          >
-            <span className={cn(compactIconButtonClass, "h-7 w-7 shrink-0 rounded-full")}>
-              <Paperclip size={15} />
-            </span>
-          </button>
-
-          {attachments.length > 0 ? (
-            <>
-              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 text-[11px] text-[color:var(--text)]">
-                {attachments.length}
-              </span>
-              <button
-                type="button"
-                className={cn(
-                  compactIconButtonClass,
-                  "h-5 w-5 rounded-full opacity-70 hover:opacity-100",
-                )}
-                onClick={clearAttachments}
-                aria-label="Clear attachments"
-                data-tooltip="Clear attachments"
-              >
-                <X size={11} />
-              </button>
-            </>
-          ) : null}
-        </div>
-      </div>
-
+    <div className="relative left-1/2 grid w-[calc(100%-1rem)] -translate-x-1/2 grid-cols-[minmax(0,1fr)_1.75rem] items-end gap-1 overflow-visible">
       <div
         ref={composerPanelRef}
         className="grid gap-0 overflow-visible rounded-[18px] border border-[rgba(255,255,255,0.075)] bg-[color:var(--panel)] shadow-[0_16px_48px_rgba(0,0,0,0.24)]"
@@ -328,25 +259,15 @@ export function ComposerPromptSurface({
             extensionRunning={extensionRunning}
             inputLocked={inputLocked}
             canSubmit={canSend}
-            favoriteFolders={favoriteFolders}
-            pickerLoading={pickerLoading}
-            pickerOpen={pickerOpen}
-            pickerPanelRef={pickerPanelRef}
-            pickerState={pickerState}
             placeholderText={placeholderText}
-            projectId={projectId}
             slashCommandPanelRef={slashCommandPanelRef}
             slashCommands={slashCommands}
-            attachPickerAttachments={attachPickerAttachments}
             cancelDictation={cancelDictation}
             handlePaste={handlePaste}
             onLayoutChange={onLayoutChange}
             onSubmit={slashCommands.submit}
-            openPickerDirectory={openPickerDirectory}
-            openPickerRoot={openPickerRoot}
             removeAttachment={removeAttachment}
             setDraft={setDraft}
-            togglePendingPickerAttachment={togglePendingPickerAttachment}
           />
         </div>
 

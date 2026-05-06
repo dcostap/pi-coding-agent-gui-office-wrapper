@@ -2,7 +2,7 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import type { ClipboardEvent, RefObject } from "react";
 import { getPathForFileQuery } from "../../../query/desktop-query";
 import { cn } from "../../../utils/cn";
-import { ComposerFilePicker } from "./ComposerFilePicker";
+import { ComposerAttachmentShelf } from "./ComposerAttachmentShelf";
 import { ComposerTextField } from "./ComposerTextField";
 import {
   getComposerAttachmentsFromClipboardData,
@@ -25,16 +25,9 @@ type ComposerPromptInputPanelProps = {
   extensionRunning: boolean;
   inputLocked: boolean;
   canSubmit: boolean;
-  favoriteFolders: string[];
-  pickerLoading: boolean;
-  pickerOpen: boolean;
-  pickerPanelRef: RefObject<HTMLDivElement | null>;
-  pickerState: Parameters<typeof ComposerFilePicker>[0]["picker"];
   placeholderText: string;
-  projectId: string;
   slashCommandPanelRef: RefObject<HTMLDivElement | null>;
   slashCommands: ComposerSlashCommands;
-  attachPickerAttachments: Parameters<typeof ComposerFilePicker>[0]["onAttachAttachments"];
   cancelDictation: () => Promise<void>;
   handlePaste: (payload: {
     clipboardData: DataTransfer | ClipboardEvent<HTMLTextAreaElement>["clipboardData"];
@@ -42,12 +35,8 @@ type ComposerPromptInputPanelProps = {
   }) => Promise<void>;
   onLayoutChange?: () => void;
   onSubmit: () => void;
-  openPickerDirectory: Parameters<typeof ComposerFilePicker>[0]["onOpenDirectory"];
-  openPickerRoot: Parameters<typeof ComposerFilePicker>[0]["onOpenRoot"];
   removeAttachment: (path: string) => void;
   setDraft: (value: string) => void;
-
-  togglePendingPickerAttachment: Parameters<typeof ComposerFilePicker>[0]["onToggleFile"];
 };
 
 export function ComposerPromptInputPanel({
@@ -60,45 +49,18 @@ export function ComposerPromptInputPanel({
   extensionRunning,
   inputLocked,
   canSubmit,
-  favoriteFolders,
-  pickerLoading,
-  pickerOpen,
-  pickerPanelRef,
-  pickerState,
   placeholderText,
-  projectId,
   slashCommandPanelRef,
   slashCommands,
-  attachPickerAttachments,
   cancelDictation,
   handlePaste,
   onLayoutChange,
   onSubmit,
-  openPickerDirectory,
-  openPickerRoot,
   removeAttachment,
   setDraft,
-
-  togglePendingPickerAttachment,
 }: ComposerPromptInputPanelProps) {
   return (
     <>
-      {pickerOpen ? (
-        <ComposerFilePicker
-          attachments={attachments}
-          errorMessage={errorMessage}
-          favoriteFolders={favoriteFolders}
-          loading={pickerLoading}
-          picker={pickerState}
-          panelRef={pickerPanelRef}
-          projectRootPath={projectId}
-          onAttachAttachments={attachPickerAttachments}
-          onOpenRoot={openPickerRoot}
-          onOpenDirectory={openPickerDirectory}
-          onRemoveAttachment={removeAttachment}
-          onToggleFile={togglePendingPickerAttachment}
-        />
-      ) : null}
       <div className="grid content-end pr-4 pl-[1.1rem] pt-4 pb-2">
         <div className="flex items-end justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-end gap-2">
@@ -258,6 +220,7 @@ export function ComposerPromptInputPanel({
           </div>
         </div>
       </div>
+      <ComposerAttachmentShelf attachments={attachments} onRemove={removeAttachment} />
     </>
   );
 }

@@ -53,8 +53,11 @@ export async function handleComposerDesktopAction(
       let attachments: ComposerAttachment[] = [];
 
       if (!isCompactSlashCommand(text)) {
+        const composerRequest = getComposerRequest(payload);
         const rawAttachments = getComposerAttachments(payload);
-        const normalizedAttachmentPayload = await normalizeComposerSendAttachments(rawAttachments);
+        const normalizedAttachmentPayload = await normalizeComposerSendAttachments(rawAttachments, {
+          targetRootPath: composerRequest.projectId ?? null,
+        });
         attachments = normalizedAttachmentPayload.attachments;
         if (normalizedAttachmentPayload.rejected) {
           return handledAction({

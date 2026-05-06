@@ -46,6 +46,8 @@ type CodeWorkspaceMainViewProps = {
   workspaceContentClass: string;
   threadData: ThreadData | null;
   composerLayoutVersion: number;
+  projectFilesOpen?: boolean;
+  onToggleProjectFiles?: () => void;
   onAction: DesktopActionInvoker;
   onDismissInboxThread: (thread: InboxThread) => void;
   onListAttachmentEntries: (request: {
@@ -80,6 +82,8 @@ export function CodeWorkspaceMainView({
   workspaceContentClass,
   threadData,
   composerLayoutVersion,
+  projectFilesOpen = false,
+  onToggleProjectFiles,
   onAction,
   onDismissInboxThread,
   onListAttachmentEntries,
@@ -116,6 +120,8 @@ export function CodeWorkspaceMainView({
         isStreaming={threadData?.isStreaming ?? false}
         isCompacting={threadData?.isCompacting ?? false}
         composerLayoutVersion={composerLayoutVersion}
+        projectFilesOpen={projectFilesOpen}
+        onToggleProjectFiles={onToggleProjectFiles}
         onLoadEarlierMessages={onLoadEarlierMessages}
       />
     );

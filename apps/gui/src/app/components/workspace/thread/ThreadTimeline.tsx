@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownToLine, ListCollapse } from "lucide-react";
+import { ArrowDownToLine, ListCollapse, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { Message } from "../../../types";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { CHAT_TEXT_MAX_WIDTH_CLASS } from "../../../ui/layout";
@@ -17,6 +17,8 @@ type ThreadTimelineProps = {
   isStreaming: boolean;
   isCompacting: boolean;
   composerLayoutVersion: number;
+  projectFilesOpen?: boolean;
+  onToggleProjectFiles?: () => void;
   onLoadEarlierMessages: () => void;
 };
 
@@ -29,6 +31,8 @@ export function ThreadTimeline({
   isStreaming,
   isCompacting,
   composerLayoutVersion,
+  projectFilesOpen = false,
+  onToggleProjectFiles,
   onLoadEarlierMessages,
 }: ThreadTimelineProps) {
   const [collapsedRowIds, setCollapsedRowIds] = useState<Record<string, boolean>>({});
@@ -307,6 +311,21 @@ export function ThreadTimeline({
         </div>
       ) : null}
       <div className="pointer-events-none absolute right-0 bottom-4 z-10 flex w-7 flex-col items-center gap-1.5">
+        {onToggleProjectFiles ? (
+          <button
+            type="button"
+            className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
+            onClick={onToggleProjectFiles}
+            aria-label={projectFilesOpen ? "Collapse project files" : "Open project files"}
+            data-tooltip={projectFilesOpen ? "Collapse project files" : "Open project files"}
+          >
+            {projectFilesOpen ? (
+              <PanelRightClose size={13} strokeWidth={2} />
+            ) : (
+              <PanelRightOpen size={13} strokeWidth={2} />
+            )}
+          </button>
+        ) : null}
         <button
           type="button"
           className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
