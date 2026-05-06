@@ -19,6 +19,7 @@ import { mapWithConcurrency } from "./map-with-concurrency.cts";
 export type LoadedThreadSnapshot = {
   projectId: string;
   threadId: string;
+  lastActivityMs: number | null;
   thread: ThreadData;
 };
 

@@ -94,7 +94,7 @@ export type RuntimeHostResponseMap = {
   listConfiguredPiSkills: PiConfiguredSkill[];
   installPiSkill: PiSkillMutationResult;
   removePiSkill: PiSkillMutationResult;
-  loadThreadSnapshot: { projectId: string; threadId: string; thread: ThreadData };
+  loadThreadSnapshot: { projectId: string; threadId: string; lastActivityMs: number | null; thread: ThreadData };
   startSkillCreatorSession: SkillCreatorSessionState;
   continueSkillCreatorSession: SkillCreatorSessionState;
   closeSkillCreatorSession: { ok: boolean };

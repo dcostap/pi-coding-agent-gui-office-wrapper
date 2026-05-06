@@ -53,8 +53,10 @@ export async function publishExternalThreadUpdate({
   sessionPath,
   thread,
   threadId,
+  hasActivityTimestamp = true,
 }: {
   lastModifiedMs: number;
+  hasActivityTimestamp?: boolean;
   projectId: string;
   sessionPath: string;
   thread: ThreadData;
@@ -63,13 +65,16 @@ export async function publishExternalThreadUpdate({
   thread = normalizeExternalThreadData(thread);
   rememberLiveThread(sessionPath, thread);
   rememberSessionPath(sessionPath, projectId);
-  threadId = upsertThreadSummary({
-    id: threadId,
-    cwd: projectId,
-    sessionPath,
-    title: thread.title,
-    lastModifiedMs,
-  });
+  threadId = upsertThreadSummary(
+    {
+      id: threadId,
+      cwd: projectId,
+      sessionPath,
+      title: thread.title,
+      lastModifiedMs,
+    },
+    { preserveLastModified: !hasActivityTimestamp },
+  );
   setThreadRunningState(sessionPath, false);
 
   const latestUserPrompt = getLatestUserPrompt(thread);
@@ -96,6 +101,7 @@ export async function publishExternalThreadUpdate({
     threadId,
     sessionPath,
     thread,
+    lastModifiedMs: hasActivityTimestamp ? lastModifiedMs : undefined,
     composer: null,
   });
 }

@@ -63,7 +63,8 @@ async function refreshWatchedSession(sessionPath: string, watchToken: number) {
       threadId: snapshot.threadId,
       sessionPath,
       thread: snapshot.thread,
-      lastModifiedMs: fileStats.mtimeMs,
+      lastModifiedMs: snapshot.lastActivityMs ?? fileStats.mtimeMs,
+      hasActivityTimestamp: snapshot.lastActivityMs !== null,
     });
   } catch (error) {
     console.warn(`Failed to refresh watched Pi session: ${sessionPath}`, error);

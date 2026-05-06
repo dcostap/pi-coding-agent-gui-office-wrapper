@@ -176,7 +176,9 @@ export function useDesktopEventSync({
             running: event.thread.isStreaming || event.thread.isCompacting,
           },
           {
-            preserveLastModified: event.reason !== "start" && event.reason !== "external",
+            preserveLastModified:
+              event.reason !== "start" &&
+              (event.reason !== "external" || event.lastModifiedMs === undefined),
             replaceSessionPath: getDraftReplacementSessionPath(
               latestWorkspaceState.selectedSessionPath,
               latestWorkspaceState.selectedProjectId,
