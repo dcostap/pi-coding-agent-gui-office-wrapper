@@ -11,6 +11,7 @@ export type SessionSummary = {
   name?: string;
   firstMessage?: string;
   modified: Date;
+  modifiedFromActivity: boolean;
   path: string;
   cwd?: string;
 };
@@ -183,6 +184,7 @@ async function readSessionSummary(filePath: string): Promise<SessionSummaryReadR
       name,
       firstMessage,
       modified: getSessionModifiedDate(header, lastActivityTimeMs, fileStat.mtime),
+      modifiedFromActivity: lastActivityTimeMs !== null,
     },
     failed: false,
   };
@@ -195,6 +197,7 @@ export function mapSessionSummaryToRecord(cwd: string, session: SessionSummary) 
     sessionPath: session.path,
     title: normalizeThreadTitle(session.firstMessage || session.name),
     lastModifiedMs: session.modified.getTime(),
+    hasActivityTimestamp: session.modifiedFromActivity,
   };
 }
 

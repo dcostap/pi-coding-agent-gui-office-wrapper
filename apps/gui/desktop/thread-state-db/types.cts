@@ -4,6 +4,7 @@ export type SessionSummaryRecord = {
   sessionPath: string;
   title: string;
   lastModifiedMs: number;
+  hasActivityTimestamp?: boolean;
 };
 
 export type ProjectRow = {

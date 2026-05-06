@@ -58,7 +58,10 @@ export function syncSessionSummaries(cwd: string, sessions: SessionSummaryRecord
         id = excluded.id,
         cwd = excluded.cwd,
         title = excluded.title,
-        last_modified_ms = excluded.last_modified_ms,
+        last_modified_ms = CASE
+          WHEN ? THEN excluded.last_modified_ms
+          ELSE threads.last_modified_ms
+        END,
         updated_at = CURRENT_TIMESTAMP
     `,
   );
@@ -76,6 +79,7 @@ export function syncSessionSummaries(cwd: string, sessions: SessionSummaryRecord
         session.sessionPath,
         session.title,
         session.lastModifiedMs,
+        session.hasActivityTimestamp ? 1 : 0,
       );
     }
   });
