@@ -28,7 +28,7 @@
     "publish:howcode:dry-run": "cd packages/howcode && npm publish --dry-run",
     "preview": "vite preview",
     "prepare": "test -d .git && husky || true",
-    "postinstall": "node ./node_modules/electron/install.js && electron-builder install-app-deps",
+    "postinstall": "node -e \"require('electron/install')\" && electron-builder install-app-deps",
     "lint": "biome check --organize-imports-enabled=false .",
     "format": "biome format --write .",
     "typecheck": "bun run typecheck:web && bun run typecheck:desktop && bun run typecheck:electron && bun run typecheck:scripts",
