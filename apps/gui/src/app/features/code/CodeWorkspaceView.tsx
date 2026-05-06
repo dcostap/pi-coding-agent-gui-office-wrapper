@@ -206,9 +206,9 @@ export function CodeWorkspaceView({
     showDesktopTerminalDrawer ? TERMINAL_DRAWER_OFFSET : null,
     projectFilesDockedOffset,
   );
-  const projectFilesPanelRightStyle = showDesktopTerminalDrawer
-    ? { right: TERMINAL_DRAWER_OFFSET }
-    : undefined;
+  const projectFilesPanelRightStyle = {
+    right: showDesktopTerminalDrawer ? TERMINAL_DRAWER_OFFSET : "0px",
+  };
   const threadFooterStyle = showPromptComposer
     ? {
         ...workspaceRightInsetStyle,
