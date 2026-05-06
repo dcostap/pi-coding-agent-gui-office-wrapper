@@ -84,6 +84,15 @@ try {
   assert(inside.exitCode === 0, `inside command failed: ${JSON.stringify(inside)}`);
   assert(inside.output.includes("sandbox-ok"), `inside command did not produce expected output: ${inside.output}`);
 
+  assert(env.OFFICE_AGENT_REAL_USERPROFILE, "managed session env did not include OFFICE_AGENT_REAL_USERPROFILE");
+  assert(env.OFFICE_AGENT_REAL_DESKTOP, "managed session env did not include OFFICE_AGENT_REAL_DESKTOP");
+  assert(env.OFFICE_AGENT_SANDBOX_PROFILE === sessionPaths.profileDir, "managed session env did not expose the sandbox profile path");
+  assert(env.OFFICE_AGENT_MANAGED_ROOT === managedRoot, "managed session env did not expose the managed root path");
+  const realUserEnv = await runSandboxCommand(bash, commandSet.realUserEnv, projectDir, env, 20);
+  assert(realUserEnv.exitCode === 0, `real-user env probe failed: ${JSON.stringify(realUserEnv)}`);
+  assert(realUserEnv.output.includes(env.OFFICE_AGENT_REAL_DESKTOP), `sandbox command did not receive OFFICE_AGENT_REAL_DESKTOP: ${realUserEnv.output}`);
+  assert(realUserEnv.output.includes(sessionPaths.profileDir), `sandbox command did not receive OFFICE_AGENT_SANDBOX_PROFILE: ${realUserEnv.output}`);
+
   const nativeCommandChecks = shellConfig.backend === "cmd"
     ? await runNativeCmdCompatibilityChecks(bash, projectDir, env)
     : { skipped: true };
@@ -366,6 +375,7 @@ async function createDirectoryJunction(linkPath, targetPath) {
 function createCmdSmokeCommands() {
   return {
     inside: "cd && echo sandbox-ok> inside.txt && type inside.txt && echo TEMP=%TEMP%",
+    realUserEnv: "echo REAL_DESKTOP=%OFFICE_AGENT_REAL_DESKTOP%&& echo SANDBOX_PROFILE=%OFFICE_AGENT_SANDBOX_PROFILE%",
     outsideWrite: (target) => `echo should-not-exist> "${target}"`,
     outsideRead: (target) => `type "${target}"`,
     systemRead: "type C:\\Windows\\win.ini",
@@ -379,6 +389,7 @@ function createCmdSmokeCommands() {
 function createPowerShellSmokeCommands() {
   return {
     inside: "$PWD.Path; 'sandbox-ok' | Set-Content -NoNewline inside.txt; Get-Content inside.txt; \"TEMP=$env:TEMP\"",
+    realUserEnv: "\"REAL_DESKTOP=$env:OFFICE_AGENT_REAL_DESKTOP\"; \"SANDBOX_PROFILE=$env:OFFICE_AGENT_SANDBOX_PROFILE\"",
     outsideWrite: (target) => `'should-not-exist' | Set-Content -NoNewline "${escapePowerShellString(target)}"`,
     outsideRead: (target) => `Get-Content "${escapePowerShellString(target)}"`,
     systemRead: "Get-Content C:\\Windows\\win.ini",
@@ -392,6 +403,7 @@ function createPowerShellSmokeCommands() {
 function createBashSmokeCommands() {
   return {
     inside: "pwd && echo sandbox-ok > inside.txt && cat inside.txt && echo TEMP=$TEMP && bash --version | head -n 1",
+    realUserEnv: "printf 'REAL_DESKTOP=%s\\nSANDBOX_PROFILE=%s\\n' \"$OFFICE_AGENT_REAL_DESKTOP\" \"$OFFICE_AGENT_SANDBOX_PROFILE\"",
     outsideWrite: (target) => `echo should-not-exist > "${toMsysPath(target)}"`,
     outsideRead: (target) => `cat "${toMsysPath(target)}"`,
     systemRead: "cat /c/Windows/win.ini",

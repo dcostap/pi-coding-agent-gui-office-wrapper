@@ -68,6 +68,7 @@ export async function createOfficeAgentManagedSessionRuntime(
     : await createOfficeAgentResourceLoader(cwd, agentDir, promptContexts, options.settingsManager);
   const sessionEnv = getOfficeAgentManagedSessionEnv(sessionId, process.env, {
     managedRootDir,
+    activeProjectDir: cwd,
     ...(agentDir ? { agentDir } : {}),
   });
 

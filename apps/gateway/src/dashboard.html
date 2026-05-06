@@ -3,332 +3,630 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OfficeAgent Analytics</title>
+  <title>OfficeAgent Gateway Analytics</title>
   <style>
     :root {
-      color-scheme: dark;
-      --bg: #09111f;
-      --panel: rgba(15, 23, 42, 0.88);
-      --panel-2: rgba(30, 41, 59, 0.72);
-      --line: rgba(148, 163, 184, 0.18);
-      --text: #e5eefc;
-      --muted: #94a3b8;
-      --accent: #60a5fa;
-      --accent-2: #22c55e;
-      --accent-3: #f59e0b;
-      --danger: #ef4444;
-      --shadow: 0 20px 50px rgba(2, 6, 23, 0.45);
+      color-scheme: light;
+      --bg: #f6f8fc;
+      --surface: #ffffff;
+      --surface-soft: #f9fbff;
+      --line: #dfe6f1;
+      --line-soft: #edf2f8;
+      --text: #101828;
+      --muted: #667085;
+      --muted-2: #98a2b3;
+      --blue: #2f6fed;
+      --blue-soft: #eaf1ff;
+      --green: #16a34a;
+      --green-soft: #eaf8ef;
+      --red: #ef4444;
+      --red-soft: #fff0f0;
+      --amber: #f59e0b;
+      --amber-soft: #fff7e8;
+      --purple: #7c3aed;
+      --teal: #14b8a6;
+      --sidebar: #08203f;
+      --sidebar-2: #0b2a52;
+      --sidebar-line: rgba(255, 255, 255, 0.1);
+      --shadow: 0 14px 40px rgba(16, 24, 40, 0.08);
+      --radius: 16px;
     }
+
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
-      font-family: Inter, Segoe UI, Arial, sans-serif;
-      background:
-        radial-gradient(circle at top left, rgba(59, 130, 246, 0.25), transparent 26%),
-        radial-gradient(circle at top right, rgba(34, 197, 94, 0.18), transparent 24%),
-        linear-gradient(180deg, #07101c 0%, #0b1322 100%);
+      min-height: 100vh;
+      background: var(--bg);
       color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, select { font: inherit; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 236px minmax(0, 1fr);
       min-height: 100vh;
     }
-    .shell {
-      max-width: 1480px;
-      margin: 0 auto;
-      padding: 28px;
-    }
-    .hero {
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      background:
+        radial-gradient(circle at 16% 0%, rgba(66, 153, 225, 0.32), transparent 30%),
+        linear-gradient(180deg, var(--sidebar), var(--sidebar-2));
+      color: #fff;
+      padding: 22px 16px;
       display: flex;
-      justify-content: space-between;
-      gap: 24px;
-      align-items: flex-start;
-      margin-bottom: 20px;
+      flex-direction: column;
+      gap: 22px;
     }
-    .hero h1 {
-      margin: 0 0 8px;
-      font-size: 34px;
-      letter-spacing: -0.03em;
-    }
-    .hero p {
-      margin: 0;
-      color: var(--muted);
-      max-width: 720px;
-      line-height: 1.45;
-    }
-    .chip-row {
+
+    .brand {
       display: flex;
       gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 14px;
+      align-items: center;
+      padding: 0 4px 14px;
+      border-bottom: 1px solid var(--sidebar-line);
     }
-    .chip {
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 8px 12px;
-      background: rgba(15, 23, 42, 0.55);
-      color: var(--muted);
-      font-size: 13px;
-    }
-    .status {
-      min-width: 260px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 16px 18px;
-      box-shadow: var(--shadow);
-    }
-    .status strong {
-      display: block;
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-    .status span {
-      font-size: 15px;
-    }
-    .grid {
+
+    .logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
       display: grid;
-      gap: 16px;
+      place-items: center;
+      background: linear-gradient(135deg, #70b7ff, #2f6fed 48%, #0d3970);
+      box-shadow: 0 10px 24px rgba(47, 111, 237, 0.35);
+      font-weight: 900;
     }
-    .stats {
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      margin-bottom: 16px;
+
+    .brand strong { font-size: 17px; letter-spacing: -0.02em; }
+    .brand span { color: rgba(255, 255, 255, 0.6); font-size: 12px; }
+
+    .nav { display: grid; gap: 6px; }
+
+    .nav-item {
+      height: 42px;
+      border-radius: 10px;
+      padding: 0 12px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 14px;
+      font-weight: 650;
     }
-    .card, .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      box-shadow: var(--shadow);
+
+    .nav-item.active {
+      color: #fff;
+      background: linear-gradient(135deg, #2f7bff, #1f63df);
+      box-shadow: 0 10px 24px rgba(21, 101, 216, 0.32);
     }
-    .card {
-      padding: 18px;
-    }
-    .label {
+
+    .nav-item.dim { opacity: 0.62; }
+
+    .sidebar-foot {
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 1px solid var(--sidebar-line);
+      color: rgba(255, 255, 255, 0.64);
       font-size: 12px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 10px;
+      line-height: 1.5;
     }
-    .metric {
-      font-size: 34px;
-      font-weight: 700;
-      letter-spacing: -0.04em;
-    }
-    .submetric {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-    .panels {
-      grid-template-columns: 2fr 1.3fr;
-      align-items: start;
-    }
-    .panel {
-      padding: 18px;
-      overflow: hidden;
-    }
-    .panel h2 {
-      margin: 0 0 6px;
-      font-size: 18px;
-    }
-    .panel .muted {
-      color: var(--muted);
-      font-size: 13px;
-      margin-bottom: 12px;
-    }
-    .chart {
-      height: 220px;
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.42), rgba(15, 23, 42, 0.12));
-      border: 1px solid rgba(148, 163, 184, 0.08);
-      border-radius: 14px;
-      padding: 10px;
-    }
-    .chart svg {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    .split {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: 1fr 1fr;
-      margin-top: 16px;
-    }
-    .bar-list {
-      display: grid;
-      gap: 10px;
-    }
-    .bar-row {
-      display: grid;
-      grid-template-columns: 170px 1fr 48px;
-      gap: 12px;
-      align-items: center;
-      font-size: 13px;
-    }
-    .bar-track {
-      height: 12px;
-      border-radius: 999px;
-      overflow: hidden;
-      background: rgba(148, 163, 184, 0.12);
-    }
-    .bar-fill {
-      height: 100%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, var(--accent), #8b5cf6);
-    }
-    .recent-list {
-      display: grid;
-      gap: 10px;
-      max-height: 440px;
-      overflow: auto;
-      padding-right: 4px;
-    }
-    .recent-item {
-      padding: 12px 14px;
-      border-radius: 14px;
-      background: var(--panel-2);
-      border: 1px solid rgba(148, 163, 184, 0.08);
-    }
-    .recent-top {
+
+    .main { min-width: 0; }
+
+    .topbar {
+      height: 64px;
+      position: sticky;
+      top: 0;
+      z-index: 5;
       display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 6px;
       align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 0 28px;
+      background: rgba(255, 255, 255, 0.88);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(16px);
     }
-    .badge {
+
+    .top-left, .top-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .pill {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 12px;
-      background: rgba(96, 165, 250, 0.12);
-      color: #bfdbfe;
-      border: 1px solid rgba(96, 165, 250, 0.24);
-    }
-    .badge.error {
-      background: rgba(239, 68, 68, 0.12);
-      color: #fecaca;
-      border-color: rgba(239, 68, 68, 0.22);
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
+      min-height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--muted);
       font-size: 13px;
+      font-weight: 650;
+      white-space: nowrap;
     }
-    th, td {
-      padding: 12px 10px;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.10);
-      text-align: left;
-      vertical-align: top;
+
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--green); box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12); }
+    .dot.warn { background: var(--amber); box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.14); }
+    .dot.bad { background: var(--red); box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.14); }
+
+    .search {
+      width: min(340px, 28vw);
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      padding: 0 12px;
+      color: var(--text);
+      outline: none;
     }
-    th {
+
+    .range-switch {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px;
+      gap: 2px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+
+    .range-switch button {
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
       color: var(--muted);
-      font-weight: 600;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+      min-height: 30px;
+      padding: 0 10px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
     }
-    .mono {
-      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+
+    .range-switch button.active { background: var(--blue); color: #fff; }
+
+    .content {
+      padding: 26px 28px 30px;
+      max-width: 1800px;
+      margin: 0 auto;
     }
-    .tiny {
-      color: var(--muted);
-      font-size: 12px;
-      margin-top: 4px;
+
+    .hero {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 22px;
     }
-    .empty {
-      padding: 18px;
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(26px, 2.1vw, 36px);
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+
+    .button {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0 13px;
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(150px, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .card, .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .card {
+      min-height: 116px;
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+    .card-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 11px;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .card-icon.green { background: var(--green-soft); color: var(--green); }
+    .card-icon.red { background: var(--red-soft); color: var(--red); }
+    .card-icon.amber { background: var(--amber-soft); color: var(--amber); }
+    .card-icon.purple { background: #f1ecff; color: var(--purple); }
+    .card-icon.teal { background: #e9fbf8; color: var(--teal); }
+
+    .label { color: var(--muted); font-size: 12px; font-weight: 750; }
+    .value { font-size: 24px; font-weight: 850; letter-spacing: -0.04em; }
+    .sub { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .delta { font-size: 11px; font-weight: 800; color: var(--green); }
+    .delta.bad { color: var(--red); }
+    .delta.muted { color: var(--muted-2); }
+
+    .grid-main {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(360px, 1fr) minmax(300px, 0.72fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .grid-lower {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.72fr) minmax(420px, 1.3fr) minmax(460px, 1.4fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .panel { padding: 16px; min-width: 0; }
+
+    .panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .panel h2 { margin: 0; font-size: 15px; letter-spacing: -0.02em; }
+    .panel .hint { margin-top: 3px; color: var(--muted); font-size: 12px; }
+
+    .chart {
+      height: 260px;
+      border: 1px solid var(--line-soft);
       border-radius: 14px;
-      background: rgba(15, 23, 42, 0.45);
-      color: var(--muted);
+      background: linear-gradient(180deg, var(--surface-soft), #fff);
+      overflow: hidden;
     }
-    @media (max-width: 1100px) {
-      .panels, .split {
-        grid-template-columns: 1fr;
-      }
-      .hero {
-        flex-direction: column;
-      }
-      .status {
-        width: 100%;
-      }
+
+    .chart.sm { height: 228px; }
+    .chart svg { width: 100%; height: 100%; display: block; }
+
+    .legend { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { width: 18px; height: 3px; border-radius: 999px; background: var(--blue); }
+
+    .donut-wrap {
+      min-height: 260px;
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .donut {
+      width: 172px;
+      height: 172px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: conic-gradient(var(--green) 0deg, var(--green) var(--success-deg), var(--red) var(--success-deg), var(--red) 360deg);
+      position: relative;
+      margin: 0 auto;
+    }
+
+    .donut::after {
+      content: "";
+      position: absolute;
+      inset: 24px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: inset 0 0 0 1px var(--line-soft);
+    }
+
+    .donut-center { position: relative; z-index: 1; text-align: center; }
+    .donut-center strong { display: block; font-size: 24px; letter-spacing: -0.04em; }
+    .donut-center span { color: var(--muted); font-size: 12px; }
+
+    .metric-list { display: grid; gap: 12px; }
+    .metric-row { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; }
+    .metric-row strong { color: var(--text); }
+    .metric-row .ok { color: var(--green); }
+    .metric-row .err { color: var(--red); }
+
+    .bars { display: grid; gap: 12px; }
+    .bar-row { display: grid; grid-template-columns: minmax(92px, 1fr) 1.6fr 58px; align-items: center; gap: 10px; font-size: 13px; }
+    .bar-name { min-width: 0; }
+    .bar-name strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    .bar-name span { display: block; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-track { height: 8px; border-radius: 999px; background: #eef3fb; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--blue), #7c3aed); }
+    .bar-value { text-align: right; font-weight: 800; }
+
+    .activity { display: grid; gap: 10px; max-height: 330px; overflow: auto; padding-right: 4px; }
+    .activity-item { border: 1px solid var(--line-soft); border-radius: 13px; padding: 11px 12px; background: var(--surface-soft); }
+    .activity-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 6px; }
+    .activity strong { font-size: 13px; }
+    .activity p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .badge.error { background: var(--red-soft); color: var(--red); }
+    .badge.blue { background: var(--blue-soft); color: var(--blue); }
+    .badge.amber { background: var(--amber-soft); color: #b45309; }
+
+    .table-wrap { overflow: auto; border: 1px solid var(--line-soft); border-radius: 14px; }
+    table { width: 100%; border-collapse: collapse; min-width: 780px; font-size: 13px; }
+    th, td { padding: 11px 12px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: middle; }
+    th { background: var(--surface-soft); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+    tr:last-child td { border-bottom: 0; }
+    td.num, th.num { text-align: right; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .muted { color: var(--muted); }
+    .tiny { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+    .empty {
+      min-height: 120px;
+      border: 1px dashed var(--line);
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      background: var(--surface-soft);
+      text-align: center;
+      padding: 18px;
+    }
+
+    .footer { display: flex; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 12px; padding: 8px 3px 0; }
+
+    @media (max-width: 1480px) {
+      .cards { grid-template-columns: repeat(4, minmax(160px, 1fr)); }
+      .grid-main { grid-template-columns: 1fr 1fr; }
+      .grid-main .panel:last-child { grid-column: 1 / -1; }
+      .grid-lower { grid-template-columns: 1fr 1fr; }
+      .grid-lower .panel:last-child { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .topbar { padding: 0 16px; }
+      .content { padding: 20px 16px; }
+      .cards, .grid-main, .grid-lower { grid-template-columns: 1fr; }
+      .grid-main .panel:last-child, .grid-lower .panel:last-child { grid-column: auto; }
+      .hero { flex-direction: column; }
+      .top-right { display: none; }
+      .search { width: 100%; }
+      .donut-wrap { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <div class="hero">
-      <div>
-        <h1>OfficeAgent Analytics</h1>
-        <p>Live demo telemetry for the OfficeAgent GUI/TUI. The gateway groups usage per Windows user, shows current in-flight requests, and tracks routed inference activity in real time.</p>
-        <div class="chip-row" id="chips"></div>
-      </div>
-      <div class="status">
-        <strong>Live status</strong>
-        <span id="statusText">Connecting…</span>
-        <div class="tiny" id="statusDetail"></div>
-      </div>
-    </div>
-
-    <div class="grid stats" id="stats"></div>
-
-    <div class="grid panels">
-      <div class="panel">
-        <h2>Requests per minute</h2>
-        <div class="muted">Rolling __ANALYTICS_WINDOW_MINUTES__-minute view.</div>
-        <div class="chart" id="requestsChart"></div>
-        <div class="split">
-          <div>
-            <h2>Top users</h2>
-            <div class="muted">Grouped by reported Windows domain and username.</div>
-            <div class="bar-list" id="topUsers"></div>
-          </div>
-          <div>
-            <h2>Active requests</h2>
-            <div class="muted">Requests still in flight right now.</div>
-            <div id="activeRequests"></div>
-          </div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">O</div>
+        <div>
+          <strong>OfficeAgent</strong><br />
+          <span>Gateway Analytics</span>
         </div>
       </div>
-
-      <div class="panel">
-        <h2>Latency trend</h2>
-        <div class="muted">Average completion time by minute.</div>
-        <div class="chart" id="latencyChart"></div>
-        <div style="height: 16px"></div>
-        <h2>Recent activity</h2>
-        <div class="muted">Latest requests observed by the gateway.</div>
-        <div class="recent-list" id="recentList"></div>
+      <nav class="nav" aria-label="Analytics sections">
+        <div class="nav-item active">📊 Overview</div>
+        <div class="nav-item">🧾 Requests</div>
+        <div class="nav-item">👥 Users</div>
+        <div class="nav-item">🧠 Models</div>
+        <div class="nav-item">🛠️ Tools</div>
+        <div class="nav-item">🖥️ Hosts</div>
+        <div class="nav-item">⚠️ Errors</div>
+        <div class="nav-item dim">⚙️ Settings later</div>
+      </nav>
+      <div class="sidebar-foot">
+        <strong>Open dashboard</strong><br />
+        No login or auth UI. Gateway request endpoints still use their API token; analytics pages are intentionally open for now.
       </div>
-    </div>
+    </aside>
 
-    <div style="height: 16px"></div>
+    <main class="main">
+      <header class="topbar">
+        <div class="top-left">
+          <button class="icon-btn" title="Menu">☰</button>
+          <div class="pill" id="systemPill"><span class="dot warn"></span><span>Connecting…</span></div>
+          <div class="range-switch" id="rangeSwitch" aria-label="Time range">
+            <button data-range="30m" class="active">30m</button>
+            <button data-range="24h">24h</button>
+            <button data-range="7d">7d</button>
+            <button data-range="all">All</button>
+          </div>
+        </div>
+        <div class="top-right">
+          <input id="searchInput" class="search" placeholder="Search users, hosts, models…" />
+          <div class="pill" id="refreshPill">Auto-refresh: On</div>
+          <div class="pill">Open Dashboard</div>
+        </div>
+      </header>
 
-    <div class="panel">
-      <h2>Per-user breakdown</h2>
-      <div class="muted">Simple boss-demo dashboard showing users, request counts, output volume, and most recent activity.</div>
-      <div style="overflow: auto">
-        <table>
-          <thead>
-            <tr>
-              <th>User</th>
-              <th>Requests</th>
-              <th>Success</th>
-              <th>Avg latency</th>
-              <th>Output</th>
-              <th>Last seen</th>
-              <th>Host</th>
-            </tr>
-          </thead>
-          <tbody id="usersTable"></tbody>
-        </table>
-      </div>
-    </div>
+      <section class="content">
+        <div class="hero">
+          <div>
+            <h1>Gateway Analytics</h1>
+            <p class="subtitle">Live request telemetry for the OfficeAgent gateway, derived from the real JSONL request ledger.</p>
+          </div>
+          <div class="hero-actions">
+            <button class="button" id="refreshButton">Refresh</button>
+            <button class="button primary" id="autoRefreshButton">Auto-refresh On</button>
+          </div>
+        </div>
+
+        <section class="cards" id="cards"></section>
+
+        <section class="grid-main">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Requests over time</h2>
+                <div class="hint" id="requestsHint">Completed requests by bucket.</div>
+              </div>
+              <div class="legend"><span><i class="swatch"></i> Requests</span></div>
+            </div>
+            <div class="chart" id="requestsChart"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Token volume over time</h2>
+                <div class="hint">Estimated input, output, and total tokens by bucket.</div>
+              </div>
+              <div class="legend">
+                <span><i class="swatch" style="background:var(--blue)"></i>input</span>
+                <span><i class="swatch" style="background:var(--teal)"></i>output</span>
+                <span><i class="swatch" style="background:var(--purple)"></i>total</span>
+              </div>
+            </div>
+            <div class="chart" id="latencyChart"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Request health</h2>
+                <div class="hint">Success/error is tracked, but usage volume is the priority.</div>
+              </div>
+            </div>
+            <div class="donut-wrap" id="successDonut"></div>
+          </div>
+        </section>
+
+        <section class="grid-lower">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Top users</h2>
+                <div class="hint">Grouped by reported Windows identity.</div>
+              </div>
+            </div>
+            <div class="bars" id="topUsers"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Recent request activity</h2>
+                <div class="hint">Latest completed requests observed by the gateway.</div>
+              </div>
+            </div>
+            <div class="activity" id="recentActivity"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Per-user breakdown</h2>
+                <div class="hint">Requests, estimated tokens, processing time, tools, host, and last seen.</div>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th class="num">Requests</th>
+                    <th class="num">Tokens</th>
+                    <th class="num">Input</th>
+                    <th class="num">Output</th>
+                    <th class="num">Time</th>
+                    <th class="num">Tools</th>
+                    <th>Last seen</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid-lower">
+          <div class="panel">
+            <div class="panel-head"><div><h2>Models</h2><div class="hint">Routed upstream model mix.</div></div></div>
+            <div class="bars" id="modelsList"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div><h2>Tools and clients</h2><div class="hint">Tool definitions/calls plus GUI/TUI split.</div></div></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th class="num">Defined</th><th class="num">Calls</th></tr></thead>
+                <tbody id="toolsTable"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div><h2>Errors</h2><div class="hint">Grouped by error code and message.</div></div></div>
+            <div class="activity" id="errorsList"></div>
+          </div>
+        </section>
+
+        <div class="footer">
+          <span id="footerLeft">All times shown in local browser time.</span>
+          <span id="footerRight">OfficeAgent Gateway</span>
+        </div>
+      </section>
+    </main>
   </div>
 
   <script>
-    const refreshMs = 3000;
+    const state = {
+      range: "30m",
+      autoRefresh: true,
+      refreshMs: 3000,
+      data: null,
+      query: "",
+    };
+
+    const $ = (id) => document.getElementById(id);
 
     function escapeHtml(value) {
       return String(value ?? "")
@@ -339,31 +637,37 @@
         .replace(/'/g, "&#39;");
     }
 
-    function formatNumber(value) {
-      return new Intl.NumberFormat().format(Number(value || 0));
-    }
+    function number(value) { return new Intl.NumberFormat().format(Number(value || 0)); }
+    function percent(value, digits = 1) { return `${(Number(value || 0) * 100).toFixed(digits)}%`; }
 
-    function formatPercent(value) {
-      return `${Math.round((Number(value || 0) || 0) * 100)}%`;
-    }
-
-    function formatDuration(ms) {
+    function duration(ms) {
       const value = Number(ms || 0);
-      if (value < 1000) return `${value} ms`;
-      return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)} s`;
+      if (value <= 0) return "—";
+      if (value < 1000) return `${Math.round(value)} ms`;
+      if (value < 60000) return `${(value / 1000).toFixed(value < 10000 ? 1 : 0)} s`;
+      return `${(value / 60000).toFixed(1)} min`;
     }
 
-    function formatChars(chars) {
-      const value = Number(chars || 0);
-      if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M chars`;
-      if (value >= 1000) return `${(value / 1000).toFixed(1)}k chars`;
-      return `${value} chars`;
+    function chars(value) {
+      const n = Number(value || 0);
+      if (n >= 1000000000) return `${(n / 1000000000).toFixed(2)}B chars`;
+      if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M chars`;
+      if (n >= 1000) return `${(n / 1000).toFixed(1)}k chars`;
+      return `${number(n)} chars`;
+    }
+
+    function tokens(value) {
+      const n = Number(value || 0);
+      if (n >= 1000000000) return `${(n / 1000000000).toFixed(2)}B tok`;
+      if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M tok`;
+      if (n >= 1000) return `${(n / 1000).toFixed(1)}k tok`;
+      return `${number(n)} tok`;
     }
 
     function timeAgo(iso) {
       if (!iso) return "—";
-      const delta = Date.now() - new Date(iso).getTime();
-      const seconds = Math.max(0, Math.round(delta / 1000));
+      const delta = Math.max(0, Date.now() - new Date(iso).getTime());
+      const seconds = Math.round(delta / 1000);
       if (seconds < 60) return `${seconds}s ago`;
       const minutes = Math.round(seconds / 60);
       if (minutes < 60) return `${minutes}m ago`;
@@ -372,178 +676,236 @@
       return `${Math.round(hours / 24)}d ago`;
     }
 
-    function renderStats(data) {
-      const totals = data.totals;
+    function deltaHtml(delta, inverse = false) {
+      if (!delta) return `<span class="delta muted">—</span>`;
+      const value = Number(delta.percent || 0);
+      const good = inverse ? value <= 0 : value >= 0;
+      const label = `${value >= 0 ? "↗" : "↘"} ${Math.abs(value * 100).toFixed(1)}%`;
+      return `<span class="delta ${value === 0 ? "muted" : good ? "" : "bad"}">${label}</span>`;
+    }
+
+    function matchesQuery(...values) {
+      if (!state.query) return true;
+      const haystack = values.join(" ").toLowerCase();
+      return haystack.includes(state.query.toLowerCase());
+    }
+
+    function renderCards(data) {
+      const t = data.totals || {};
+      const d = data.deltas || {};
       const cards = [
-        ["Completed requests", formatNumber(totals.completedRequests), `${formatNumber(totals.successCount)} success / ${formatNumber(totals.errorCount)} errors`],
-        ["Active now", formatNumber(totals.activeRequests), "Live in-flight requests"],
-        ["Unique users", formatNumber(totals.uniqueUsers), "Distinct Windows identities seen"],
-        ["Success rate", formatPercent(totals.successRate), "Share of completed requests"],
-        ["Average latency", formatDuration(totals.avgDurationMs), "Mean completion time"],
-        ["Output volume", formatChars(totals.totalOutputChars), "Assistant text streamed back"],
+        ["Requests", number(t.completedRequests), `${number(t.activeRequests)} active now`, "〽️", "", deltaHtml(d.completedRequests)],
+        ["Estimated tokens", tokens(t.totalTokens), `${tokens(t.avgTokensPerRequest)} / request`, "▰", "purple", deltaHtml(d.totalTokens)],
+        ["Input tokens", tokens(t.totalPromptTokens), `${chars(t.totalPromptChars)} prompt text`, "↙", "teal", deltaHtml(d.totalPromptTokens)],
+        ["Output tokens", tokens(t.totalOutputTokens), `${chars(t.totalOutputChars)} assistant text`, "↗", "green", deltaHtml(d.totalOutputTokens)],
+        ["Processing time", duration(t.totalDurationMs), `avg ${duration(t.avgDurationMs)} / request`, "⏱", "amber", deltaHtml(d.totalDurationMs)],
+        ["Unique users", number(t.uniqueUsers), "Windows identities seen", "👥", "teal", deltaHtml(d.uniqueUsers)],
+        ["Tool calls", number(t.totalToolCalls), `${number(t.imageRequestCount)} image requests`, "🛠", "purple", deltaHtml(d.totalToolCalls)],
       ];
-      document.getElementById("stats").innerHTML = cards.map(([label, value, sub]) => `
-        <div class="card">
-          <div class="label">${escapeHtml(label)}</div>
-          <div class="metric">${escapeHtml(value)}</div>
-          <div class="submetric">${escapeHtml(sub)}</div>
-        </div>
+      $("cards").innerHTML = cards.map(([label, value, sub, icon, color, delta]) => `
+        <article class="card">
+          <div class="card-top"><div class="card-icon ${color}">${escapeHtml(icon)}</div>${delta}</div>
+          <div><div class="label">${escapeHtml(label)}</div><div class="value">${escapeHtml(value)}</div></div>
+          <div class="sub">${escapeHtml(sub)}</div>
+        </article>
       `).join("");
     }
 
-    function renderChips(data) {
-      const chips = [
-        `Gateway: ${data.gateway.host}:${data.gateway.port}`,
-        `Route: assistant → ${data.gateway.routedProvider}/${data.gateway.routedModelId}`,
-        `Mode: ${data.gateway.mockMode ? "mock" : "live"}`,
-        `Log: ${data.gateway.analyticsEventsPath}`,
-      ];
-      document.getElementById("chips").innerHTML = chips.map((chip) => `<div class="chip">${escapeHtml(chip)}</div>`).join("");
+    function chartEmpty(id, text = "No data yet.") {
+      $(id).innerHTML = `<div class="empty">${escapeHtml(text)}</div>`;
     }
 
-    function renderStatus(data) {
-      document.getElementById("statusText").textContent = `Last refresh ${new Date(data.generatedAt).toLocaleTimeString()}`;
-      document.getElementById("statusDetail").textContent = `${data.totals.activeRequests} active • ${data.totals.completedRequests} completed • refresh every ${Math.round(refreshMs / 1000)}s`;
-    }
+    function renderLineChart(id, points, series, options = {}) {
+      const hasData = points.some((point) => series.some((s) => Number(s.get(point) || 0) > 0));
+      if (!points.length || !hasData) return chartEmpty(id);
 
-    function renderLineChart(containerId, points, accessor, color, fill) {
-      const container = document.getElementById(containerId);
-      if (!points.length) {
-        container.innerHTML = '<div class="empty">No data yet.</div>';
-        return;
-      }
-      const width = 900;
-      const height = 220;
-      const padX = 24;
-      const padTop = 18;
-      const padBottom = 28;
-      const max = Math.max(...points.map((point) => Number(accessor(point) || 0)), 1);
-      const chartWidth = width - padX * 2;
-      const chartHeight = height - padTop - padBottom;
-      const coords = points.map((point, index) => {
-        const x = padX + (points.length === 1 ? chartWidth / 2 : (index / (points.length - 1)) * chartWidth);
-        const y = padTop + chartHeight - (Number(accessor(point) || 0) / max) * chartHeight;
-        return [x, y];
-      });
-      const pathLine = coords.map((coord, index) => `${index === 0 ? "M" : "L"}${coord[0].toFixed(2)},${coord[1].toFixed(2)}`).join(" ");
-      const pathArea = `${pathLine} L${coords[coords.length - 1][0].toFixed(2)},${(padTop + chartHeight).toFixed(2)} L${coords[0][0].toFixed(2)},${(padTop + chartHeight).toFixed(2)} Z`;
-      const labels = points.filter((_, index) => index === 0 || index === points.length - 1 || index % Math.ceil(points.length / 6) === 0)
-        .map((point) => `<text x="${padX + (points.length === 1 ? chartWidth / 2 : (points.indexOf(point) / (points.length - 1)) * chartWidth)}" y="${height - 6}" fill="#94a3b8" font-size="11" text-anchor="middle">${escapeHtml(point.label)}</text>`)
-        .join("");
+      const width = 900, height = options.height || 260;
+      const pad = { left: 34, right: 18, top: 18, bottom: 30 };
+      const innerW = width - pad.left - pad.right;
+      const innerH = height - pad.top - pad.bottom;
+      const max = Math.max(1, ...points.flatMap((point) => series.map((s) => Number(s.get(point) || 0))));
+      const xFor = (i) => pad.left + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
+      const yFor = (value) => pad.top + innerH - (Number(value || 0) / max) * innerH;
+      const grid = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+        const y = pad.top + innerH * ratio;
+        return `<line x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" stroke="#e7edf5" stroke-width="1" />`;
+      }).join("");
+      const labels = points.filter((_, i) => i === 0 || i === points.length - 1 || i % Math.ceil(points.length / 6) === 0).map((point) => {
+        const i = points.indexOf(point);
+        return `<text x="${xFor(i)}" y="${height - 9}" text-anchor="middle" font-size="11" fill="#98a2b3">${escapeHtml(point.label)}</text>`;
+      }).join("");
+      const paths = series.map((s) => {
+        const coords = points.map((point, i) => [xFor(i), yFor(s.get(point))]);
+        const path = coords.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
+        const area = s.fill ? `${path} L${coords[coords.length - 1][0].toFixed(2)},${pad.top + innerH} L${coords[0][0].toFixed(2)},${pad.top + innerH} Z` : "";
+        return `${area ? `<path d="${area}" fill="${s.fill}" opacity="0.16"></path>` : ""}<path d="${path}" fill="none" stroke="${s.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>`;
+      }).join("");
 
-      container.innerHTML = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="${containerId}-fill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stop-color="${fill}" stop-opacity="0.45"></stop>
-              <stop offset="100%" stop-color="${fill}" stop-opacity="0.02"></stop>
-            </linearGradient>
-          </defs>
-          <line x1="${padX}" y1="${padTop + chartHeight}" x2="${width - padX}" y2="${padTop + chartHeight}" stroke="rgba(148,163,184,0.18)" stroke-width="1"></line>
-          <path d="${pathArea}" fill="url(#${containerId}-fill)"></path>
-          <path d="${pathLine}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
-          ${coords.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.5" fill="${color}"></circle>`).join("")}
+      $(id).innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img">
+          ${grid}
+          ${paths}
           ${labels}
-          <text x="${width - padX}" y="16" fill="#94a3b8" font-size="11" text-anchor="end">max ${escapeHtml(formatNumber(max))}</text>
+          <text x="${width - pad.right}" y="14" text-anchor="end" font-size="11" fill="#98a2b3">max ${escapeHtml(options.format ? options.format(max) : number(max))}</text>
         </svg>`;
     }
 
-    function renderTopUsers(users) {
-      const top = users.slice(0, 8);
-      if (!top.length) {
-        document.getElementById("topUsers").innerHTML = '<div class="empty">No completed requests yet.</div>';
-        return;
-      }
-      const max = Math.max(...top.map((user) => user.requestCount), 1);
-      document.getElementById("topUsers").innerHTML = top.map((user) => {
-        const pct = (user.requestCount / max) * 100;
-        return `
-          <div class="bar-row">
-            <div>
-              <div class="mono">${escapeHtml(user.identity)}</div>
-              <div class="tiny">${escapeHtml(user.lastHost || "")}</div>
-            </div>
-            <div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%"></div></div>
-            <div>${escapeHtml(formatNumber(user.requestCount))}</div>
-          </div>`;
+    function renderSuccessDonut(data) {
+      const t = data.totals || {};
+      const successRate = Number(t.successRate || 0);
+      const degrees = Math.max(0, Math.min(360, successRate * 360));
+      $("successDonut").innerHTML = `
+        <div class="donut" style="--success-deg:${degrees}deg">
+          <div class="donut-center"><strong>${escapeHtml(percent(successRate))}</strong><span>Success rate</span></div>
+        </div>
+        <div class="metric-list">
+          <div class="metric-row"><span>Total requests</span><strong>${number(t.completedRequests)}</strong></div>
+          <div class="metric-row"><span>Total tokens</span><strong>${tokens(t.totalTokens)}</strong></div>
+          <div class="metric-row"><span>Avg tokens/request</span><strong>${tokens(t.avgTokensPerRequest)}</strong></div>
+          <div class="metric-row"><span>Success</span><strong class="ok">${number(t.successCount)} (${percent(successRate)})</strong></div>
+          <div class="metric-row"><span>Error</span><strong class="err">${number(t.errorCount)} (${percent(t.completedRequests ? t.errorCount / t.completedRequests : 0)})</strong></div>
+        </div>`;
+    }
+
+    function renderBars(id, rows, options = {}) {
+      const items = rows.slice(0, options.limit || 8);
+      if (!items.length) return $(id).innerHTML = `<div class="empty">${escapeHtml(options.empty || "No data yet.")}</div>`;
+      const max = Math.max(1, ...items.map((row) => Number(options.value(row) || 0)));
+      $(id).innerHTML = items.map((row) => {
+        const value = Number(options.value(row) || 0);
+        const pct = Math.max(2, (value / max) * 100);
+        return `<div class="bar-row">
+          <div class="bar-name"><strong>${escapeHtml(options.name(row))}</strong><span>${escapeHtml(options.sub ? options.sub(row) : "")}</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%"></div></div>
+          <div class="bar-value">${escapeHtml(options.format ? options.format(value) : number(value))}</div>
+        </div>`;
       }).join("");
     }
 
-    function renderActive(active) {
-      if (!active.length) {
-        document.getElementById("activeRequests").innerHTML = '<div class="empty">No active requests.</div>';
-        return;
-      }
-      document.getElementById("activeRequests").innerHTML = active.map((item) => `
-        <div class="recent-item">
-          <div class="recent-top">
-            <strong class="mono">${escapeHtml(item.client.identity)}</strong>
-            <span class="badge">${escapeHtml(item.client.client)}</span>
-          </div>
-          <div>${escapeHtml(item.request.abstractModel)} → ${escapeHtml(item.routing.model || item.routing.provider || "assistant")}</div>
-          <div class="tiny">${escapeHtml(item.client.host)} • running ${escapeHtml(formatDuration(item.elapsedMs))}</div>
-        </div>`).join("");
+    function renderRecent(data) {
+      const items = (data.recent || []).filter((event) => matchesQuery(event.client?.identity, event.client?.host, event.routing?.provider, event.routing?.model, event.result?.errorMessage)).slice(0, 14);
+      if (!items.length) return $("recentActivity").innerHTML = `<div class="empty">No recent activity in this range.</div>`;
+      $("recentActivity").innerHTML = items.map((event) => {
+        const status = event.result?.status === "error" ? "error" : "success";
+        return `<article class="activity-item">
+          <div class="activity-top"><strong class="mono">${escapeHtml(event.client?.identity || "unknown-user")}</strong><span class="badge ${status === "error" ? "error" : ""}">${escapeHtml(status)}</span></div>
+          <p>${escapeHtml(event.request?.abstractModel || "assistant")} → ${escapeHtml(event.routing?.provider || "unknown")}/${escapeHtml(event.routing?.model || "unknown")}</p>
+          <p>${escapeHtml(event.client?.client || "unknown")} on ${escapeHtml(event.client?.host || "unknown-host")} • ${tokens(Number(event.request?.promptTokens || 0) + Number(event.metrics?.outputTokens || 0))} • ${duration(event.durationMs)} • ${timeAgo(event.completedAt)}</p>
+        </article>`;
+      }).join("");
     }
 
-    function renderRecent(recent) {
-      if (!recent.length) {
-        document.getElementById("recentList").innerHTML = '<div class="empty">No activity yet.</div>';
-        return;
-      }
-      document.getElementById("recentList").innerHTML = recent.map((event) => `
-        <div class="recent-item">
-          <div class="recent-top">
-            <strong class="mono">${escapeHtml(event.client.identity)}</strong>
-            <span class="badge ${event.result.status === "error" ? "error" : ""}">${escapeHtml(event.result.status)}</span>
-          </div>
-          <div>${escapeHtml(event.request.abstractModel)} → ${escapeHtml(event.routing.provider)}/${escapeHtml(event.routing.model)}</div>
-          <div class="tiny">${escapeHtml(event.client.client)} on ${escapeHtml(event.client.host)} • ${escapeHtml(formatDuration(event.durationMs))} • ${escapeHtml(timeAgo(event.completedAt))}</div>
-        </div>`).join("");
-    }
-
-    function renderUsersTable(users) {
-      const tbody = document.getElementById("usersTable");
-      if (!users.length) {
-        tbody.innerHTML = '<tr><td colspan="7"><div class="empty">No completed requests yet.</div></td></tr>';
-        return;
-      }
-      tbody.innerHTML = users.map((user) => `
+    function renderUsersTable(data) {
+      const users = (data.users || []).filter((user) => matchesQuery(user.identity, user.lastHost, user.domain, Object.keys(user.clients || {}).join(" ")));
+      if (!users.length) return $("usersTable").innerHTML = `<tr><td colspan="8"><div class="empty">No matching users.</div></td></tr>`;
+      $("usersTable").innerHTML = users.slice(0, 100).map((user) => `
         <tr>
-          <td>
-            <div class="mono">${escapeHtml(user.identity)}</div>
-            <div class="tiny">clients: ${escapeHtml(Object.keys(user.clients).map((key) => `${key}=${user.clients[key]}`).join(", ") || "—")}</div>
-          </td>
-          <td>${escapeHtml(formatNumber(user.requestCount))}</td>
-          <td>${escapeHtml(formatNumber(user.successCount))} / ${escapeHtml(formatNumber(user.errorCount))}</td>
-          <td>${escapeHtml(formatDuration(user.avgDurationMs))}</td>
-          <td>${escapeHtml(formatChars(user.totalOutputChars))}</td>
-          <td>${escapeHtml(timeAgo(user.lastSeenAt))}</td>
-          <td>${escapeHtml(user.lastHost)}<div class="tiny">${escapeHtml(formatNumber(user.hostCount))} host(s)</div></td>
+          <td><strong class="mono">${escapeHtml(user.identity)}</strong><div class="tiny">${escapeHtml(user.lastHost || "unknown-host")} • ${escapeHtml(Object.keys(user.clients || {}).join(", ") || "unknown")}</div></td>
+          <td class="num">${number(user.requestCount)}</td>
+          <td class="num">${tokens(user.totalTokens)}</td>
+          <td class="num">${tokens(user.totalPromptTokens)}</td>
+          <td class="num">${tokens(user.totalOutputTokens)}</td>
+          <td class="num">${duration(user.totalDurationMs)}</td>
+          <td class="num">${number(user.totalToolCalls)}</td>
+          <td>${timeAgo(user.lastSeenAt)}</td>
         </tr>`).join("");
+    }
+
+    function renderTools(data) {
+      const tools = (data.tools || []).filter((tool) => matchesQuery(tool.name));
+      if (!tools.length) return $("toolsTable").innerHTML = `<tr><td colspan="3"><div class="empty">No tool data in this range.</div></td></tr>`;
+      $("toolsTable").innerHTML = tools.slice(0, 12).map((tool) => `
+        <tr><td><strong class="mono">${escapeHtml(tool.name)}</strong></td><td class="num">${number(tool.definedCount)}</td><td class="num">${number(tool.callCount)}</td></tr>
+      `).join("");
+    }
+
+    function renderErrors(data) {
+      const errors = (data.errors || []).filter((error) => matchesQuery(error.errorCode, error.errorMessage));
+      if (!errors.length) return $("errorsList").innerHTML = `<div class="empty">No errors in this range.</div>`;
+      $("errorsList").innerHTML = errors.slice(0, 10).map((error) => `
+        <article class="activity-item">
+          <div class="activity-top"><strong>${escapeHtml(error.errorCode)}</strong><span class="badge error">${number(error.count)}</span></div>
+          <p>${escapeHtml(error.errorMessage)}</p>
+          <p>Last seen ${timeAgo(error.lastSeenAt)}</p>
+        </article>`).join("");
+    }
+
+    function renderStatus(data, ok = true) {
+      const pill = $("systemPill");
+      if (!ok) {
+        pill.innerHTML = `<span class="dot bad"></span><span>Refresh failed</span>`;
+        return;
+      }
+      const active = Number(data.totals?.activeRequests || 0);
+      pill.innerHTML = `<span class="dot ${active ? "warn" : ""}"></span><span>${active ? `${number(active)} active` : "All systems operational"}</span>`;
+      $("requestsHint").textContent = `${data.range?.label || "Selected range"} • bucket ${Math.round((data.range?.bucketMs || 60000) / 60000)} min`;
+      $("footerLeft").textContent = `Generated ${new Date(data.generatedAt).toLocaleString()} • Analytics log: ${data.gateway?.analyticsEventsPath || "unknown"}`;
+      $("footerRight").textContent = `${data.gateway?.mockMode ? "Mock" : "Live"} route: assistant → ${data.gateway?.routedProvider || "unknown"}/${data.gateway?.routedModelId || "unknown"}`;
+    }
+
+    function render(data) {
+      state.data = data;
+      renderStatus(data);
+      renderCards(data);
+      renderLineChart("requestsChart", data.series || [], [{ color: "#2f6fed", fill: "#2f6fed", get: (p) => p.requests }]);
+      renderLineChart("latencyChart", data.series || [], [
+        { color: "#2f6fed", get: (p) => p.promptTokens },
+        { color: "#14b8a6", get: (p) => p.outputTokens },
+        { color: "#7c3aed", get: (p) => p.totalTokens },
+      ], { format: tokens });
+      renderSuccessDonut(data);
+      renderBars("topUsers", (data.users || []).filter((user) => matchesQuery(user.identity, user.lastHost)), {
+        value: (u) => u.totalTokens,
+        name: (u) => u.identity,
+        sub: (u) => `${number(u.requestCount)} requests • ${duration(u.totalDurationMs)} processing time`,
+        format: tokens,
+        empty: "No completed requests yet.",
+      });
+      renderRecent(data);
+      renderUsersTable(data);
+      renderBars("modelsList", (data.models || []).filter((model) => matchesQuery(model.provider, model.model)), {
+        value: (m) => m.totalTokens,
+        name: (m) => `${m.provider}/${m.model}`,
+        sub: (m) => `${number(m.requestCount)} requests • ${percent(m.successRate, 0)} success`,
+        format: tokens,
+      });
+      renderTools(data);
+      renderErrors(data);
     }
 
     async function refresh() {
       try {
-        const response = await fetch('/analytics/summary', { cache: 'no-store' });
+        const response = await fetch(`/analytics/summary?range=${encodeURIComponent(state.range)}`, { cache: "no-store" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        renderChips(data);
-        renderStatus(data);
-        renderStats(data);
-        renderLineChart('requestsChart', data.series, (point) => point.requests, '#60a5fa', '#60a5fa');
-        renderLineChart('latencyChart', data.series, (point) => point.avgDurationMs, '#22c55e', '#22c55e');
-        renderTopUsers(data.users);
-        renderActive(data.active);
-        renderRecent(data.recent);
-        renderUsersTable(data.users);
+        render(await response.json());
       } catch (error) {
-        document.getElementById('statusText').textContent = 'Dashboard refresh failed';
-        document.getElementById('statusDetail').textContent = String(error?.message || error);
+        renderStatus(state.data || { totals: {} }, false);
+        console.error(error);
       }
     }
 
+    $("rangeSwitch").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-range]");
+      if (!button) return;
+      state.range = button.dataset.range;
+      for (const item of $("rangeSwitch").querySelectorAll("button")) item.classList.toggle("active", item === button);
+      refresh();
+    });
+
+    $("searchInput").addEventListener("input", (event) => {
+      state.query = event.target.value.trim();
+      if (state.data) render(state.data);
+    });
+
+    $("refreshButton").addEventListener("click", refresh);
+    $("autoRefreshButton").addEventListener("click", () => {
+      state.autoRefresh = !state.autoRefresh;
+      $("autoRefreshButton").textContent = `Auto-refresh ${state.autoRefresh ? "On" : "Off"}`;
+      $("refreshPill").textContent = `Auto-refresh: ${state.autoRefresh ? "On" : "Off"}`;
+    });
+
     refresh();
-    setInterval(refresh, refreshMs);
+    setInterval(() => { if (state.autoRefresh) refresh(); }, state.refreshMs);
   </script>
 </body>
 </html>

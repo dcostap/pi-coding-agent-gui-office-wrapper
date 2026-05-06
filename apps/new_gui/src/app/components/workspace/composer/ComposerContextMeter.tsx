@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { ComposerContextUsage } from "../../../desktop/types";
+import { useAnimatedDisclosure } from "../../../hooks/useAnimatedPresence";
 import { useDismissibleLayer } from "../../../hooks/useDismissibleLayer";
 import { ghostButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
@@ -59,6 +60,7 @@ export function ComposerContextMeter({
   const meterPercent = percent === null ? 0 : Math.max(0, Math.min(100, percent));
   const tone = getMeterTone(percent);
   const open = hovered || pinned;
+  const popoverDisclosure = useAnimatedDisclosure(open);
   const label = isCompacting
     ? "Compacting context"
     : percent === null || percent === undefined
@@ -94,40 +96,25 @@ export function ComposerContextMeter({
         <span className="absolute inset-[11px] rounded-full bg-[rgba(24,24,24,0.96)]" />
       </button>
 
-      {open ? (
+      {popoverDisclosure.present ? (
         <div
           ref={popoverRef}
-          data-open={open ? "true" : "false"}
-          className="motion-popover absolute bottom-full left-0 z-[130] grid w-56 gap-2 rounded-xl border border-white/10 bg-[rgba(24,24,24,0.94)] p-3 text-[12px] text-[color:var(--muted)] shadow-[0_18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl"
+          data-open={popoverDisclosure.visible ? "true" : "false"}
+          className="motion-popover absolute bottom-full left-0 z-[130] grid w-48 gap-1.5 rounded-lg border border-white/10 bg-[rgba(38,38,38,0.96)] px-3 py-2 text-center text-[12px] text-[color:var(--muted)] shadow-[0_18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl"
           onMouseDown={(event) => event.preventDefault()}
         >
-          <div className="grid gap-1">
-            <div className="flex justify-between gap-3">
-              <span>Used</span>
-              <span className="font-mono text-[color:var(--text)]">{formatTokens(tokens)}</span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span>Available</span>
-              <span className="font-mono text-[color:var(--text)]">
-                {formatTokens(availableTokens)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span>Window</span>
-              <span className="font-mono text-[color:var(--text)]">
-                {formatTokens(contextWindow)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span>Usage</span>
-              <span className="font-mono text-[color:var(--text)]">
-                {percent === null || percent === undefined ? "Unknown" : `${percent.toFixed(1)}%`}
-              </span>
-            </div>
+          <div className="font-medium text-[color:var(--muted)]">Ventana de contexto:</div>
+          <div className="font-semibold text-[color:var(--text)]">
+            {percent === null || percent === undefined
+              ? "Uso desconocido"
+              : `${percent.toFixed(0)}% usado (${formatTokens(availableTokens, { compact: true })} disp.)`}
+          </div>
+          <div className="font-semibold text-[color:var(--text)]">
+            {formatTokens(tokens, { compact: true })} / {formatTokens(contextWindow, { compact: true })} tokens usados
           </div>
           {tokens === null ? (
             <div className="text-[11px] text-[color:var(--muted-2)]">
-              Usage is unknown until the next response updates token stats.
+              Se actualizará tras la siguiente respuesta.
             </div>
           ) : null}
           {isCompacting ? (
@@ -152,7 +139,7 @@ export function ComposerContextMeter({
               onCompact();
             }}
           >
-            Compact
+            Compactar contexto
           </button>
         </div>
       ) : null}

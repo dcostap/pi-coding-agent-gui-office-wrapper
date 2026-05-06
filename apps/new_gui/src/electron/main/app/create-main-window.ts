@@ -5,6 +5,9 @@ import { isTrustedRendererUrl, shouldOpenUrlExternally } from "./navigation-secu
 import { getElectronBuildDirectory } from "../runtime/app-paths";
 import { getRendererDistDirectory } from "../runtime/app-paths";
 
+const MIN_WINDOW_WIDTH = 1040;
+const MIN_WINDOW_HEIGHT = 600;
+
 function getWindowIconPath() {
   if (app.isPackaged) {
     return path.join(app.getAppPath(), "dist", "howcode-icon.png");
@@ -35,13 +38,12 @@ export function createMainWindow() {
       symbolColor: "#ededed",
       height: 36,
     },
-    backgroundColor: "#00000000",
-    backgroundMaterial: process.platform === "win32" ? "acrylic" : undefined,
+    backgroundColor: "#1f1f1f",
     autoHideMenuBar: true,
     width: 1480,
     height: 980,
-    minWidth: 320,
-    minHeight: 240,
+    minWidth: MIN_WINDOW_WIDTH,
+    minHeight: MIN_WINDOW_HEIGHT,
     x: 120,
     y: 80,
     icon: getWindowIconPath(),

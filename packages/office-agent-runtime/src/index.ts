@@ -38,6 +38,15 @@ export const OFFICE_AGENT_PYTHON_RUNTIME_MANIFEST_NAME = "officeagent-python-run
 export const OFFICE_AGENT_UV_RUNTIME_MANIFEST_NAME = "officeagent-uv-runtime.json";
 export const OFFICE_AGENT_STAGED_GIT_BASH_DIR_ENV_NAME = "OFFICE_AGENT_STAGED_GIT_BASH_DIR";
 export const OFFICE_AGENT_SANDBOX_BASH_PATH_ENV_NAME = "OFFICE_AGENT_SANDBOX_BASH_PATH";
+export const OFFICE_AGENT_REAL_USERPROFILE_ENV_NAME = "OFFICE_AGENT_REAL_USERPROFILE";
+export const OFFICE_AGENT_REAL_DESKTOP_ENV_NAME = "OFFICE_AGENT_REAL_DESKTOP";
+export const OFFICE_AGENT_REAL_DOCUMENTS_ENV_NAME = "OFFICE_AGENT_REAL_DOCUMENTS";
+export const OFFICE_AGENT_REAL_DOWNLOADS_ENV_NAME = "OFFICE_AGENT_REAL_DOWNLOADS";
+export const OFFICE_AGENT_REAL_PICTURES_ENV_NAME = "OFFICE_AGENT_REAL_PICTURES";
+export const OFFICE_AGENT_REAL_VIDEOS_ENV_NAME = "OFFICE_AGENT_REAL_VIDEOS";
+export const OFFICE_AGENT_SANDBOX_PROFILE_ENV_NAME = "OFFICE_AGENT_SANDBOX_PROFILE";
+export const OFFICE_AGENT_MANAGED_ROOT_ENV_NAME = "OFFICE_AGENT_MANAGED_ROOT";
+export const OFFICE_AGENT_ACTIVE_PROJECT_ENV_NAME = "OFFICE_AGENT_ACTIVE_PROJECT";
 
 export type OfficeAgentClientKind = "gui" | "tui" | "unknown";
 
@@ -353,16 +362,28 @@ export function getOfficeAgentManagedSessionEnv(
     windowsUser?: string;
     windowsDomain?: string;
     windowsHost?: string;
+    activeProjectDir?: string;
   } = {},
 ): NodeJS.ProcessEnv {
   const managedEnv = getOfficeAgentManagedEnv(env, options);
-  const paths = getOfficeAgentManagedSessionPaths(sessionId, options.managedRootDir);
+  const managedRootDir = options.managedRootDir ?? getOfficeAgentManagedRootDir();
+  const paths = getOfficeAgentManagedSessionPaths(sessionId, managedRootDir);
+  const realUserFolders = getOfficeAgentRealUserFolders(env);
   return {
     ...managedEnv,
     HOME: paths.profileDir,
     USERPROFILE: paths.profileDir,
     APPDATA: paths.appDataDir,
     LOCALAPPDATA: paths.localAppDataDir,
+    [OFFICE_AGENT_REAL_USERPROFILE_ENV_NAME]: realUserFolders.userProfile,
+    [OFFICE_AGENT_REAL_DESKTOP_ENV_NAME]: realUserFolders.desktop,
+    [OFFICE_AGENT_REAL_DOCUMENTS_ENV_NAME]: realUserFolders.documents,
+    [OFFICE_AGENT_REAL_DOWNLOADS_ENV_NAME]: realUserFolders.downloads,
+    [OFFICE_AGENT_REAL_PICTURES_ENV_NAME]: realUserFolders.pictures,
+    [OFFICE_AGENT_REAL_VIDEOS_ENV_NAME]: realUserFolders.videos,
+    [OFFICE_AGENT_SANDBOX_PROFILE_ENV_NAME]: paths.profileDir,
+    [OFFICE_AGENT_MANAGED_ROOT_ENV_NAME]: managedRootDir,
+    ...(options.activeProjectDir ? { [OFFICE_AGENT_ACTIVE_PROJECT_ENV_NAME]: options.activeProjectDir } : {}),
     TEMP: paths.tempDir,
     TMP: paths.tempDir,
     TMPDIR: paths.tempDir,
@@ -383,6 +404,32 @@ export function getOfficeAgentManagedSessionEnv(
     UV_NO_MODIFY_PATH: "1",
     OFFICE_AGENT_SESSION_DIR: paths.sessionDir,
     OFFICE_AGENT_SESSION_LOGS_DIR: paths.logsDir,
+  };
+}
+
+export interface OfficeAgentRealUserFolders {
+  readonly userProfile: string;
+  readonly desktop: string;
+  readonly documents: string;
+  readonly downloads: string;
+  readonly pictures: string;
+  readonly videos: string;
+}
+
+export function getOfficeAgentRealUserFolders(env: NodeJS.ProcessEnv = process.env): OfficeAgentRealUserFolders {
+  const userProfile =
+    env[OFFICE_AGENT_REAL_USERPROFILE_ENV_NAME]
+    ?? env.USERPROFILE
+    ?? (env.HOMEDRIVE && env.HOMEPATH ? path.join(env.HOMEDRIVE, env.HOMEPATH) : undefined)
+    ?? os.homedir();
+
+  return {
+    userProfile,
+    desktop: env[OFFICE_AGENT_REAL_DESKTOP_ENV_NAME] ?? path.join(userProfile, "Desktop"),
+    documents: env[OFFICE_AGENT_REAL_DOCUMENTS_ENV_NAME] ?? path.join(userProfile, "Documents"),
+    downloads: env[OFFICE_AGENT_REAL_DOWNLOADS_ENV_NAME] ?? path.join(userProfile, "Downloads"),
+    pictures: env[OFFICE_AGENT_REAL_PICTURES_ENV_NAME] ?? path.join(userProfile, "Pictures"),
+    videos: env[OFFICE_AGENT_REAL_VIDEOS_ENV_NAME] ?? path.join(userProfile, "Videos"),
   };
 }
 

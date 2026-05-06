@@ -38,6 +38,7 @@ type SidebarProps = {
   onSelectChatGroup: (groupId: string | null) => void;
   onNewChat: (groupId: string | null) => void;
   onStartUnassignedChat: () => void;
+  onStartProjectChat: (projectId: string) => void;
   onRefreshChatSidebar: () => Promise<unknown>;
   onProjectSelect: (projectId: string) => void;
   onProjectReorder: (projectIds: string[]) => void;
@@ -70,6 +71,7 @@ export function Sidebar({
   onSelectChatGroup,
   onNewChat,
   onStartUnassignedChat,
+  onStartProjectChat,
   onRefreshChatSidebar,
   onProjectSelect,
   onProjectReorder,
@@ -151,6 +153,7 @@ export function Sidebar({
           onProjectSelect={onProjectSelect}
           onProjectReorder={onProjectReorder}
           onStartUnassignedChat={onStartUnassignedChat}
+          onStartProjectChat={onStartProjectChat}
           onThreadOpen={onThreadOpen}
           onToggleProjectCollapse={onToggleProjectCollapse}
         />

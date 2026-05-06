@@ -1,5 +1,6 @@
 import { Archive, FolderOpen, Trash2 } from "lucide-react";
 import { type ReactNode, type RefObject, useState } from "react";
+import { useAnimatedDisclosure } from "../../hooks/useAnimatedPresence";
 import type { DesktopAction } from "../../desktop/actions";
 import type { DesktopActionInvoker } from "../../desktop/types";
 import { cn } from "../../utils/cn";
@@ -37,6 +38,7 @@ export function ProjectActionMenu({
   onAction,
   onClose,
 }: ProjectActionMenuProps) {
+  const disclosure = useAnimatedDisclosure(true);
   const [confirmAction, setConfirmAction] = useState<DangerousProjectAction | null>(null);
 
   const handleClick = (action: DesktopAction) => {
@@ -85,7 +87,8 @@ export function ProjectActionMenu({
       id={menuId}
       role="menu"
       aria-label="Acciones del proyecto"
-      className="sidebar-popover-panel sidebar-project-action-menu"
+      data-open={disclosure.visible ? "true" : "false"}
+      className="sidebar-popover-panel sidebar-project-action-menu motion-popover"
     >
       <div className="sidebar-project-menu-list">
         {items.map((item) => (

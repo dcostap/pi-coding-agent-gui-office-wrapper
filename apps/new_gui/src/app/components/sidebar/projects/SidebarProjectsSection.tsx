@@ -48,6 +48,7 @@ type SidebarProjectsSectionProps = {
   onProjectSelect: (projectId: string) => void;
   onProjectReorder: (projectIds: string[]) => void;
   onStartUnassignedChat: () => void;
+  onStartProjectChat: (projectId: string) => void;
   onThreadOpen: (projectId: string, threadId: string, sessionPath: string) => void;
   onToggleProjectCollapse: (projectId: string) => void;
 };
@@ -70,6 +71,7 @@ export function SidebarProjectsSection({
   onProjectSelect,
   onProjectReorder,
   onStartUnassignedChat,
+  onStartProjectChat,
   onThreadOpen,
   onToggleProjectCollapse,
 }: SidebarProjectsSectionProps) {
@@ -434,6 +436,7 @@ export function SidebarProjectsSection({
               onAction={onAction}
               onProjectSelect={onProjectSelect}
               onProjectReorder={onProjectReorder}
+              onStartProjectChat={onStartProjectChat}
               onThreadOpen={onThreadOpen}
               onToggleProjectCollapse={onToggleProjectCollapse}
             />

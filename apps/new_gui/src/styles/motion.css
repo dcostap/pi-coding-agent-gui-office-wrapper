@@ -30,16 +30,35 @@
 .motion-popover {
   opacity: 0;
   pointer-events: none;
-  transform: translateY(var(--motion-slide-y-sm)) scale(0.985);
+  transform: translateY(14px) scale(0.94);
   transform-origin: bottom left;
-  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), transform
-    var(--motion-duration-fast) var(--motion-ease-standard);
+  transition: opacity 280ms var(--motion-ease-standard), transform 280ms var(--motion-ease-standard);
+  will-change: opacity, transform;
 }
 
 .motion-popover[data-open="true"] {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0) scale(1);
+}
+
+.group\/reasoning::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 10px;
+}
+
+.reasoning-submenu {
+  transform: translateX(-6px) scale(0.98);
+  transition: opacity 160ms var(--motion-ease-standard), transform 160ms var(--motion-ease-standard);
+}
+
+.group\/reasoning:hover .reasoning-submenu,
+.group\/reasoning:focus-within .reasoning-submenu {
+  transform: translateX(0) scale(1);
 }
 
 @keyframes standardSurfacePulse {
@@ -144,6 +163,7 @@
 @media (prefers-reduced-motion: reduce) {
   .motion-collapse-panel,
   .motion-popover,
+  .reasoning-submenu,
   .motion-overlay-panel,
   .motion-terminal-drawer-offset,
   .motion-terminal-drawer,

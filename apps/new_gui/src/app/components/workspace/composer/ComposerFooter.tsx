@@ -10,6 +10,7 @@ import type {
 import { iconActionButtonDisabledClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
 import { ToolbarButton } from "../../common/ToolbarButton";
+import { useAnimatedDisclosure } from "../../../hooks/useAnimatedPresence";
 import { ComposerContextMeter } from "./ComposerContextMeter";
 import { ComposerDiffBaselineSelector } from "./ComposerDiffBaselineSelector";
 import {
@@ -77,6 +78,8 @@ export function ComposerFooter({
   thinkingLevel,
   thinkingLevelLabels,
 }: ComposerFooterProps) {
+  const modelMenuDisclosure = useAnimatedDisclosure(modelMenuOpen);
+
   return (
     <div className={workspaceFooterRowClass}>
       <div className="relative inline-flex h-7 items-center">
@@ -99,12 +102,13 @@ export function ComposerFooter({
             onCompact={onCompact}
           />
         </div>
-        {modelMenuOpen ? (
+        {modelMenuDisclosure.present ? (
           <ComposerModelPopover
             availableModels={availableModels}
             availableThinkingLevels={availableThinkingLevels}
             currentModel={model}
             currentThinkingLevel={thinkingLevel}
+            open={modelMenuDisclosure.visible}
             panelRef={modelMenuRef}
             thinkingLevelLabels={thinkingLevelLabels}
             onSelectModel={onSelectModel}

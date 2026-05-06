@@ -1,5 +1,6 @@
 import { FolderPlus } from "lucide-react";
 import { type CSSProperties, type RefObject, useEffect, useRef, useState } from "react";
+import { useAnimatedDisclosure } from "../../../hooks/useAnimatedPresence";
 
 type SidebarProjectsCreatePopoverProps = {
   menuId: string;
@@ -29,6 +30,7 @@ export function SidebarProjectsCreatePopover({
   onClose,
 }: SidebarProjectsCreatePopoverProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const disclosure = useAnimatedDisclosure(open);
   const [style, setStyle] = useState<CSSProperties>({});
   const canCreate = draft.trim().length > 0 && !busy && Boolean(defaultLocation);
 
@@ -49,7 +51,7 @@ export function SidebarProjectsCreatePopover({
     inputRef.current?.focus();
   }, [anchorRef, open]);
 
-  if (!open) {
+  if (!disclosure.present) {
     return null;
   }
 
@@ -59,7 +61,7 @@ export function SidebarProjectsCreatePopover({
       id={menuId}
       open
       aria-label="Añadir proyecto"
-      data-open={open ? "true" : "false"}
+      data-open={disclosure.visible ? "true" : "false"}
       className="sidebar-popover-panel sidebar-project-create-popover motion-popover"
       style={style}
     >

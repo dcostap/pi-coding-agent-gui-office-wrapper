@@ -12,6 +12,7 @@ import type {
   DesktopActionInvoker,
   InboxThread,
 } from "../../../desktop/types";
+import { useAnimatedDisclosure } from "../../../hooks/useAnimatedPresence";
 import { useDismissibleLayer } from "../../../hooks/useDismissibleLayer";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
@@ -108,6 +109,8 @@ export function InboxComposer({
   const attachmentsRef = useRef(attachments);
   const sendLockRef = useRef(false);
   const [localActionPending, setLocalActionPending] = useState(false);
+  const modelMenuOpen = openMenu === "model";
+  const modelMenuDisclosure = useAnimatedDisclosure(modelMenuOpen);
   const canSend =
     (draft.trim().length > 0 || attachments.length > 0) &&
     !isSending &&
@@ -141,7 +144,7 @@ export function InboxComposer({
   };
 
   useDismissibleLayer({
-    open: openMenu === "model",
+    open: modelMenuOpen,
     onDismiss: () => setOpenMenu(null),
     refs: [modelButtonRef, modelMenuRef],
   });
@@ -619,12 +622,13 @@ export function InboxComposer({
               onCompact={() => void compact()}
             />
           </div>
-          {openMenu === "model" ? (
+          {modelMenuDisclosure.present ? (
             <ComposerModelPopover
               availableModels={availableModels}
               availableThinkingLevels={availableThinkingLevels}
               currentModel={currentModel}
               currentThinkingLevel={currentThinkingLevel}
+              open={modelMenuDisclosure.visible}
               panelRef={modelMenuRef}
               thinkingLevelLabels={thinkingLevelLabels}
               onSelectModel={(availableModel) => {

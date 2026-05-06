@@ -415,7 +415,7 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
         />
-        <div className="flex min-h-0 flex-1 overflow-hidden bg-[color:var(--bg)]">
+        <div className="flex min-h-0 flex-1 overflow-hidden bg-[color:var(--sidebar)] backdrop-blur-[34px] backdrop-saturate-[160%]">
           <div
             className="relative min-w-0 shrink-0 overflow-hidden transition-[width,opacity] duration-200 ease-out"
             style={{ width: sidebarCollapsed ? 0 : 300, opacity: sidebarCollapsed ? 0 : 1 }}
@@ -485,9 +485,10 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
               onSelectChatGroup={controller.handleSelectChatGroup}
               onNewChat={(groupId) => {
                 controller.handleSelectChatGroup(groupId);
-                void handleAction("thread.new", { chatGroupId: groupId });
+                controller.handleStartChatModeChat(groupId);
               }}
               onStartUnassignedChat={controller.handleStartUnassignedChat}
+              onStartProjectChat={controller.handleStartProjectChat}
               onRefreshChatSidebar={controller.refreshChatSidebarState}
               onProjectSelect={handleProjectSelect}
               onProjectReorder={handleProjectReorder}

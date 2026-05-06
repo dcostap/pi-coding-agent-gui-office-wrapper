@@ -6,27 +6,38 @@ Minimal A-side development gateway.
 
 This first version exposes:
 - `GET /health`
+- `GET /dashboard`
+- `GET /analytics/summary?range=30m|24h|7d|all`
 - `GET /v1/models`
 - `POST /v1/chat/completions`
 
-It accepts the abstract model `assistant` and currently routes every request to a single upstream model configured by environment variables.
+It accepts the abstract model `assistant`, routes every request to one configured upstream model, and writes practical request analytics to an append-only JSONL ledger. The dashboard focuses on request volume, estimated input/output tokens, processing time, users, models, and tools; health/latency are present but secondary.
 
 ## Environment variables
 
-- `PORT` - default `8080`
-- `HOST` - default `127.0.0.1`
-- `GATEWAY_TOKEN` - default `dev-gateway-token`
-- `UPSTREAM_API_KEY` or `OPENROUTER_API_KEY` - required for real upstream calls
-- `UPSTREAM_BASE_URL` - default `https://openrouter.ai/api/v1/chat/completions`
-- `UPSTREAM_MODEL` - default `openai/gpt-4o-mini`
-- `OPENROUTER_HTTP_REFERER` - optional
-- `OPENROUTER_X_TITLE` - optional
+- `PORT` / `OFFICE_AGENT_GATEWAY_PORT` - default `8082`
+- `HOST` - default `0.0.0.0`
+- `GATEWAY_TOKEN` - default `officeagent-demo-2026`
+- `MOCK_MODE=1` - return mock streamed responses without an upstream call
+- `OFFICE_AGENT_GATEWAY_ANALYTICS_DIR` - default `%LOCALAPPDATA%/OfficeAgent/gateway-analytics`
+- `OFFICE_AGENT_GATEWAY_AUTH_PATH` - gateway-owned Pi auth store
+- `OFFICE_AGENT_GATEWAY_MODELS_PATH` - gateway-owned Pi model registry
+- `GATEWAY_UPSTREAM_PROVIDER` - default `openai-codex`
+- `GATEWAY_UPSTREAM_MODEL` - default `gpt-5.3-codex-spark`
 
 ## Start
 
 ```bash
 npm run dev --workspace @office-agent/gateway
 ```
+
+## Analytics smoke
+
+```bash
+npm run gateway:smoke:analytics
+```
+
+This starts the gateway in mock mode, sends one streamed request, and verifies the analytics summary includes requests, estimated tokens, users, models, tools, buckets, and deltas.
 
 ## Pi-auth-backed bootstrap
 

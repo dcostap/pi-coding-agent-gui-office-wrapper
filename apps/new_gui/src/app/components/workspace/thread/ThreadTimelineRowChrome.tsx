@@ -119,7 +119,7 @@ export function TimelineRowShell({
     <div className={chatRowShellClass} data-row-toggle-anchor={onToggle ? "true" : undefined}>
       {togglePlacement === "left" ? toggleButton : <div />}
       <div className="min-w-0">{children}</div>
-      {togglePlacement === "right" ? toggleButton : <div />}
+      {togglePlacement === "right" ? <div className="ml-2">{toggleButton}</div> : <div />}
     </div>
   );
 }

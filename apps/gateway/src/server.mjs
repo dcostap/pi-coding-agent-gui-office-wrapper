@@ -11,9 +11,15 @@ const PORT = Number(process.env.OFFICE_AGENT_GATEWAY_PORT || process.env.PORT ||
 const HOST = process.env.HOST || "0.0.0.0";
 const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || "officeagent-demo-2026";
 const MOCK_MODE = process.env.MOCK_MODE === "1";
-const ANALYTICS_WINDOW_MINUTES = 30;
+const DEFAULT_ANALYTICS_RANGE = "30m";
+const ANALYTICS_RANGES = {
+  "30m": { label: "Last 30 minutes", durationMs: 30 * 60 * 1000, bucketMs: 60 * 1000 },
+  "24h": { label: "Last 24 hours", durationMs: 24 * 60 * 60 * 1000, bucketMs: 15 * 60 * 1000 },
+  "7d": { label: "Last 7 days", durationMs: 7 * 24 * 60 * 60 * 1000, bucketMs: 60 * 60 * 1000 },
+};
 const MAX_ANALYTICS_EVENTS = 5000;
 const MAX_ANALYTICS_RECENT_EVENTS = 40;
+const MAX_ANALYTICS_ERROR_MESSAGE_CHARS = 240;
 
 const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 const authPath =
@@ -47,7 +53,7 @@ class GatewayAnalyticsStore {
         const trimmed = line.trim();
         if (!trimmed) continue;
         try {
-          this.#pushEvent(JSON.parse(trimmed));
+          this.#pushEvent(normalizeAnalyticsEvent(JSON.parse(trimmed)));
         } catch {
           // Ignore malformed historical lines in demo mode.
         }
@@ -77,7 +83,8 @@ class GatewayAnalyticsStore {
   async finishRequest(active, result) {
     this.activeRequests.delete(active.id);
     const completedAtMs = Date.now();
-    const event = {
+    const event = normalizeAnalyticsEvent({
+      schemaVersion: 2,
       id: active.id,
       startedAt: active.startedAt,
       startedAtMs: active.startedAtMs,
@@ -86,36 +93,56 @@ class GatewayAnalyticsStore {
       durationMs: Math.max(0, completedAtMs - active.startedAtMs),
       client: active.client,
       request: active.request,
-      routing: result.routing || active.routing,
+      routing: {
+        ...(result.routing || active.routing),
+        mockMode: MOCK_MODE,
+      },
       result: {
         status: result.status || "success",
         finishReason: result.finishReason || "stop",
-        errorMessage: result.errorMessage || null,
+        errorCode: result.errorCode || null,
+        errorMessage: truncateText(result.errorMessage || null, MAX_ANALYTICS_ERROR_MESSAGE_CHARS),
       },
       metrics: {
         outputChars: Number(result.outputChars || 0),
+        outputTokens: result.outputTokens == null ? estimateTokensFromChars(result.outputChars || 0) : Number(result.outputTokens),
         toolCalls: Number(result.toolCalls || 0),
+        toolCallNames: Array.isArray(result.toolCallNames) ? result.toolCallNames.slice(0, 50) : [],
+        firstTokenMs: result.firstTokenMs == null ? null : Number(result.firstTokenMs),
       },
-    };
+    });
 
     this.#pushEvent(event);
-    await appendFile(this.filePath, `${JSON.stringify(event)}\n`, "utf8");
+    try {
+      await appendFile(this.filePath, `${JSON.stringify(event)}\n`, "utf8");
+    } catch (error) {
+      console.warn("[gateway] analytics append warning", error);
+    }
     return event;
   }
 
-  getSummary() {
+  getSummary(rangeId = DEFAULT_ANALYTICS_RANGE) {
     const now = Date.now();
-    const recentEvents = this.events.slice(-MAX_ANALYTICS_RECENT_EVENTS).reverse();
-    const completed = this.events.length;
-    const successCount = this.events.filter((event) => event.result?.status === "success").length;
-    const errorCount = completed - successCount;
-    const totalDurationMs = this.events.reduce((sum, event) => sum + Number(event.durationMs || 0), 0);
-    const totalOutputChars = this.events.reduce((sum, event) => sum + Number(event.metrics?.outputChars || 0), 0);
-    const users = summarizeUsers(this.events);
-    const series = buildMinuteSeries(this.events, ANALYTICS_WINDOW_MINUTES, now);
+    const range = resolveAnalyticsRange(rangeId, this.events, now);
+    const currentEvents = filterEventsByTime(this.events, range.startMs, range.endMs);
+    const previousEvents = range.previousStartMs == null
+      ? []
+      : filterEventsByTime(this.events, range.previousStartMs, range.previousEndMs);
+    const totals = summarizeTotals(currentEvents, this.activeRequests.size);
+    const previous = range.previousStartMs == null ? null : summarizeTotals(previousEvents, 0);
+    const users = summarizeUsers(currentEvents);
 
     return {
       generatedAt: new Date(now).toISOString(),
+      range: {
+        id: range.id,
+        label: range.label,
+        startAt: new Date(range.startMs).toISOString(),
+        endAt: new Date(range.endMs).toISOString(),
+        bucketMs: range.bucketMs,
+        previousStartAt: range.previousStartMs == null ? null : new Date(range.previousStartMs).toISOString(),
+        previousEndAt: range.previousEndMs == null ? null : new Date(range.previousEndMs).toISOString(),
+      },
       gateway: {
         host: HOST,
         port: PORT,
@@ -124,25 +151,23 @@ class GatewayAnalyticsStore {
         routedProvider,
         routedModelId,
       },
-      totals: {
-        completedRequests: completed,
-        activeRequests: this.activeRequests.size,
-        uniqueUsers: users.length,
-        successCount,
-        errorCount,
-        successRate: completed > 0 ? successCount / completed : 1,
-        avgDurationMs: completed > 0 ? Math.round(totalDurationMs / completed) : 0,
-        totalOutputChars,
-      },
+      totals,
+      previous,
+      deltas: previous ? summarizeDeltas(totals, previous) : null,
       users,
-      recent: recentEvents,
+      hosts: summarizeHosts(currentEvents),
+      clients: summarizeClients(currentEvents),
+      models: summarizeModels(currentEvents),
+      tools: summarizeTools(currentEvents),
+      errors: summarizeErrors(currentEvents),
+      recent: currentEvents.slice(-MAX_ANALYTICS_RECENT_EVENTS).reverse(),
       active: [...this.activeRequests.values()]
         .map((request) => ({
           ...request,
           elapsedMs: Math.max(0, now - request.startedAtMs),
         }))
         .sort((a, b) => b.startedAtMs - a.startedAtMs),
-      series,
+      series: buildTimeSeries(currentEvents, range.startMs, range.endMs, range.bucketMs),
     };
   }
 
@@ -429,6 +454,8 @@ function sendMockStream(res, body) {
     finishReason: "stop",
     outputChars: text.length,
     toolCalls: 0,
+    toolCallNames: [],
+    firstTokenMs: 0,
     routing: {
       provider: "mock",
       model: "assistant",
@@ -481,12 +508,19 @@ async function streamViaPiAuth(res, body) {
     connection: "keep-alive",
   });
 
-  const streamId = `chatcmpl_pi_${Date.now()}`;
+  const streamStartedAtMs = Date.now();
+  const streamId = `chatcmpl_pi_${streamStartedAtMs}`;
   let sentRole = false;
   let toolIndex = 0;
   let outputChars = 0;
   let toolCalls = 0;
+  let toolCallNames = [];
+  let firstTokenMs = null;
   let finishReason = "stop";
+
+  function markFirstToken() {
+    if (firstTokenMs == null) firstTokenMs = Math.max(0, Date.now() - streamStartedAtMs);
+  }
 
   const eventStream = piStreamSimple(model, context, {
     apiKey: resolvedAuth.apiKey,
@@ -510,6 +544,7 @@ async function streamViaPiAuth(res, body) {
         sentRole = true;
       }
       if (event.delta) {
+        markFirstToken();
         outputChars += event.delta.length;
         writeOpenAIChunk(res, streamId, body.model || "assistant", { content: event.delta });
       }
@@ -517,7 +552,9 @@ async function streamViaPiAuth(res, body) {
     }
 
     if (event.type === "toolcall_end") {
+      markFirstToken();
       toolCalls += 1;
+      toolCallNames.push(cleanMetricName(event.toolCall?.name, "unknown"));
       if (!sentRole) {
         writeOpenAIChunk(res, streamId, body.model || "assistant", { role: "assistant" });
         sentRole = true;
@@ -548,6 +585,8 @@ async function streamViaPiAuth(res, body) {
         finishReason,
         outputChars,
         toolCalls,
+        toolCallNames,
+        firstTokenMs,
         routing: {
           provider: model.provider,
           model: model.id,
@@ -563,6 +602,7 @@ async function streamViaPiAuth(res, body) {
         sentRole = true;
       }
       const message = event.error?.errorMessage || `Gateway upstream error (${event.reason})`;
+      markFirstToken();
       outputChars += message.length;
       writeOpenAIChunk(res, streamId, body.model || "assistant", { content: message });
       writeOpenAIChunk(res, streamId, body.model || "assistant", {}, "stop");
@@ -571,9 +611,12 @@ async function streamViaPiAuth(res, body) {
       return {
         status: "error",
         finishReason: "stop",
+        errorCode: event.reason || "upstream_error",
         errorMessage: message,
         outputChars,
         toolCalls,
+        toolCallNames,
+        firstTokenMs,
         routing: {
           provider: model.provider,
           model: model.id,
@@ -592,6 +635,8 @@ async function streamViaPiAuth(res, body) {
     finishReason: "stop",
     outputChars,
     toolCalls,
+    toolCallNames,
+    firstTokenMs,
     routing: {
       provider: model.provider,
       model: model.id,
@@ -636,6 +681,7 @@ async function handleChatCompletions(req, res) {
       await analyticsStore.finishRequest(active, {
         status: "error",
         finishReason: "stop",
+        errorCode: "unsupported_mode",
         errorMessage: "unsupported_mode",
       });
       return sendJson(res, 400, {
@@ -650,6 +696,7 @@ async function handleChatCompletions(req, res) {
     await analyticsStore.finishRequest(active, {
       status: "error",
       finishReason: "stop",
+      errorCode: "gateway_error",
       errorMessage: String(error?.message || error),
     });
     throw error;
@@ -676,13 +723,29 @@ function getClientIdentity(req) {
 }
 
 function getRequestSummary(body) {
+  const toolNames = extractToolNames(body.tools);
+  const promptChars = estimatePromptChars(body.messages);
   return {
     abstractModel: typeof body.model === "string" && body.model ? body.model : "assistant",
     messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
-    toolCount: Array.isArray(body.tools) ? body.tools.length : 0,
-    promptChars: estimatePromptChars(body.messages),
+    toolCount: toolNames.length,
+    toolDefinitionCount: toolNames.length,
+    toolNames,
+    promptChars,
+    promptTokens: estimateTokensFromChars(promptChars),
+    hasImages: requestHasImages(body.messages),
     stream: body.stream !== false,
+    reasoningEffort: body.reasoning_effort || body.reasoning?.effort || null,
+    maxTokens: body.max_completion_tokens ?? body.max_tokens ?? null,
   };
+}
+
+function extractToolNames(tools) {
+  if (!Array.isArray(tools)) return [];
+  return tools
+    .map((tool) => cleanMetricName(tool?.function?.name || tool?.name, ""))
+    .filter(Boolean)
+    .slice(0, 100);
 }
 
 function estimatePromptChars(messages) {
@@ -694,15 +757,223 @@ function estimatePromptChars(messages) {
   return total;
 }
 
+function estimateTokensFromChars(chars) {
+  const value = Number(chars || 0);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.ceil(value / 4);
+}
+
+function requestHasImages(messages) {
+  if (!Array.isArray(messages)) return false;
+  return messages.some((message) => {
+    const content = message?.content;
+    return Array.isArray(content) && content.some((part) => part?.type === "image_url" || part?.type === "image");
+  });
+}
+
 function cleanHeader(value) {
   const first = Array.isArray(value) ? value[0] : value;
   if (typeof first !== "string") return "";
   return first.trim().slice(0, 200);
 }
 
+function cleanMetricName(value, fallback = "unknown") {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, 120) : fallback;
+}
+
+function truncateText(value, maxChars) {
+  if (value == null) return null;
+  const text = String(value);
+  return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text;
+}
+
 function normalizeRemoteAddress(value) {
   if (!value) return "";
   return value.startsWith("::ffff:") ? value.slice("::ffff:".length) : value;
+}
+
+function normalizeAnalyticsEvent(event) {
+  const completedAtMs = Number(event.completedAtMs || Date.parse(event.completedAt) || Date.now());
+  const startedAtMs = Number(event.startedAtMs || Date.parse(event.startedAt) || completedAtMs - Number(event.durationMs || 0));
+  const toolNames = Array.isArray(event.request?.toolNames)
+    ? event.request.toolNames.map((name) => cleanMetricName(name, "")).filter(Boolean)
+    : [];
+
+  return {
+    schemaVersion: Number(event.schemaVersion || 1),
+    id: event.id || randomUUID(),
+    startedAt: event.startedAt || new Date(startedAtMs).toISOString(),
+    startedAtMs,
+    completedAt: event.completedAt || new Date(completedAtMs).toISOString(),
+    completedAtMs,
+    durationMs: Number(event.durationMs || Math.max(0, completedAtMs - startedAtMs)),
+    client: {
+      identity: event.client?.identity || "unknown-user",
+      user: event.client?.user || "unknown-user",
+      domain: event.client?.domain || "",
+      host: event.client?.host || "unknown-host",
+      client: event.client?.client || "unknown",
+      remoteAddress: event.client?.remoteAddress || "",
+      userAgent: event.client?.userAgent || "",
+      appVersion: event.client?.appVersion || null,
+    },
+    request: {
+      abstractModel: event.request?.abstractModel || "assistant",
+      stream: event.request?.stream !== false,
+      messageCount: Number(event.request?.messageCount || 0),
+      toolCount: Number(event.request?.toolCount ?? event.request?.toolDefinitionCount ?? toolNames.length),
+      toolDefinitionCount: Number(event.request?.toolDefinitionCount ?? event.request?.toolCount ?? toolNames.length),
+      toolNames,
+      promptChars: Number(event.request?.promptChars || 0),
+      promptTokens: event.request?.promptTokens == null
+        ? estimateTokensFromChars(event.request?.promptChars || 0)
+        : Number(event.request.promptTokens),
+      hasImages: Boolean(event.request?.hasImages),
+      reasoningEffort: event.request?.reasoningEffort || null,
+      maxTokens: event.request?.maxTokens ?? null,
+    },
+    routing: {
+      provider: event.routing?.provider || "unknown",
+      model: event.routing?.model || "unknown",
+      api: event.routing?.api || "unknown",
+      baseUrl: event.routing?.baseUrl || null,
+      mockMode: Boolean(event.routing?.mockMode),
+    },
+    result: {
+      status: event.result?.status === "error" ? "error" : "success",
+      finishReason: event.result?.finishReason || "stop",
+      errorCode: event.result?.errorCode || null,
+      errorMessage: truncateText(event.result?.errorMessage || null, MAX_ANALYTICS_ERROR_MESSAGE_CHARS),
+    },
+    metrics: {
+      outputChars: Number(event.metrics?.outputChars || 0),
+      outputTokens: event.metrics?.outputTokens == null
+        ? estimateTokensFromChars(event.metrics?.outputChars || 0)
+        : Number(event.metrics.outputTokens),
+      toolCalls: Number(event.metrics?.toolCalls || 0),
+      toolCallNames: Array.isArray(event.metrics?.toolCallNames)
+        ? event.metrics.toolCallNames.map((name) => cleanMetricName(name, "")).filter(Boolean).slice(0, 50)
+        : [],
+      firstTokenMs: event.metrics?.firstTokenMs == null ? null : Number(event.metrics.firstTokenMs),
+    },
+  };
+}
+
+function resolveAnalyticsRange(rangeId, events, now) {
+  const requested = String(rangeId || DEFAULT_ANALYTICS_RANGE).toLowerCase();
+  if (requested === "all") {
+    const firstEventMs = events.reduce((min, event) => Math.min(min, Number(event.completedAtMs || now)), now);
+    const startMs = events.length > 0 ? firstEventMs : now - ANALYTICS_RANGES[DEFAULT_ANALYTICS_RANGE].durationMs;
+    return {
+      id: "all",
+      label: "All retained events",
+      startMs,
+      endMs: now,
+      bucketMs: chooseBucketMs(Math.max(1, now - startMs)),
+      previousStartMs: null,
+      previousEndMs: null,
+    };
+  }
+
+  const definition = ANALYTICS_RANGES[requested] || ANALYTICS_RANGES[DEFAULT_ANALYTICS_RANGE];
+  const id = ANALYTICS_RANGES[requested] ? requested : DEFAULT_ANALYTICS_RANGE;
+  const startMs = now - definition.durationMs;
+  return {
+    id,
+    label: definition.label,
+    startMs,
+    endMs: now,
+    bucketMs: definition.bucketMs,
+    previousStartMs: startMs - definition.durationMs,
+    previousEndMs: startMs,
+  };
+}
+
+function chooseBucketMs(durationMs) {
+  const buckets = [60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 60 * 60 * 1000, 6 * 60 * 60 * 1000, 24 * 60 * 60 * 1000];
+  return buckets.find((bucketMs) => durationMs / bucketMs <= 160) || buckets[buckets.length - 1];
+}
+
+function filterEventsByTime(events, startMs, endMs) {
+  return events.filter((event) => {
+    const completedAtMs = Number(event.completedAtMs || 0);
+    return completedAtMs >= startMs && completedAtMs <= endMs;
+  });
+}
+
+function summarizeTotals(events, activeRequests) {
+  const completedRequests = events.length;
+  const successCount = events.filter((event) => event.result?.status === "success").length;
+  const errorCount = completedRequests - successCount;
+  const durations = events.map((event) => Number(event.durationMs || 0));
+  const firstTokenValues = events
+    .map((event) => event.metrics?.firstTokenMs)
+    .filter((value) => value != null && Number.isFinite(Number(value)))
+    .map(Number);
+  const totalDurationMs = durations.reduce((sum, value) => sum + value, 0);
+  const totalFirstTokenMs = firstTokenValues.reduce((sum, value) => sum + value, 0);
+  const uniqueUsers = new Set(events.map((event) => event.client?.identity || "unknown-user")).size;
+
+  return {
+    completedRequests,
+    activeRequests,
+    uniqueUsers,
+    successCount,
+    errorCount,
+    successRate: completedRequests > 0 ? successCount / completedRequests : 1,
+    avgDurationMs: completedRequests > 0 ? Math.round(totalDurationMs / completedRequests) : 0,
+    p50DurationMs: percentile(durations, 50),
+    p95DurationMs: percentile(durations, 95),
+    p99DurationMs: percentile(durations, 99),
+    avgFirstTokenMs: firstTokenValues.length > 0 ? Math.round(totalFirstTokenMs / firstTokenValues.length) : 0,
+    totalDurationMs,
+    totalPromptChars: events.reduce((sum, event) => sum + Number(event.request?.promptChars || 0), 0),
+    totalOutputChars: events.reduce((sum, event) => sum + Number(event.metrics?.outputChars || 0), 0),
+    totalPromptTokens: events.reduce((sum, event) => sum + Number(event.request?.promptTokens || 0), 0),
+    totalOutputTokens: events.reduce((sum, event) => sum + Number(event.metrics?.outputTokens || 0), 0),
+    totalTokens: events.reduce((sum, event) => sum + Number(event.request?.promptTokens || 0) + Number(event.metrics?.outputTokens || 0), 0),
+    avgTokensPerRequest: completedRequests > 0
+      ? Math.round(events.reduce((sum, event) => sum + Number(event.request?.promptTokens || 0) + Number(event.metrics?.outputTokens || 0), 0) / completedRequests)
+      : 0,
+    totalToolCalls: events.reduce((sum, event) => sum + Number(event.metrics?.toolCalls || 0), 0),
+    imageRequestCount: events.filter((event) => event.request?.hasImages).length,
+  };
+}
+
+function percentile(values, percentileValue) {
+  const sorted = values.map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((percentileValue / 100) * sorted.length) - 1));
+  return Math.round(sorted[index]);
+}
+
+function summarizeDeltas(current, previous) {
+  const keys = [
+    "completedRequests",
+    "uniqueUsers",
+    "totalTokens",
+    "totalPromptTokens",
+    "totalOutputTokens",
+    "avgTokensPerRequest",
+    "totalDurationMs",
+    "successRate",
+    "avgDurationMs",
+    "totalOutputChars",
+    "totalToolCalls",
+  ];
+  return Object.fromEntries(keys.map((key) => [key, deltaMetric(current[key], previous[key])]));
+}
+
+function deltaMetric(currentValue, previousValue) {
+  const current = Number(currentValue || 0);
+  const previous = Number(previousValue || 0);
+  const value = current - previous;
+  return {
+    value,
+    percent: previous === 0 ? (current === 0 ? 0 : 1) : value / previous,
+  };
 }
 
 function summarizeUsers(events) {
@@ -719,9 +990,12 @@ function summarizeUsers(events) {
         requestCount: 0,
         successCount: 0,
         errorCount: 0,
-        avgDurationMs: 0,
+        durations: [],
         totalDurationMs: 0,
+        totalPromptTokens: 0,
+        totalOutputTokens: 0,
         totalOutputChars: 0,
+        totalToolCalls: 0,
         lastSeenAt: event.completedAt,
         lastHost: event.client?.host || "unknown-host",
         clients: {},
@@ -731,8 +1005,12 @@ function summarizeUsers(events) {
     }
 
     summary.requestCount += 1;
+    summary.durations.push(Number(event.durationMs || 0));
     summary.totalDurationMs += Number(event.durationMs || 0);
+    summary.totalPromptTokens += Number(event.request?.promptTokens || 0);
+    summary.totalOutputTokens += Number(event.metrics?.outputTokens || 0);
     summary.totalOutputChars += Number(event.metrics?.outputChars || 0);
+    summary.totalToolCalls += Number(event.metrics?.toolCalls || 0);
     summary.lastSeenAt = event.completedAt > summary.lastSeenAt ? event.completedAt : summary.lastSeenAt;
     summary.lastHost = event.client?.host || summary.lastHost;
     summary.hosts.add(event.client?.host || "unknown-host");
@@ -750,8 +1028,16 @@ function summarizeUsers(events) {
       requestCount: summary.requestCount,
       successCount: summary.successCount,
       errorCount: summary.errorCount,
-      avgDurationMs: summary.requestCount > 0 ? Math.round(summary.totalDurationMs / summary.requestCount) : 0,
+      successRate: summary.requestCount > 0 ? summary.successCount / summary.requestCount : 1,
+      avgDurationMs: average(summary.durations),
+      p95DurationMs: percentile(summary.durations, 95),
+      totalDurationMs: summary.totalDurationMs,
+      totalPromptTokens: summary.totalPromptTokens,
+      totalOutputTokens: summary.totalOutputTokens,
+      totalTokens: summary.totalPromptTokens + summary.totalOutputTokens,
+      avgTokensPerRequest: summary.requestCount > 0 ? Math.round((summary.totalPromptTokens + summary.totalOutputTokens) / summary.requestCount) : 0,
       totalOutputChars: summary.totalOutputChars,
+      totalToolCalls: summary.totalToolCalls,
       lastSeenAt: summary.lastSeenAt,
       lastHost: summary.lastHost,
       hostCount: summary.hosts.size,
@@ -760,52 +1046,201 @@ function summarizeUsers(events) {
     .sort((a, b) => b.requestCount - a.requestCount || String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)));
 }
 
-function buildMinuteSeries(events, minutes, now = Date.now()) {
-  const endMinute = Math.floor(now / 60000) * 60000;
-  const startMinute = endMinute - (minutes - 1) * 60000;
-  const points = Array.from({ length: minutes }, (_, index) => ({
-    minuteStartMs: startMinute + index * 60000,
-    label: formatMinuteLabel(startMinute + index * 60000),
-    requests: 0,
-    success: 0,
-    error: 0,
-    totalDurationMs: 0,
-  }));
+function summarizeHosts(events) {
+  const byHost = new Map();
+  for (const event of events) {
+    const host = event.client?.host || "unknown-host";
+    const summary = getOrCreateGroup(byHost, host, () => ({ host, requestCount: 0, successCount: 0, errorCount: 0, durations: [], users: new Set(), lastSeenAt: event.completedAt }));
+    summary.requestCount += 1;
+    summary.durations.push(Number(event.durationMs || 0));
+    summary.users.add(event.client?.identity || "unknown-user");
+    summary.lastSeenAt = event.completedAt > summary.lastSeenAt ? event.completedAt : summary.lastSeenAt;
+    if (event.result?.status === "success") summary.successCount += 1;
+    else summary.errorCount += 1;
+  }
+  return [...byHost.values()].map((summary) => ({
+    host: summary.host,
+    requestCount: summary.requestCount,
+    uniqueUsers: summary.users.size,
+    successCount: summary.successCount,
+    errorCount: summary.errorCount,
+    successRate: summary.requestCount > 0 ? summary.successCount / summary.requestCount : 1,
+    avgDurationMs: average(summary.durations),
+    p95DurationMs: percentile(summary.durations, 95),
+    lastSeenAt: summary.lastSeenAt,
+  })).sort(sortByRequestCount);
+}
+
+function summarizeClients(events) {
+  const byClient = new Map();
+  for (const event of events) {
+    const client = event.client?.client || "unknown";
+    const summary = getOrCreateGroup(byClient, client, () => ({ client, requestCount: 0, successCount: 0, errorCount: 0, durations: [] }));
+    summary.requestCount += 1;
+    summary.durations.push(Number(event.durationMs || 0));
+    if (event.result?.status === "success") summary.successCount += 1;
+    else summary.errorCount += 1;
+  }
+  return [...byClient.values()].map((summary) => ({
+    client: summary.client,
+    requestCount: summary.requestCount,
+    successCount: summary.successCount,
+    errorCount: summary.errorCount,
+    successRate: summary.requestCount > 0 ? summary.successCount / summary.requestCount : 1,
+    avgDurationMs: average(summary.durations),
+  })).sort(sortByRequestCount);
+}
+
+function summarizeModels(events) {
+  const byModel = new Map();
+  for (const event of events) {
+    const provider = event.routing?.provider || "unknown";
+    const model = event.routing?.model || "unknown";
+    const key = `${provider}/${model}`;
+    const summary = getOrCreateGroup(byModel, key, () => ({ provider, model, requestCount: 0, successCount: 0, errorCount: 0, durations: [], totalTokens: 0 }));
+    summary.requestCount += 1;
+    summary.durations.push(Number(event.durationMs || 0));
+    summary.totalTokens += Number(event.request?.promptTokens || 0) + Number(event.metrics?.outputTokens || 0);
+    if (event.result?.status === "success") summary.successCount += 1;
+    else summary.errorCount += 1;
+  }
+  return [...byModel.values()].map((summary) => ({
+    provider: summary.provider,
+    model: summary.model,
+    requestCount: summary.requestCount,
+    successCount: summary.successCount,
+    errorCount: summary.errorCount,
+    successRate: summary.requestCount > 0 ? summary.successCount / summary.requestCount : 1,
+    avgDurationMs: average(summary.durations),
+    p95DurationMs: percentile(summary.durations, 95),
+    totalTokens: summary.totalTokens,
+  })).sort(sortByRequestCount);
+}
+
+function summarizeTools(events) {
+  const byTool = new Map();
+  for (const event of events) {
+    for (const name of event.request?.toolNames || []) {
+      const summary = getOrCreateGroup(byTool, name, () => ({ name, definedCount: 0, callCount: 0 }));
+      summary.definedCount += 1;
+    }
+    const callNames = event.metrics?.toolCallNames || [];
+    for (const name of callNames) {
+      const summary = getOrCreateGroup(byTool, name, () => ({ name, definedCount: 0, callCount: 0 }));
+      summary.callCount += 1;
+    }
+    if (Number(event.metrics?.toolCalls || 0) > 0 && callNames.length === 0) {
+      const summary = getOrCreateGroup(byTool, "unknown", () => ({ name: "unknown", definedCount: 0, callCount: 0 }));
+      summary.callCount += Number(event.metrics?.toolCalls || 0);
+    }
+  }
+  return [...byTool.values()].sort((a, b) => b.callCount - a.callCount || b.definedCount - a.definedCount || a.name.localeCompare(b.name));
+}
+
+function summarizeErrors(events) {
+  const byError = new Map();
+  for (const event of events) {
+    if (event.result?.status !== "error") continue;
+    const errorCode = event.result?.errorCode || "error";
+    const errorMessage = event.result?.errorMessage || "Unknown error";
+    const key = `${errorCode}\n${errorMessage}`;
+    const summary = getOrCreateGroup(byError, key, () => ({ errorCode, errorMessage, count: 0, lastSeenAt: event.completedAt }));
+    summary.count += 1;
+    summary.lastSeenAt = event.completedAt > summary.lastSeenAt ? event.completedAt : summary.lastSeenAt;
+  }
+  return [...byError.values()].sort((a, b) => b.count - a.count || String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)));
+}
+
+function buildTimeSeries(events, startMs, endMs, bucketMs) {
+  const firstBucketMs = Math.floor(startMs / bucketMs) * bucketMs;
+  const points = [];
+  for (let bucketStartMs = firstBucketMs; bucketStartMs < endMs; bucketStartMs += bucketMs) {
+    points.push({
+      bucketStart: new Date(bucketStartMs).toISOString(),
+      bucketStartMs,
+      label: formatBucketLabel(bucketStartMs, bucketMs),
+      requests: 0,
+      success: 0,
+      error: 0,
+      durations: [],
+      promptTokens: 0,
+      outputTokens: 0,
+      outputChars: 0,
+      toolCalls: 0,
+    });
+  }
 
   for (const event of events) {
     const completedAtMs = Number(event.completedAtMs || 0);
-    if (completedAtMs < startMinute || completedAtMs >= endMinute + 60000) continue;
-    const index = Math.floor((completedAtMs - startMinute) / 60000);
+    const index = Math.floor((completedAtMs - firstBucketMs) / bucketMs);
     const point = points[index];
     if (!point) continue;
     point.requests += 1;
     if (event.result?.status === "success") point.success += 1;
     else point.error += 1;
-    point.totalDurationMs += Number(event.durationMs || 0);
+    point.durations.push(Number(event.durationMs || 0));
+    point.promptTokens += Number(event.request?.promptTokens || 0);
+    point.outputTokens += Number(event.metrics?.outputTokens || 0);
+    point.outputChars += Number(event.metrics?.outputChars || 0);
+    point.toolCalls += Number(event.metrics?.toolCalls || 0);
   }
 
   return points.map((point) => ({
+    bucketStart: point.bucketStart,
     label: point.label,
     requests: point.requests,
     success: point.success,
     error: point.error,
-    avgDurationMs: point.requests > 0 ? Math.round(point.totalDurationMs / point.requests) : 0,
+    avgDurationMs: average(point.durations),
+    p50DurationMs: percentile(point.durations, 50),
+    p95DurationMs: percentile(point.durations, 95),
+    p99DurationMs: percentile(point.durations, 99),
+    promptTokens: point.promptTokens,
+    outputTokens: point.outputTokens,
+    totalTokens: point.promptTokens + point.outputTokens,
+    outputChars: point.outputChars,
+    toolCalls: point.toolCalls,
   }));
 }
 
-function formatMinuteLabel(timestamp) {
-  return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+function average(values) {
+  const finite = values.map(Number).filter(Number.isFinite);
+  if (!finite.length) return 0;
+  return Math.round(finite.reduce((sum, value) => sum + value, 0) / finite.length);
+}
+
+function getOrCreateGroup(map, key, create) {
+  let value = map.get(key);
+  if (!value) {
+    value = create();
+    map.set(key, value);
+  }
+  return value;
+}
+
+function sortByRequestCount(a, b) {
+  return b.requestCount - a.requestCount;
+}
+
+function formatBucketLabel(timestamp, bucketMs) {
+  const date = new Date(timestamp);
+  if (bucketMs >= 24 * 60 * 60 * 1000) {
+    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function renderDashboardHtml() {
-  return dashboardTemplate.replaceAll("__ANALYTICS_WINDOW_MINUTES__", String(ANALYTICS_WINDOW_MINUTES));
+  const defaultWindowMinutes = Math.round(ANALYTICS_RANGES[DEFAULT_ANALYTICS_RANGE].durationMs / 60000);
+  return dashboardTemplate.replaceAll("__ANALYTICS_WINDOW_MINUTES__", String(defaultWindowMinutes));
 }
 
 const server = http.createServer(async (req, res) => {
   try {
     if (!req.url) return sendJson(res, 400, { error: "missing_url" });
+    const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
 
-    if (req.method === "GET" && req.url === "/health") {
+    if (req.method === "GET" && url.pathname === "/health") {
       let routed = null;
       try {
         const model = getRoutedModel();
@@ -836,15 +1271,15 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    if (req.method === "GET" && req.url === "/dashboard") {
+    if (req.method === "GET" && url.pathname === "/dashboard") {
       return sendHtml(res, 200, renderDashboardHtml());
     }
 
-    if (req.method === "GET" && req.url === "/analytics/summary") {
-      return sendJson(res, 200, analyticsStore.getSummary());
+    if (req.method === "GET" && url.pathname === "/analytics/summary") {
+      return sendJson(res, 200, analyticsStore.getSummary(url.searchParams.get("range") || DEFAULT_ANALYTICS_RANGE));
     }
 
-    if (req.method === "GET" && req.url === "/v1/models") {
+    if (req.method === "GET" && url.pathname === "/v1/models") {
       const token = getBearer(req);
       if (token !== GATEWAY_TOKEN) return unauthorized(res);
       return sendJson(res, 200, {
@@ -859,7 +1294,7 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    if (req.method === "POST" && req.url === "/v1/chat/completions") {
+    if (req.method === "POST" && url.pathname === "/v1/chat/completions") {
       return handleChatCompletions(req, res);
     }
 
