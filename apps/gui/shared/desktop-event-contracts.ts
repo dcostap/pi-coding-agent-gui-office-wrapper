@@ -46,6 +46,7 @@ export type DesktopEvent =
       chatGroupId?: string | null;
       isChat?: boolean;
       thread: ThreadData;
+      lastModifiedMs?: number;
       composer: ComposerState | null;
     }
   | {

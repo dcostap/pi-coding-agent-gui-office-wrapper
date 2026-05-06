@@ -183,6 +183,43 @@ function hasAssistantMessageChanged(
   );
 }
 
+function parseRuntimeTimestampMs(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return null;
+  }
+  const timestampMs = Date.parse(value);
+  return Number.isNaN(timestampMs) ? null : timestampMs;
+}
+
+function getLatestRuntimeMessageTimestampMs(
+  runtime: PiRuntime,
+  roles: ReadonlySet<string>,
+): number | null {
+  const branch = runtime.session.sessionManager.getBranch() as Array<{
+    type?: string;
+    timestamp?: unknown;
+    message?: { role?: string; timestamp?: unknown };
+  }>;
+
+  for (let index = branch.length - 1; index >= 0; index -= 1) {
+    const entry = branch[index];
+    const role = entry?.message?.role;
+    if (entry?.type !== "message" || !role || !roles.has(role)) {
+      continue;
+    }
+
+    const timestampMs = parseRuntimeTimestampMs(entry.message?.timestamp ?? entry.timestamp);
+    if (timestampMs !== null) {
+      return timestampMs;
+    }
+  }
+
+  return null;
+}
+
 function getLatestUserPrompt(thread: ThreadData) {
   let latestUserMessage: ProseMessage | undefined;
   for (let index = thread.messages.length - 1; index >= 0; index -= 1) {
@@ -233,7 +270,9 @@ export async function publishThreadUpdate(runtime: PiRuntime, reason: RuntimeThr
 
   let threadId = runtime.session.sessionId;
   const projectId = runtime.cwd;
-  const timestamp = Date.now();
+  const timestamp = reason === "start"
+    ? getLatestRuntimeMessageTimestampMs(runtime, new Set(["user"])) ?? Date.now()
+    : Date.now();
   let hasPersistedSessionFile = false;
 
   try {
@@ -299,6 +338,7 @@ export async function publishThreadUpdate(runtime: PiRuntime, reason: RuntimeThr
     chatGroupId: runtime.chatGroupId ?? null,
     isChat: isChatSessionPath(sessionPath),
     thread,
+    lastModifiedMs: timestamp,
     composer: await buildComposerState(runtime, { includeContextUsage: reason !== "update" }),
   });
 }
@@ -353,6 +393,7 @@ export async function publishExternalThreadUpdate({
     threadId,
     sessionPath,
     thread,
+    lastModifiedMs,
     composer: null,
   });
 }

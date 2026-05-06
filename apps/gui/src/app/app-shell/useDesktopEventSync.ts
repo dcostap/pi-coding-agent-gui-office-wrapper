@@ -171,7 +171,7 @@ export function useDesktopEventSync({
             id: event.threadId,
             title: event.thread.title,
             age: "Now",
-            lastModifiedMs: Date.now(),
+            lastModifiedMs: event.lastModifiedMs ?? Date.now(),
             sessionPath: event.sessionPath,
             running: event.thread.isStreaming || event.thread.isCompacting,
           },
