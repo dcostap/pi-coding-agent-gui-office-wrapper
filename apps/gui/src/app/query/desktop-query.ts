@@ -19,6 +19,7 @@ import type {
   PiSkillCatalogPage,
   PiSkillMutationResult,
   ProjectCommitEntry,
+  ProjectFileEntriesResult,
   ProjectDiffBaseline,
   ProjectDiffResolvedBaseline,
   ProjectDiffResult,
@@ -362,6 +363,21 @@ export async function openExternalQuery(url: string) {
 
 export async function openPathQuery(path: string) {
   return (await window.piDesktop?.openPath?.(path)) ?? false;
+}
+
+export async function revealPathQuery(path: string) {
+  return (await window.piDesktop?.revealPath?.(path)) ?? false;
+}
+
+export async function copyTextToClipboardQuery(text: string) {
+  return (await window.piDesktop?.copyTextToClipboard?.(text)) ?? false;
+}
+
+export async function listProjectFileEntriesQuery(request: {
+  projectId: string;
+  directoryPath?: string | null;
+}): Promise<ProjectFileEntriesResult | null> {
+  return (await window.piDesktop?.listProjectFileEntries?.(request)) ?? null;
 }
 
 export async function getThreadQuery(

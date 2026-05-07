@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FolderGit2 } from "lucide-react";
 import type { AppShellController } from "../../app-shell/useAppShellController";
 import { defaultPiSettings } from "../../../../shared/default-pi-settings";
+import { parseComposerAttachmentBlock } from "../../../../shared/composer-attachment-prompt";
 import { Composer } from "../../components/workspace/Composer";
 import { DiffPanel } from "../../components/workspace/DiffPanel";
 import { GitOpsComposerPanel } from "../../components/workspace/GitOpsComposerPanel";
@@ -219,6 +220,22 @@ export function CodeWorkspaceView({
     state.activeView === "thread" && activeThreadData && !threadContentVisible
       ? { ...activeThreadData, messages: [] }
       : activeThreadData;
+  const attachedFilePaths = useMemo(
+    () =>
+      new Set(
+        (activeThreadData?.messages ?? [])
+          .flatMap((message) => {
+            if (message.role !== "user") {
+              return [];
+            }
+
+            return message.content.flatMap(
+              (paragraph: string) => parseComposerAttachmentBlock(paragraph).attachmentPaths,
+            );
+          }),
+      ),
+    [activeThreadData?.messages],
+  );
 
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -320,6 +337,7 @@ export function CodeWorkspaceView({
               docked
               open={projectFilesOpen}
               projectId={composerProjectId}
+              attachedFilePaths={attachedFilePaths}
               onClose={() => setProjectFilesOpen(false)}
             />
           </div>
@@ -336,6 +354,7 @@ export function CodeWorkspaceView({
                 docked={false}
                 open={projectFilesOpen}
                 projectId={composerProjectId}
+                attachedFilePaths={attachedFilePaths}
                 onClose={() => setProjectFilesOpen(false)}
               />
             </div>

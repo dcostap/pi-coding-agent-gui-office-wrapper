@@ -1,99 +1,7 @@
-import {
-  File,
-  FileArchive,
-  FileCode,
-  FileSpreadsheet,
-  FileText,
-  Image,
-  Presentation,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { X } from "lucide-react";
+import { FileTypeIcon } from "../../common/FileTypeIcon";
 import type { ComposerAttachment } from "../../../desktop/types";
 import { cn } from "../../../utils/cn";
-
-const officeAttachmentIconMap: Record<string, { icon: LucideIcon; className: string }> = {
-  csv: { icon: FileSpreadsheet, className: "text-[#7fd69b]" },
-  doc: { icon: FileText, className: "text-[#8cb8ff]" },
-  docx: { icon: FileText, className: "text-[#8cb8ff]" },
-  odp: { icon: Presentation, className: "text-[#ffb178]" },
-  ods: { icon: FileSpreadsheet, className: "text-[#7fd69b]" },
-  odt: { icon: FileText, className: "text-[#8cb8ff]" },
-  pdf: { icon: FileText, className: "text-[#ff8f8f]" },
-  pot: { icon: Presentation, className: "text-[#ffb178]" },
-  potx: { icon: Presentation, className: "text-[#ffb178]" },
-  pps: { icon: Presentation, className: "text-[#ffb178]" },
-  ppsx: { icon: Presentation, className: "text-[#ffb178]" },
-  ppt: { icon: Presentation, className: "text-[#ffb178]" },
-  pptx: { icon: Presentation, className: "text-[#ffb178]" },
-  rtf: { icon: FileText, className: "text-[#c8b6ff]" },
-  txt: { icon: FileText, className: "text-[#b7c0d8]" },
-  xls: { icon: FileSpreadsheet, className: "text-[#7fd69b]" },
-  xlsm: { icon: FileSpreadsheet, className: "text-[#7fd69b]" },
-  xlsx: { icon: FileSpreadsheet, className: "text-[#7fd69b]" },
-};
-
-const archiveAttachmentExtensions = new Set(["7z", "gz", "rar", "tar", "zip"]);
-const codeAttachmentExtensions = new Set([
-  "css",
-  "htm",
-  "html",
-  "js",
-  "json",
-  "md",
-  "py",
-  "ts",
-  "tsx",
-  "xml",
-  "yaml",
-  "yml",
-]);
-
-function getAttachmentExtension(name: string) {
-  const cleanName = name.trim().replace(/[\\/]+$/, "");
-  const lastSegment = cleanName.split(/[\\/]/).filter(Boolean).pop() ?? cleanName;
-  const extension = lastSegment.includes(".") ? lastSegment.split(".").pop() : null;
-  return extension?.toLowerCase() ?? "";
-}
-
-function GenericAttachmentIcon({ extension }: { extension: string }) {
-  const label = /^[a-z0-9]{3}$/i.test(extension) ? extension.toLowerCase() : "";
-
-  return (
-    <span className="relative inline-flex h-4 w-4 items-center justify-center text-[color:var(--muted)]">
-      <File size={16} />
-      {label ? (
-        <span className="absolute top-[6px] left-1/2 max-w-[12px] -translate-x-1/2 scale-[0.58] font-mono text-[7px] font-bold leading-none tracking-[-0.08em] text-[color:var(--muted)]">
-          {label}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function getAttachmentIcon(attachment: ComposerAttachment) {
-  const extension = getAttachmentExtension(attachment.name || attachment.path);
-
-  if (attachment.kind === "image") {
-    return <Image size={15} className="text-[#8abeb7]" />;
-  }
-
-  const mappedIcon = officeAttachmentIconMap[extension];
-  if (mappedIcon) {
-    const Icon = mappedIcon.icon;
-    return <Icon size={15} className={mappedIcon.className} />;
-  }
-
-  if (archiveAttachmentExtensions.has(extension)) {
-    return <FileArchive size={15} className="text-[#f0c674]" />;
-  }
-
-  if (codeAttachmentExtensions.has(extension)) {
-    return <FileCode size={15} className="text-[#b5bd68]" />;
-  }
-
-  return <GenericAttachmentIcon extension={extension} />;
-}
 
 type ComposerAttachmentShelfProps = {
   attachments: ComposerAttachment[];
@@ -119,7 +27,13 @@ export function ComposerAttachmentShelf({ attachments, onRemove }: ComposerAttac
             )}
             title={attachment.path}
           >
-            <span className="shrink-0">{getAttachmentIcon(attachment)}</span>
+            <span className="shrink-0">
+              <FileTypeIcon
+                kind={attachment.kind === "directory" ? "directory" : attachment.kind === "image" ? "image" : "file"}
+                name={attachment.name || attachment.path}
+                size={15}
+              />
+            </span>
             <span className="min-w-0 truncate pr-1">{attachment.name}</span>
             <button
               type="button"

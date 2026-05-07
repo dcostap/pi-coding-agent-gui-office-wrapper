@@ -52,6 +52,8 @@ export type {
   PiSkillMutationResult,
   ProjectDeletionMode,
   ProjectCommitEntry,
+  ProjectFileEntry,
+  ProjectFileEntriesResult,
   ProjectDiffBaseline,
   ProjectDiffDefaultBaseline,
   ProjectDiffRenderMode,

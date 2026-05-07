@@ -1,4 +1,4 @@
-import { mkdir, open, stat } from "node:fs/promises";
+import { mkdir, open, readdir, stat } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -80,6 +80,55 @@ terminalManager.subscribeTerminalEvents((event) => {
   sendSseEvent(terminalEventClients, "terminalEvent", event);
 });
 
+const hiddenProjectFileNames = new Set([
+  ".git",
+  ".hg",
+  ".svn",
+  ".officeagent",
+  ".cache",
+  ".vite",
+  ".next",
+  "node_modules",
+  "dist",
+  "build",
+]);
+
+function isPathWithinRoot(candidatePath: string, rootPath: string) {
+  const relativePath = path.relative(rootPath, candidatePath);
+  return (
+    relativePath.length === 0 || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
+}
+
+async function listProjectFileEntriesForDirectory(request: {
+  projectId: string;
+  directoryPath?: string | null;
+}) {
+  const rootPath = path.resolve(request.projectId || getDesktopWorkingDirectory());
+  const requestedDirectoryPath = path.resolve(request.directoryPath || rootPath);
+  const directoryPath = isPathWithinRoot(requestedDirectoryPath, rootPath)
+    ? requestedDirectoryPath
+    : rootPath;
+  const directoryEntries = await readdir(directoryPath, { withFileTypes: true });
+  const entries = await Promise.all(
+    directoryEntries
+      .filter((entry) => !hiddenProjectFileNames.has(entry.name))
+      .map(async (entry) => {
+        const entryPath = path.join(directoryPath, entry.name);
+        const stats = await stat(entryPath);
+        return {
+          path: entryPath,
+          name: entry.name,
+          kind: entry.isDirectory() ? ("directory" as const) : ("file" as const),
+          modifiedMs: stats.mtimeMs,
+          size: entry.isDirectory() ? null : stats.size,
+        };
+      }),
+  );
+
+  return { rootPath, directoryPath, entries };
+}
+
 const handlers: DesktopRequestHandlerMap = {
   showTitleBarMenu: () => ({ ok: false }),
   runTitleBarCommand: () => ({ ok: false }),
@@ -132,6 +181,7 @@ const handlers: DesktopRequestHandlerMap = {
     return Object.fromEntries(entries);
   },
   listComposerAttachmentEntries: (request) => listComposerAttachmentEntries(request),
+  listProjectFileEntries: (request) => listProjectFileEntriesForDirectory(request),
   getComposerState: (request) => piThreads.loadComposerState(request),
   getComposerSlashCommands: (request) => piThreads.loadComposerSlashCommands(request),
   getDictationState: () => piThreads.getDictationState(),
@@ -206,6 +256,8 @@ const handlers: DesktopRequestHandlerMap = {
     return { ok: Boolean(safeUrl && (await openPathWithSystem(safeUrl))) };
   },
   openPath: async ({ path: targetPath }) => ({ ok: await openPathWithSystem(targetPath) }),
+  revealPath: async ({ path: targetPath }) => ({ ok: await openPathWithSystem(path.dirname(targetPath)) }),
+  copyTextToClipboard: () => ({ ok: false }),
   saveTextToDownloads: async ({ fileName, content }) => {
     const safeFileName = fileName
       .replace(/[\\/:*?"<>|]/g, "-")
