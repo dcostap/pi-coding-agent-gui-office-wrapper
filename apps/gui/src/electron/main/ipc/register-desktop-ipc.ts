@@ -104,7 +104,7 @@ function registerFileDragHandler(getMainWindow: () => BrowserWindow | null) {
       return;
     }
 
-    event.sender.startDrag({ file: files[0], icon: dragIcon });
+    event.sender.startDrag({ file: files[0], files, icon: dragIcon } as Parameters<typeof event.sender.startDrag>[0]);
   });
 }
 
