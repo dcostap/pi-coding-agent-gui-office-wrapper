@@ -204,6 +204,8 @@ declare global {
       openPath?: (path: string) => Promise<boolean>;
       revealPath?: (path: string) => Promise<boolean>;
       copyTextToClipboard?: (text: string) => Promise<boolean>;
+      copyFilesToClipboard?: (paths: string[]) => Promise<boolean>;
+      startFileDrag?: (paths: string[]) => void;
       saveTextToDownloads?: (
         fileName: string,
         content: string,

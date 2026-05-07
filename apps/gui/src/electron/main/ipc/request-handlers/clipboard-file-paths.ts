@@ -5,6 +5,7 @@ type ClipFilepathsModule = {
     filePaths?: string[];
     text?: string;
   };
+  writeClipboardFilePaths?: (filePaths: string[]) => void;
 };
 
 let cachedModulePromise: Promise<ClipFilepathsModule | null> | null = null;
@@ -35,5 +36,19 @@ export async function readNativeClipboardFilePaths(): Promise<DesktopClipboardFi
     };
   } catch {
     return { filePaths: [], text: null };
+  }
+}
+
+export async function writeNativeClipboardFilePaths(filePaths: string[]) {
+  const clipFilepaths = await loadClipFilepathsModule();
+  if (!clipFilepaths?.writeClipboardFilePaths) {
+    return false;
+  }
+
+  try {
+    clipFilepaths.writeClipboardFilePaths(filePaths);
+    return true;
+  } catch {
+    return false;
   }
 }

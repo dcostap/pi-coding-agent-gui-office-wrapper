@@ -5,7 +5,7 @@ import { cn } from "../../../utils/cn";
 import type { ComposerProps } from "../Composer";
 import { ComposerFooter } from "./ComposerFooter";
 import { ComposerPromptInputPanel } from "./ComposerPromptInputPanel";
-import { hasFilePayloadInClipboardData } from "./composer-paste-attachments";
+import { hasAttachmentHintInClipboardData } from "./composer-paste-attachments";
 import { useComposerController } from "./controller/useComposerController";
 import { useComposerSlashCommands } from "./useComposerSlashCommands";
 
@@ -224,7 +224,7 @@ export function ComposerPromptSurface({
     };
 
     const handleGlobalDragEnter = (event: DragEvent) => {
-      if (!hasFilePayloadInClipboardData(event.dataTransfer)) {
+      if (!hasAttachmentHintInClipboardData(event.dataTransfer)) {
         return;
       }
 
@@ -237,7 +237,7 @@ export function ComposerPromptSurface({
     };
 
     const handleGlobalFileDrag = (event: DragEvent) => {
-      if (!hasFilePayloadInClipboardData(event.dataTransfer)) {
+      if (!hasAttachmentHintInClipboardData(event.dataTransfer)) {
         return;
       }
 
@@ -249,7 +249,7 @@ export function ComposerPromptSurface({
     };
 
     const handleGlobalDragLeave = (event: DragEvent) => {
-      if (!hasFilePayloadInClipboardData(event.dataTransfer)) {
+      if (!hasAttachmentHintInClipboardData(event.dataTransfer)) {
         return;
       }
 
@@ -267,7 +267,7 @@ export function ComposerPromptSurface({
     };
 
     const handleGlobalDrop = (event: DragEvent) => {
-      if (!hasFilePayloadInClipboardData(event.dataTransfer)) {
+      if (!hasAttachmentHintInClipboardData(event.dataTransfer)) {
         return;
       }
 

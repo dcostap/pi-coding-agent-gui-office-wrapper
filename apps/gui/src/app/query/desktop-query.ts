@@ -373,6 +373,10 @@ export async function copyTextToClipboardQuery(text: string) {
   return (await window.piDesktop?.copyTextToClipboard?.(text)) ?? false;
 }
 
+export async function copyFilesToClipboardQuery(paths: string[]) {
+  return (await window.piDesktop?.copyFilesToClipboard?.(paths)) ?? false;
+}
+
 export async function listProjectFileEntriesQuery(request: {
   projectId: string;
   directoryPath?: string | null;

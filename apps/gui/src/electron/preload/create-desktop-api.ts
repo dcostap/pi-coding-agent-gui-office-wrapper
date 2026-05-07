@@ -177,6 +177,11 @@ export function createDesktopApi() {
     revealPath: (path: string) => invokeRequest("revealPath", { path }).then(({ ok }) => ok),
     copyTextToClipboard: (text: string) =>
       invokeRequest("copyTextToClipboard", { text }).then(({ ok }) => ok),
+    copyFilesToClipboard: (paths: string[]) =>
+      invokeRequest("copyFilesToClipboard", { paths }).then(({ ok }) => ok),
+    startFileDrag: (paths: string[]) => {
+      ipcRenderer.send("howcode:start-file-drag", { paths });
+    },
     saveTextToDownloads: (fileName: string, content: string) =>
       invokeRequest("saveTextToDownloads", { fileName, content }),
     subscribe: (listener: (event: DesktopEvent) => void) =>

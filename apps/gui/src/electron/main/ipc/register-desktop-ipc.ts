@@ -2,6 +2,7 @@ import {
   app,
   ipcMain,
   Menu,
+  nativeImage,
   type BrowserWindow,
   type IpcMainInvokeEvent,
   type MenuItemConstructorOptions,
@@ -87,6 +88,24 @@ function getTitleBarMenuTemplate(menuId: TitleBarMenuId): MenuItemConstructorOpt
     case "help":
       return [{ label: "OfficeAgent v0.1", enabled: false }];
   }
+}
+
+const dragIcon = nativeImage.createFromDataURL(
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAJklEQVR4Ae3NMQEAAAgDINc/9K3hHBQg7WQAAAAAAAAAAAAAAADwGx4gAAH4MSk3AAAAAElFTkSuQmCC",
+);
+
+function registerFileDragHandler(getMainWindow: () => BrowserWindow | null) {
+  ipcMain.on("howcode:start-file-drag", (event, payload) => {
+    assertTrustedDesktopIpcEvent(event, getMainWindow);
+    const files = Array.isArray(payload?.paths)
+      ? payload.paths.filter((filePath: unknown): filePath is string => typeof filePath === "string")
+      : [];
+    if (files.length === 0) {
+      return;
+    }
+
+    event.sender.startDrag({ file: files[0], icon: dragIcon });
+  });
 }
 
 function registerRequestHandlers(
@@ -188,6 +207,7 @@ export function registerDesktopIpc(
     ...createSystemHandlers(),
   };
 
+  registerFileDragHandler(getMainWindow);
   registerRequestHandlers(handlers, getMainWindow);
 
   runtime.piThreads.subscribeDesktopEvents((event) => {

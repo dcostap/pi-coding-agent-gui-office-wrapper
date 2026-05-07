@@ -252,6 +252,7 @@ export type DesktopRequestMap = {
   openPath: { params: { path: string }; response: { ok: boolean } };
   revealPath: { params: { path: string }; response: { ok: boolean } };
   copyTextToClipboard: { params: { text: string }; response: { ok: boolean } };
+  copyFilesToClipboard: { params: { paths: string[] }; response: { ok: boolean } };
   saveTextToDownloads: {
     params: { fileName: string; content: string };
     response: { ok: boolean; path?: string; error?: string };

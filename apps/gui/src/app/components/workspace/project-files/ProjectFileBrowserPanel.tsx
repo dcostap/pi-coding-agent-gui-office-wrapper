@@ -1,10 +1,11 @@
 import { ChevronDown, ChevronRight, Copy, ExternalLink, FolderOpen, PanelRightClose, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import type { ProjectFileEntry } from "../../../../../shared/desktop-contracts";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
 import { FileTypeIcon } from "../../common/FileTypeIcon";
 import {
+  copyFilesToClipboardQuery,
   copyTextToClipboardQuery,
   listProjectFileEntriesQuery,
   openPathQuery,
@@ -216,6 +217,26 @@ export function ProjectFileBrowserPanel({
     await copyTextToClipboardQuery(rows.map((row) => row.entry.name).join("\n"));
   }
 
+  async function copyFiles(rows: VisibleProjectFileRow[]) {
+    const paths = rows.map((row) => row.entry.path);
+    if (!(await copyFilesToClipboardQuery(paths))) {
+      await copyPaths(rows);
+    }
+  }
+
+  function handleDragStart(row: VisibleProjectFileRow, event: DragEvent<HTMLDivElement>) {
+    const rows = getSelectedRowsForAction(row);
+    const paths = rows.map((selectedRow) => selectedRow.entry.path);
+    const uriList = paths.map((path) => `file:///${path.replaceAll("\\", "/")}`).join("\n");
+
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("text/plain", paths.join("\n"));
+    event.dataTransfer.setData("text/uri-list", uriList);
+    event.dataTransfer.setData("application/x-office-agent-file-paths", JSON.stringify(paths));
+
+    window.piDesktop?.startFileDrag?.(paths);
+  }
+
   function renderSortIndicator(key: SortKey) {
     if (sortKey !== key) return null;
     return <span className="text-[10px] text-[color:var(--muted-2)]">{sortDirection === "asc" ? "↑" : "↓"}</span>;
@@ -279,6 +300,8 @@ export function ProjectFileBrowserPanel({
                   if (row.entry.kind === "directory") void toggleDirectory(row.entry);
                   else void openPathQuery(row.entry.path);
                 }}
+                draggable
+                onDragStart={(event) => handleDragStart(row, event)}
                 onContextMenu={(event) => {
                   event.preventDefault();
                   if (!selectedPaths.has(row.entry.path)) {
@@ -340,6 +363,9 @@ export function ProjectFileBrowserPanel({
                 </button>
                 <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void revealPathQuery(first.path)}>
                   <FolderOpen size={13} /> Show in folder
+                </button>
+                <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyFiles(rows)}>
+                  <Copy size={13} /> Copy {rows.length > 1 ? "files" : "file"}
                 </button>
                 <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyPaths(rows)}>
                   <Copy size={13} /> Copy {rows.length > 1 ? "paths" : "path"}

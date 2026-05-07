@@ -258,6 +258,7 @@ const handlers: DesktopRequestHandlerMap = {
   openPath: async ({ path: targetPath }) => ({ ok: await openPathWithSystem(targetPath) }),
   revealPath: async ({ path: targetPath }) => ({ ok: await openPathWithSystem(path.dirname(targetPath)) }),
   copyTextToClipboard: () => ({ ok: false }),
+  copyFilesToClipboard: () => ({ ok: false }),
   saveTextToDownloads: async ({ fileName, content }) => {
     const safeFileName = fileName
       .replace(/[\\/:*?"<>|]/g, "-")

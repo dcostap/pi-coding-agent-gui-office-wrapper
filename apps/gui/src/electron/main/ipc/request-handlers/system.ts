@@ -9,7 +9,7 @@ import {
   listComposerAttachmentEntries,
   normalizeDialogFilePaths,
 } from "../../../../desktop-host/composer-attachments";
-import { readNativeClipboardFilePaths } from "./clipboard-file-paths";
+import { readNativeClipboardFilePaths, writeNativeClipboardFilePaths } from "./clipboard-file-paths";
 import { getDesktopWorkingDirectory } from "../../../../../shared/desktop-working-directory";
 import type { DesktopRequestHandlerMap } from "../../../../../shared/desktop-ipc";
 
@@ -27,6 +27,7 @@ type SystemRequestHandlers = Pick<
   | "openPath"
   | "revealPath"
   | "copyTextToClipboard"
+  | "copyFilesToClipboard"
   | "saveTextToDownloads"
 >;
 
@@ -270,6 +271,11 @@ export function createSystemHandlers(): SystemRequestHandlers {
         return { ok: false };
       }
     },
+    copyFilesToClipboard: async ({ paths }) => ({
+      ok: await writeNativeClipboardFilePaths(
+        Array.isArray(paths) ? paths.filter((path): path is string => typeof path === "string") : [],
+      ),
+    }),
     saveTextToDownloads: async ({ fileName, content }) => {
       const safeFileName = fileName
         .replace(/[\\/:*?"<>|]/g, "-")
