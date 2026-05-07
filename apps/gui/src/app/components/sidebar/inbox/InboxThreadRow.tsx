@@ -33,6 +33,14 @@ export function InboxThreadRow({
       className="sidebar-row-surface sidebar-inbox-row"
       data-selected={selected ? "true" : "false"}
     >
+      <button
+        type="button"
+        className="sidebar-row-hitbox"
+        onClick={onSelect}
+        aria-label={title}
+        aria-current={selected ? "page" : undefined}
+      />
+
       <div className="sidebar-inbox-leading">
         {running ? (
           <ActivitySpinner className="h-3.5 w-3.5 text-[color:var(--text)]" />
@@ -41,7 +49,7 @@ export function InboxThreadRow({
         ) : null}
       </div>
 
-      <button type="button" className="sidebar-inbox-content" onClick={onSelect}>
+      <div className="sidebar-inbox-content" aria-hidden="true">
         <div className="sidebar-inbox-meta">
           <span className="truncate">{projectName}</span>
           <span aria-hidden="true">•</span>
@@ -59,13 +67,16 @@ export function InboxThreadRow({
         <div className="sidebar-inbox-preview">
           {preview ?? (running ? "Working…" : "No final message yet")}
         </div>
-      </button>
+      </div>
 
       <Tooltip content="Dismiss item" placement="right">
         <button
           type="button"
           className={`${compactIconButtonClass} sidebar-inbox-dismiss hover:bg-transparent`}
-          onClick={onDismiss}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDismiss();
+          }}
           data-visible={selected ? "true" : "false"}
           aria-label="Dismiss item"
         >

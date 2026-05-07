@@ -34,6 +34,14 @@ export function ThreadRow({
       className="sidebar-row-surface sidebar-thread-row"
       data-selected={isSelected ? "true" : "false"}
     >
+      <button
+        type="button"
+        className="sidebar-row-hitbox"
+        onClick={onOpen}
+        aria-label={title}
+        aria-current={isSelected ? "page" : undefined}
+      />
+
       {running ? (
         <span className="sidebar-thread-leading-icon">
           <ActivitySpinner />
@@ -48,7 +56,10 @@ export function ThreadRow({
           <button
             type="button"
             className="sidebar-thread-pin"
-            onClick={onPin}
+            onClick={(event) => {
+              event.stopPropagation();
+              onPin();
+            }}
             data-pinned={pinned ? "true" : "false"}
             data-selected={isSelected ? "true" : "false"}
             aria-label={pinned ? "Quitar chat de favoritos" : "Marcar chat como favorito"}
@@ -59,14 +70,9 @@ export function ThreadRow({
         </Tooltip>
       )}
 
-      <button
-        type="button"
-        className="sidebar-thread-button"
-        onClick={onOpen}
-        aria-current={isSelected ? "page" : undefined}
-      >
+      <span className="sidebar-thread-button" aria-hidden="true">
         <span className="truncate">{title}</span>
-      </button>
+      </span>
 
       <span className="sidebar-thread-meta-slot">
         {terminalRunning ? (
@@ -82,7 +88,10 @@ export function ThreadRow({
           <button
             type="button"
             className={cn(compactIconButtonClass, "text-white hover:text-white")}
-            onClick={onArchive}
+            onClick={(event) => {
+              event.stopPropagation();
+              onArchive();
+            }}
             aria-label="Archivar chat"
           >
             <Archive size={12} />
