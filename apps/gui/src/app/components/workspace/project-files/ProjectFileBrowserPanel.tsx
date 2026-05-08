@@ -264,7 +264,6 @@ export function ProjectFileBrowserPanel({
           className={cn(compactIconButtonClass, "h-7 w-7 rounded-full")}
           onClick={onClose}
           aria-label={docked ? "Collapse project files" : "Close project files"}
-          data-tooltip={docked ? "Collapse project files" : "Close project files"}
         >
           {docked ? <PanelRightClose size={14} /> : <X size={14} />}
         </button>
