@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type PropsWithChildren,
   type ReactNode,
   useId,
@@ -28,7 +29,13 @@ export function Tooltip({
   const present = useAnimatedPresence(open, 120);
   const tooltipId = useId();
   const anchorRef = useRef<HTMLSpanElement>(null);
-  const [position, setPosition] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  const [position, setPosition] = useState<{ left: number; top: number; x: number; y: number }>({
+    left: 0,
+    top: 0,
+    x: -50,
+    y: -100,
+  });
   const [positionReady, setPositionReady] = useState(false);
 
   useLayoutEffect(() => {
@@ -37,35 +44,82 @@ export function Tooltip({
       return;
     }
 
+    let animationFrame: number | null = null;
+
     const updatePosition = () => {
       const rect = anchorRef.current?.getBoundingClientRect();
       if (!rect) {
         return;
       }
 
+      const tooltipRect = tooltipRef.current?.getBoundingClientRect();
       const viewportPadding = 12;
-      const left =
-        placement === "right"
-          ? Math.min(window.innerWidth - viewportPadding, rect.right + 10)
-          : Math.min(
-              window.innerWidth - viewportPadding,
-              Math.max(viewportPadding, rect.left + rect.width / 2),
-            );
+      const tooltipWidth = tooltipRect?.width ?? 0;
+      const tooltipHeight = tooltipRect?.height ?? 0;
 
-      setPosition({
-        left,
-        top: placement === "right" ? rect.top + rect.height / 2 : rect.top - 8,
-      });
+      if (placement === "right") {
+        let left = rect.right + 10;
+        let x = 0;
+        if (tooltipWidth > 0 && left + tooltipWidth > window.innerWidth - viewportPadding) {
+          left = rect.left - 10;
+          x = -100;
+        }
+
+        let top = rect.top + rect.height / 2;
+        if (tooltipHeight > 0) {
+          top = Math.min(
+            window.innerHeight - viewportPadding - tooltipHeight / 2,
+            Math.max(viewportPadding + tooltipHeight / 2, top),
+          );
+        }
+
+        setPosition({ left, top, x, y: -50 });
+        setPositionReady(true);
+        return;
+      }
+
+      let left = rect.left + rect.width / 2;
+      if (tooltipWidth > 0) {
+        left = Math.min(
+          window.innerWidth - viewportPadding - tooltipWidth / 2,
+          Math.max(viewportPadding + tooltipWidth / 2, left),
+        );
+      } else {
+        left = Math.min(window.innerWidth - viewportPadding, Math.max(viewportPadding, left));
+      }
+
+      let top = rect.top - 8;
+      let y = -100;
+      if (tooltipHeight > 0 && top - tooltipHeight < viewportPadding) {
+        top = rect.bottom + 8;
+        y = 0;
+      }
+
+      setPosition({ left, top, x: -50, y });
       setPositionReady(true);
     };
 
+    const scheduleUpdate = () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updatePosition();
+      });
+    };
+
     updatePosition();
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
+    scheduleUpdate();
+    window.addEventListener("scroll", scheduleUpdate, true);
+    window.addEventListener("resize", scheduleUpdate);
 
     return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      window.removeEventListener("scroll", scheduleUpdate, true);
+      window.removeEventListener("resize", scheduleUpdate);
     };
   }, [present, placement]);
 
@@ -83,12 +137,20 @@ export function Tooltip({
       {present
         ? createPortal(
             <span
+              ref={tooltipRef}
               id={tooltipId}
               role="tooltip"
               data-open={open ? "true" : "false"}
               data-placement={placement}
               data-ready={positionReady ? "true" : "false"}
-              style={{ left: `${position.left}px`, top: `${position.top}px` }}
+              style={
+                {
+                  left: `${position.left}px`,
+                  top: `${position.top}px`,
+                  "--tooltip-x": `${position.x}%`,
+                  "--tooltip-y": `${position.y}%`,
+                } as CSSProperties
+              }
               className={cn("tooltip-content", contentClassName)}
             >
               {content}

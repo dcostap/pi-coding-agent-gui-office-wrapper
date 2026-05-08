@@ -219,21 +219,13 @@ button[data-tooltip][aria-disabled="true"]::after {
   transition: opacity 150ms ease-out, transform 150ms ease-out;
 }
 
-.tooltip-content[data-placement="top"] {
-  transform: translate(-50%, calc(-100% + 4px));
-}
-
-.tooltip-content[data-placement="top"][data-open="true"][data-ready="true"] {
-  transform: translate(-50%, calc(-100% - 2px));
-  opacity: 1;
-}
-
+.tooltip-content[data-placement="top"],
 .tooltip-content[data-placement="right"] {
-  transform: translate(-4px, -50%);
+  transform: translate(var(--tooltip-x, -50%), var(--tooltip-y, -100%));
 }
 
+.tooltip-content[data-placement="top"][data-open="true"][data-ready="true"],
 .tooltip-content[data-placement="right"][data-open="true"][data-ready="true"] {
-  transform: translate(2px, -50%);
   opacity: 1;
 }
 
