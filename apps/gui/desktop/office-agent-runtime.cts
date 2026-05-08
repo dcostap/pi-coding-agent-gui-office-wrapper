@@ -168,19 +168,28 @@ function setSandboxHelperEnvIfPresent(): void {
     return;
   }
 
-  const relativeHelperPath = [
+  const fileName = "officeagent-windows-sandbox-helper.exe";
+  const bundledHelperPath = [
     "apps",
     "gui",
     "desktop",
     "build",
     "native",
     "windows-sandbox-helper",
-    "officeagent-windows-sandbox-helper.exe",
+    fileName,
   ];
+  const nativeReleaseHelperPath = ["native", "windows-sandbox-helper", "target", "release", fileName];
+  const nativeDebugHelperPath = ["native", "windows-sandbox-helper", "target", "debug", fileName];
   const candidates = [
-    resolve(process.cwd(), ...relativeHelperPath),
-    resolve(process.cwd(), "..", "..", ...relativeHelperPath),
+    resolve(process.cwd(), ...bundledHelperPath),
+    resolve(process.cwd(), "..", "..", ...bundledHelperPath),
+    resolve(process.cwd(), ...nativeReleaseHelperPath),
+    resolve(process.cwd(), ...nativeDebugHelperPath),
+    resolve(process.cwd(), "..", "..", ...nativeReleaseHelperPath),
+    resolve(process.cwd(), "..", "..", ...nativeDebugHelperPath),
   ];
-  process.env.OFFICE_AGENT_WINDOWS_SANDBOX_HELPER =
-    candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+  const existingCandidate = candidates.find((candidate) => existsSync(candidate));
+  if (existingCandidate) {
+    process.env.OFFICE_AGENT_WINDOWS_SANDBOX_HELPER = existingCandidate;
+  }
 }

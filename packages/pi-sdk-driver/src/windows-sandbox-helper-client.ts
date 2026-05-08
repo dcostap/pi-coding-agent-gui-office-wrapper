@@ -446,6 +446,10 @@ function candidateHelperPaths(): string[] {
     join(process.cwd(), "build", "native", "windows-sandbox-helper", fileName),
     join(process.cwd(), "apps", "gui", "desktop", "build", "native", "windows-sandbox-helper", fileName),
     resolve("apps", "gui", "desktop", "build", "native", "windows-sandbox-helper", fileName),
+    resolve("native", "windows-sandbox-helper", "target", "release", fileName),
+    resolve("native", "windows-sandbox-helper", "target", "debug", fileName),
+    resolve("..", "..", "native", "windows-sandbox-helper", "target", "release", fileName),
+    resolve("..", "..", "native", "windows-sandbox-helper", "target", "debug", fileName),
   ];
 }
 
