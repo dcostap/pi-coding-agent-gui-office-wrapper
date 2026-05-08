@@ -317,7 +317,6 @@ export function ThreadTimeline({
             className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
             onClick={onToggleProjectFiles}
             aria-label={projectFilesOpen ? "Collapse project files" : "Open project files"}
-            data-tooltip={projectFilesOpen ? "Collapse project files" : "Open project files"}
           >
             {projectFilesOpen ? (
               <PanelRightClose size={13} strokeWidth={2} />
