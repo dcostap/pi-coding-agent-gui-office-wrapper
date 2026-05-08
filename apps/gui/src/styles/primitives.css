@@ -219,6 +219,10 @@ button[data-tooltip][aria-disabled="true"]::after {
   transition: opacity 150ms ease-out, transform 150ms ease-out;
 }
 
+body[data-app-resizing="true"] * {
+  transition-duration: 0ms !important;
+}
+
 .tooltip-content[data-placement="top"],
 .tooltip-content[data-placement="right"] {
   transform: translate(var(--tooltip-x, -50%), var(--tooltip-y, -100%));

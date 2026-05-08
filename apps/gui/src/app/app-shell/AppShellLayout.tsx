@@ -140,6 +140,7 @@ type AppShellLayoutProps = {
 
 export function AppShellLayout({ controller }: AppShellLayoutProps) {
   const controllerRef = useRef(controller);
+  const resizeSettledTimerRef = useRef<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [diffBaselineState, setDiffBaselineState] = useState<{
     projectId: string;
@@ -167,6 +168,30 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
     renderMode: "stacked",
     source: "init",
   });
+  useEffect(() => {
+    const clearResizeState = () => {
+      resizeSettledTimerRef.current = null;
+      document.body.removeAttribute("data-app-resizing");
+    };
+
+    const handleResize = () => {
+      document.body.setAttribute("data-app-resizing", "true");
+      if (resizeSettledTimerRef.current !== null) {
+        window.clearTimeout(resizeSettledTimerRef.current);
+      }
+      resizeSettledTimerRef.current = window.setTimeout(clearResizeState, 140);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (resizeSettledTimerRef.current !== null) {
+        window.clearTimeout(resizeSettledTimerRef.current);
+      }
+      document.body.removeAttribute("data-app-resizing");
+    };
+  }, []);
+
   const {
     activeComposerState,
     activeThreadData,

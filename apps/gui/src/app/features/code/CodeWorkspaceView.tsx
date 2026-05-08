@@ -172,11 +172,35 @@ export function CodeWorkspaceView({
       return;
     }
 
-    const updateWidth = () => setWorkspaceWidth(root.clientWidth);
+    let animationFrame: number | null = null;
+    let lastWidth = -1;
+    const updateWidth = () => {
+      const nextWidth = Math.round(root.clientWidth);
+      if (nextWidth === lastWidth) {
+        return;
+      }
+      lastWidth = nextWidth;
+      setWorkspaceWidth(nextWidth);
+    };
+    const scheduleUpdate = () => {
+      if (animationFrame !== null) {
+        return;
+      }
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateWidth();
+      });
+    };
+
     updateWidth();
-    const observer = new ResizeObserver(updateWidth);
+    const observer = new ResizeObserver(scheduleUpdate);
     observer.observe(root);
-    return () => observer.disconnect();
+    return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      observer.disconnect();
+    };
   }, []);
 
   useEffect(() => {

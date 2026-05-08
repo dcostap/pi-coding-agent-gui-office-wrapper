@@ -123,6 +123,16 @@
     var(--motion-ease-standard);
 }
 
+body[data-app-resizing="true"] .motion-terminal-drawer-offset,
+body[data-app-resizing="true"] .motion-terminal-drawer,
+body[data-app-resizing="true"] .motion-desktop-workspace,
+body[data-app-resizing="true"] .motion-takeover-panel,
+body[data-app-resizing="true"] .motion-collapse-panel,
+body[data-app-resizing="true"] .motion-popover,
+body[data-app-resizing="true"] .reasoning-submenu {
+  transition: none !important;
+}
+
 .motion-terminal-drawer {
   opacity: 0;
   transform: translateX(12px);
