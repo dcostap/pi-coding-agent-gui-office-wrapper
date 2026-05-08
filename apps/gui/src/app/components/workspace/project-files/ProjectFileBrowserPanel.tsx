@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, Copy, ExternalLink, FolderOpen } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import type { ProjectFileEntry } from "../../../../../shared/desktop-contracts";
 import { cn } from "../../../utils/cn";
 import { FileTypeIcon } from "../../common/FileTypeIcon";
@@ -29,6 +30,7 @@ type ContextMenuState = {
   x: number;
   y: number;
   row: VisibleProjectFileRow;
+  selectionPaths: string[];
 } | null;
 
 type ProjectFileBrowserPanelProps = {
@@ -66,6 +68,16 @@ function compareEntries(sortKey: SortKey, sortDirection: SortDirection) {
 
     const nameDelta = left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
     return sortKey === "name" ? nameDelta * direction : nameDelta;
+  };
+}
+
+function getContextMenuPosition(event: MouseEvent) {
+  const estimatedWidth = 190;
+  const estimatedHeight = 170;
+  const padding = 8;
+  return {
+    x: Math.min(event.clientX, window.innerWidth - estimatedWidth - padding),
+    y: Math.min(event.clientY, window.innerHeight - estimatedHeight - padding),
   };
 }
 
@@ -201,8 +213,12 @@ export function ProjectFileBrowserPanel({
     setSortDirection(nextSortKey === "modified" ? "desc" : "asc");
   }
 
-  function getSelectedRowsForAction(row: VisibleProjectFileRow) {
-    const actionPaths = selectedPaths.has(row.entry.path) ? selectedPaths : new Set([row.entry.path]);
+  function getSelectedRowsForAction(row: VisibleProjectFileRow, actionSelectionPaths?: string[]) {
+    const actionPaths = actionSelectionPaths
+      ? new Set(actionSelectionPaths)
+      : selectedPaths.has(row.entry.path)
+        ? selectedPaths
+        : new Set([row.entry.path]);
     return visibleRows.filter((visibleRow) => actionPaths.has(visibleRow.entry.path));
   }
 
@@ -292,11 +308,19 @@ export function ProjectFileBrowserPanel({
                 onDragStart={(event) => handleDragStart(row, event)}
                 onContextMenu={(event) => {
                   event.preventDefault();
+                  const nextSelectionPaths = selectedPaths.has(row.entry.path)
+                    ? [...selectedPaths]
+                    : [row.entry.path];
                   if (!selectedPaths.has(row.entry.path)) {
-                    setSelectedPaths(new Set([row.entry.path]));
+                    setSelectedPaths(new Set(nextSelectionPaths));
                     setAnchorSelectionPath(row.entry.path);
                   }
-                  setContextMenu({ x: event.clientX, y: event.clientY, row });
+                  const menuPosition = getContextMenuPosition(event);
+                  setContextMenu({
+                    ...menuPosition,
+                    row,
+                    selectionPaths: nextSelectionPaths,
+                  });
                 }}
               >
                 <div className="flex min-w-0 items-center gap-1.5" style={{ paddingLeft: row.depth * 14 }}>
@@ -335,37 +359,40 @@ export function ProjectFileBrowserPanel({
         })}
       </div>
 
-      {contextMenu ? (
-        <div
-          className="fixed z-[90] grid min-w-44 gap-1 rounded-xl border border-white/10 bg-[rgba(24,24,24,0.96)] p-1.5 text-[12px] text-[color:var(--text)] shadow-[0_18px_50px_rgba(0,0,0,0.42)] backdrop-blur-xl"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          {(() => {
-            const rows = getSelectedRowsForAction(contextMenu.row);
-            const first = contextMenu.row.entry;
-            return (
-              <>
-                <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void openPathQuery(first.path)}>
-                  <ExternalLink size={13} /> Open
-                </button>
-                <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void revealPathQuery(first.path)}>
-                  <FolderOpen size={13} /> Show in folder
-                </button>
-                <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyFiles(rows)}>
-                  <Copy size={13} /> Copy {rows.length > 1 ? "files" : "file"}
-                </button>
-                <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyPaths(rows)}>
-                  <Copy size={13} /> Copy {rows.length > 1 ? "paths" : "path"}
-                </button>
-                <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyNames(rows)}>
-                  <Copy size={13} /> Copy {rows.length > 1 ? "names" : "name"}
-                </button>
-              </>
-            );
-          })()}
-        </div>
-      ) : null}
+      {contextMenu
+        ? createPortal(
+            <div
+              className="fixed z-[1000] grid min-w-44 gap-1 rounded-xl border border-white/10 bg-[rgba(24,24,24,0.96)] p-1.5 text-[12px] text-[color:var(--text)] shadow-[0_18px_50px_rgba(0,0,0,0.42)] backdrop-blur-xl"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+              onContextMenu={(event) => event.preventDefault()}
+            >
+              {(() => {
+                const rows = getSelectedRowsForAction(contextMenu.row, contextMenu.selectionPaths);
+                const first = contextMenu.row.entry;
+                return (
+                  <>
+                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void openPathQuery(first.path)}>
+                      <ExternalLink size={13} /> Open
+                    </button>
+                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void revealPathQuery(first.path)}>
+                      <FolderOpen size={13} /> Show in folder
+                    </button>
+                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyFiles(rows)}>
+                      <Copy size={13} /> Copy {rows.length > 1 ? "files" : "file"}
+                    </button>
+                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyPaths(rows)}>
+                      <Copy size={13} /> Copy {rows.length > 1 ? "paths" : "path"}
+                    </button>
+                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyNames(rows)}>
+                      <Copy size={13} /> Copy {rows.length > 1 ? "names" : "name"}
+                    </button>
+                  </>
+                );
+              })()}
+            </div>,
+            document.body,
+          )
+        : null}
     </aside>
   );
 }
