@@ -36,8 +36,9 @@ type CodeWorkspaceViewProps = {
 };
 
 const TERMINAL_DRAWER_OFFSET = "min(28rem, calc(100% - 2.5rem))";
-const PROJECT_FILES_PANEL_WIDTH = "20rem";
+const PROJECT_FILES_PANEL_MIN_WIDTH_PX = 320;
 const PROJECT_FILES_DOCKED_MIN_WIDTH = 1180;
+const PROJECT_FILES_CHAT_TARGET_WIDTH_PX = 920;
 
 function useProjectFilesDockedMode() {
   const [docked, setDocked] = useState(() =>
@@ -52,6 +53,26 @@ function useProjectFilesDockedMode() {
   }, []);
 
   return docked;
+}
+
+function getProjectFilesPanelWidth(containerWidth: number) {
+  if (containerWidth <= PROJECT_FILES_DOCKED_MIN_WIDTH) {
+    return PROJECT_FILES_PANEL_MIN_WIDTH_PX;
+  }
+
+  const splitGrowthWidth =
+    PROJECT_FILES_PANEL_MIN_WIDTH_PX +
+    (containerWidth - PROJECT_FILES_DOCKED_MIN_WIDTH) / 2;
+  const splitChatWidth = containerWidth - splitGrowthWidth;
+
+  if (splitChatWidth < PROJECT_FILES_CHAT_TARGET_WIDTH_PX) {
+    return Math.round(splitGrowthWidth);
+  }
+
+  return Math.max(
+    PROJECT_FILES_PANEL_MIN_WIDTH_PX,
+    Math.round(containerWidth - PROJECT_FILES_CHAT_TARGET_WIDTH_PX),
+  );
 }
 
 function combineRightInsets(...insets: Array<string | null | false | undefined>) {
@@ -95,8 +116,10 @@ export function CodeWorkspaceView({
   const [composerLayoutVersion, setComposerLayoutVersion] = useState(0);
   const [projectFilesOpen, setProjectFilesOpen] = useState(false);
   const projectFilesDocked = useProjectFilesDockedMode();
+  const rootRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const mainViewRef = useRef<HTMLElement>(null);
+  const [workspaceWidth, setWorkspaceWidth] = useState(0);
   const {
     handleAction,
     handleLoadEarlierMessages,
@@ -141,6 +164,20 @@ export function CodeWorkspaceView({
   const previousHasThreadConversationRef = useRef(hasThreadConversation);
   const centerThreadFooter = showPromptComposer && !hasThreadConversation;
   const footerInset = showWorkspaceFooter && !centerThreadFooter ? footerHeight : 0;
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof ResizeObserver === "undefined") {
+      setWorkspaceWidth(root?.clientWidth ?? 0);
+      return;
+    }
+
+    const updateWidth = () => setWorkspaceWidth(root.clientWidth);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!projectFilesOpen || projectFilesDocked) {
@@ -202,7 +239,9 @@ export function CodeWorkspaceView({
     terminalSessionPath,
   });
 
-  const projectFilesDockedOffset = projectFilesOpen && projectFilesDocked ? PROJECT_FILES_PANEL_WIDTH : null;
+  const projectFilesPanelWidth = getProjectFilesPanelWidth(workspaceWidth);
+  const projectFilesPanelWidthStyle = `${projectFilesPanelWidth}px`;
+  const projectFilesDockedOffset = projectFilesOpen && projectFilesDocked ? projectFilesPanelWidthStyle : null;
   const workspaceRightInsetStyle = combineRightInsets(
     showDesktopTerminalDrawer ? TERMINAL_DRAWER_OFFSET : null,
     projectFilesDockedOffset,
@@ -238,7 +277,7 @@ export function CodeWorkspaceView({
   );
 
   return (
-    <div className="relative min-h-0 flex-1 overflow-hidden">
+    <div ref={rootRef} className="relative min-h-0 flex-1 overflow-hidden">
       <div
         className="motion-terminal-drawer-offset absolute inset-x-0 top-0 overflow-hidden px-5"
         style={{ ...workspaceRightInsetStyle, bottom: `${footerInset}px` }}
@@ -331,7 +370,7 @@ export function CodeWorkspaceView({
         projectFilesDocked ? (
           <div
             className="motion-terminal-drawer-offset absolute top-0 bottom-0 z-20 overflow-hidden transition-[right,width] duration-200 ease-out"
-            style={{ ...projectFilesPanelRightStyle, width: PROJECT_FILES_PANEL_WIDTH }}
+            style={{ ...projectFilesPanelRightStyle, width: projectFilesPanelWidthStyle }}
           >
             <ProjectFileBrowserPanel
               docked
