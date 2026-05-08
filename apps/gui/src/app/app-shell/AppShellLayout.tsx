@@ -1,6 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getPersistedSessionPath, isLocalSessionPath } from "../../../shared/session-paths";
+import { TextSelectionContextMenu } from "../components/common/TextSelectionContextMenu";
 import { Tooltip } from "../components/common/Tooltip";
 import { Sidebar } from "../components/sidebar/Sidebar";
 import { TerminalPanel } from "../components/workspace/TerminalPanel";
@@ -565,6 +566,8 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
               onOpenGitOps={handleOpenGitOpsFromTakeover}
               onSetDiffBaseline={handleSetDiffBaseline}
             />
+
+            <TextSelectionContextMenu />
 
             {terminalDrawerPresent ? (
               <div

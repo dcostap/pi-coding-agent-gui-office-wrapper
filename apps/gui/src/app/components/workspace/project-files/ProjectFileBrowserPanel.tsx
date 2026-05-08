@@ -1,12 +1,13 @@
 import { ChevronDown, ChevronRight, Copy, ExternalLink, FolderOpen } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import type { ProjectFileEntry } from "../../../../../shared/desktop-contracts";
+import type { ProjectFileEntry, ProjectFilePreviewResult } from "../../../../../shared/desktop-contracts";
 import { cn } from "../../../utils/cn";
 import { FileTypeIcon } from "../../common/FileTypeIcon";
 import {
   copyFilesToClipboardQuery,
   copyTextToClipboardQuery,
+  getProjectFilePreviewQuery,
   listProjectFileEntriesQuery,
   openPathQuery,
   revealPathQuery,
@@ -37,6 +38,7 @@ type ProjectFileBrowserPanelProps = {
   docked: boolean;
   open: boolean;
   projectId: string;
+  title?: string;
   attachedFilePaths?: Set<string>;
 };
 
@@ -52,6 +54,18 @@ function formatModifiedTime(modifiedMs: number) {
     minute: "2-digit",
   });
   return formatter.format(new Date(modifiedMs));
+}
+
+function formatFileSize(size: number | null | undefined) {
+  if (!Number.isFinite(size ?? Number.NaN) || (size ?? 0) < 0) return "—";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = size ?? 0;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`;
 }
 
 function compareEntries(sortKey: SortKey, sortDirection: SortDirection) {
@@ -93,10 +107,107 @@ function getSelectionRange(rows: VisibleProjectFileRow[], fromPath: string, toPa
   return rows.slice(start, end + 1).map((row) => row.entry.path);
 }
 
+function ProjectFilePreviewPane({
+  row,
+  preview,
+  loading,
+}: {
+  row: VisibleProjectFileRow | null;
+  preview: ProjectFilePreviewResult | null;
+  loading: boolean;
+}) {
+  if (!row) {
+    return (
+      <div className="flex h-full items-center justify-center px-4 text-center text-[12px] text-[color:var(--muted-2)]">
+        Selecciona un archivo para previsualizarlo.
+      </div>
+    );
+  }
+
+  const entry = row.entry;
+  const details = (
+    <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-[color:var(--muted-2)]">
+      <span>{formatFileSize(entry.size)}</span>
+      <span>{formatModifiedTime(entry.modifiedMs)}</span>
+    </div>
+  );
+  const previewActionButtonClass =
+    "inline-flex items-center gap-1.5 rounded-lg bg-white/[0.07] px-2.5 py-1.5 text-[12px] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)] transition-[transform,background-color,box-shadow] duration-150 ease-out hover:bg-white/[0.11] hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06),0_8px_18px_rgba(0,0,0,0.18)] active:scale-[0.96] active:bg-white/[0.16] active:duration-75";
+  const actions = (
+    <div className="mt-3 flex flex-wrap justify-center gap-2">
+      <button className={previewActionButtonClass} type="button" onClick={() => void openPathQuery(entry.path)}>
+        <ExternalLink size={13} /> Abrir
+      </button>
+      <button className={previewActionButtonClass} type="button" onClick={() => void revealPathQuery(entry.path)}>
+        <FolderOpen size={13} /> Mostrar en carpeta
+      </button>
+      <button className={previewActionButtonClass} type="button" onClick={() => void copyTextToClipboardQuery(entry.path)}>
+        <Copy size={13} /> Copiar ruta
+      </button>
+    </div>
+  );
+
+  if (entry.kind !== "file") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+        <FileTypeIcon kind={entry.kind} name={entry.name} size={46} />
+        <div className="mt-3 max-w-full truncate text-[13px] font-medium text-[color:var(--text)]">{entry.name}</div>
+        <div className="mt-1 text-[12px] text-[color:var(--muted-2)]">La previsualización de carpetas no está disponible.</div>
+        {actions}
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <div className="flex h-full items-center justify-center text-[12px] text-[color:var(--muted-2)]">Cargando previsualización…</div>;
+  }
+
+  if (preview?.kind === "image") {
+    return (
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 p-3">
+          <img src={preview.dataUrl} alt={preview.name} className="h-full w-full rounded-lg object-contain" />
+        </div>
+        <div className="shrink-0 border-t border-white/[0.06] px-3 py-2 text-center">
+          <div className="truncate text-[12px] font-medium text-[color:var(--text)]">{entry.name}</div>
+          {details}
+          {actions}
+        </div>
+      </div>
+    );
+  }
+
+  if (preview?.kind === "text") {
+    return (
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-2">
+          <div className="min-w-0 truncate text-[12px] font-medium text-[color:var(--text)]">{entry.name}</div>
+          <div className="shrink-0 text-[11px] text-[color:var(--muted-2)]">{formatFileSize(entry.size)}</div>
+        </div>
+        <pre className="m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[11px] leading-5 text-[color:var(--text)]">{preview.text}</pre>
+        {preview.truncated ? <div className="shrink-0 border-t border-white/[0.06] px-3 py-1.5 text-[11px] text-[color:var(--muted-2)]">Previsualización truncada.</div> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+      <FileTypeIcon kind={entry.kind} name={entry.name} size={54} />
+      <div className="mt-3 max-w-full truncate text-[13px] font-medium text-[color:var(--text)]">{entry.name}</div>
+      {details}
+      {preview?.kind === "unsupported" && preview.reason ? (
+        <div className="mt-2 text-[12px] text-[color:var(--muted-2)]">{preview.reason}</div>
+      ) : null}
+      {actions}
+    </div>
+  );
+}
+
 export function ProjectFileBrowserPanel({
   docked,
   open,
   projectId,
+  title = "Archivos del proyecto",
   attachedFilePaths = new Set(),
 }: ProjectFileBrowserPanelProps) {
   const [directories, setDirectories] = useState<Record<string, LoadedDirectory>>({});
@@ -106,6 +217,8 @@ export function ProjectFileBrowserPanel({
   const [sortKey, setSortKey] = useState<SortKey>("modified");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
+  const [preview, setPreview] = useState<ProjectFilePreviewResult | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -159,6 +272,40 @@ export function ProjectFileBrowserPanel({
     appendDirectory(projectId, 0, null);
     return rows;
   }, [expandedPaths, projectId, sortedDirectories]);
+
+  const selectedPreviewRow = useMemo(() => {
+    if (selectedPaths.size !== 1) return null;
+    const [selectedPath] = [...selectedPaths];
+    return visibleRows.find((row) => row.entry.path === selectedPath) ?? null;
+  }, [selectedPaths, visibleRows]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreview(null);
+
+    if (!selectedPreviewRow || selectedPreviewRow.entry.kind !== "file") {
+      setPreviewLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setPreviewLoading(true);
+    void getProjectFilePreviewQuery({ projectId, filePath: selectedPreviewRow.entry.path })
+      .then((result) => {
+        if (!cancelled) setPreview(result);
+      })
+      .catch(() => {
+        if (!cancelled) setPreview(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, selectedPreviewRow]);
 
   async function loadDirectory(directoryPath: string) {
     setDirectories((current) => ({
@@ -262,13 +409,14 @@ export function ProjectFileBrowserPanel({
         "flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-white/10 bg-[color:var(--sidebar)] shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-[28px]",
         docked ? "rounded-none" : "rounded-l-2xl",
       )}
-      aria-label="Project files"
+      aria-label="Archivos del proyecto"
+      data-block-composer-attachment-drop="true"
       onContextMenu={(event) => event.preventDefault()}
     >
       <header className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
         <div className="min-w-0">
           <h2 className="m-0 truncate text-[13px] font-medium text-[color:var(--text)]">
-            Project files
+            {title}
           </h2>
           <p className="m-0 truncate text-[11px] text-[color:var(--muted-2)]">{projectId}</p>
         </div>
@@ -276,16 +424,17 @@ export function ProjectFileBrowserPanel({
 
       <div className="grid h-8 shrink-0 grid-cols-[minmax(0,1fr)_6.8rem] items-center border-b border-white/[0.06] px-2 text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--muted-2)]">
         <button type="button" className="flex min-w-0 items-center gap-1 px-1 text-left" onClick={() => toggleSort("name")}>
-          <span>Name</span>{renderSortIndicator("name")}
+          <span>Nombre</span>{renderSortIndicator("name")}
         </button>
         <button type="button" className="flex items-center gap-1 px-1 text-left" onClick={() => toggleSort("modified")}>
-          <span>Modified</span>{renderSortIndicator("modified")}
+          <span>Modificado</span>{renderSortIndicator("modified")}
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-1 py-1.5">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 overflow-auto px-1 py-1.5">
         {visibleRows.length === 0 && directories[projectId]?.loading ? (
-          <div className="px-3 py-4 text-[12px] text-[color:var(--muted)]">Loading files…</div>
+          <div className="px-3 py-4 text-[12px] text-[color:var(--muted)]">Cargando archivos…</div>
         ) : null}
         {visibleRows.map((row) => {
           const selected = selectedPaths.has(row.entry.path);
@@ -297,7 +446,9 @@ export function ProjectFileBrowserPanel({
               <div
                 className={cn(
                   "grid h-8 cursor-default grid-cols-[minmax(0,1fr)_6.8rem] items-center rounded-lg px-1 text-[12px] text-[color:var(--text)] transition-colors",
-                  selected ? "bg-[rgba(138,190,183,0.16)]" : "hover:bg-white/[0.055]",
+                  selected
+                    ? "bg-[#313239] shadow-[inset_0_0_0_1px_rgba(183,186,245,0.04)]"
+                    : "hover:bg-white/[0.055]",
                 )}
                 onClick={(event) => handleSelect(row, event)}
                 onDoubleClick={() => {
@@ -332,7 +483,7 @@ export function ProjectFileBrowserPanel({
                         event.stopPropagation();
                         void toggleDirectory(row.entry);
                       }}
-                      aria-label={expanded ? "Collapse folder" : "Expand folder"}
+                      aria-label={expanded ? "Contraer carpeta" : "Expandir carpeta"}
                     >
                       {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     </button>
@@ -342,8 +493,8 @@ export function ProjectFileBrowserPanel({
                   <span className="shrink-0"><FileTypeIcon kind={row.entry.kind} name={row.entry.name} size={16} /></span>
                   <span className="min-w-0 truncate">{row.entry.name}</span>
                   {attached ? (
-                    <span className="shrink-0 rounded-full bg-[#8abeb7]/14 px-1.5 py-0.5 text-[10px] font-medium text-[#8abeb7]">
-                      attached
+                    <span className="shrink-0 rounded-full bg-[#313239] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(183,186,245,0.04)]">
+                      adjunto
                     </span>
                   ) : null}
                 </div>
@@ -352,11 +503,15 @@ export function ProjectFileBrowserPanel({
                 </div>
               </div>
               {expanded && childDirectory?.loading ? (
-                <div className="py-1 pl-8 text-[11px] text-[color:var(--muted-2)]">Loading…</div>
+                <div className="py-1 pl-8 text-[11px] text-[color:var(--muted-2)]">Cargando…</div>
               ) : null}
             </div>
           );
         })}
+        </div>
+        <div className="h-1/2 min-h-[190px] shrink-0 border-t border-white/10 bg-black/[0.08]">
+          <ProjectFilePreviewPane row={selectedPreviewRow} preview={preview} loading={previewLoading} />
+        </div>
       </div>
 
       {contextMenu
@@ -372,19 +527,19 @@ export function ProjectFileBrowserPanel({
                 return (
                   <>
                     <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void openPathQuery(first.path)}>
-                      <ExternalLink size={13} /> Open
+                      <ExternalLink size={13} /> Abrir
                     </button>
                     <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void revealPathQuery(first.path)}>
-                      <FolderOpen size={13} /> Show in folder
+                      <FolderOpen size={13} /> Mostrar en carpeta
                     </button>
                     <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyFiles(rows)}>
-                      <Copy size={13} /> Copy {rows.length > 1 ? "files" : "file"}
+                      <Copy size={13} /> Copiar {rows.length > 1 ? "archivos" : "archivo"}
                     </button>
                     <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyPaths(rows)}>
-                      <Copy size={13} /> Copy {rows.length > 1 ? "paths" : "path"}
+                      <Copy size={13} /> Copiar {rows.length > 1 ? "rutas" : "ruta"}
                     </button>
                     <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyNames(rows)}>
-                      <Copy size={13} /> Copy {rows.length > 1 ? "names" : "name"}
+                      <Copy size={13} /> Copiar {rows.length > 1 ? "nombres" : "nombre"}
                     </button>
                   </>
                 );

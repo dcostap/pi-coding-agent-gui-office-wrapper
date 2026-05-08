@@ -31,6 +31,7 @@ import type {
   PiSkillMutationResult,
   ProjectCommitEntry,
   ProjectFileEntriesResult,
+  ProjectFilePreviewResult,
   ProjectDiffBaseline,
   ProjectDiffResolvedBaseline,
   ProjectDiffResult,
@@ -188,6 +189,10 @@ export type DesktopRequestMap = {
   listProjectFileEntries: {
     params: { projectId: string; directoryPath?: string | null };
     response: ProjectFileEntriesResult;
+  };
+  getProjectFilePreview: {
+    params: { projectId: string; filePath: string };
+    response: ProjectFilePreviewResult | null;
   };
   getComposerState: { params: ComposerStateRequest; response: ComposerState };
   getComposerSlashCommands: { params: ComposerStateRequest; response: ComposerSlashCommand[] };

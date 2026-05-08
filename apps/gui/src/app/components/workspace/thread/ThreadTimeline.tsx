@@ -313,12 +313,20 @@ export function ThreadTimeline({
       ) : null}
       {onToggleProjectFiles ? (
         <div className="pointer-events-none absolute top-4 right-0 z-10 flex w-7 items-center justify-center">
-          <Tooltip content={projectFilesOpen ? "Collapse project files" : "Open project files"} placement="top" className="pointer-events-auto">
+          <Tooltip
+            content={
+              projectFilesOpen ? "Contraer archivos del proyecto" : "Abrir archivos del proyecto"
+            }
+            placement="top"
+            className="pointer-events-auto"
+          >
             <button
               type="button"
               className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
               onClick={onToggleProjectFiles}
-              aria-label={projectFilesOpen ? "Collapse project files" : "Open project files"}
+              aria-label={
+                projectFilesOpen ? "Contraer archivos del proyecto" : "Abrir archivos del proyecto"
+              }
             >
               {projectFilesOpen ? (
                 <PanelRightClose size={13} strokeWidth={2} />
@@ -330,24 +338,28 @@ export function ThreadTimeline({
         </div>
       ) : null}
       <div className="pointer-events-none absolute right-0 bottom-4 z-10 flex w-7 flex-col items-center gap-1.5">
-        <Tooltip content="Fold all" placement="top" className="pointer-events-auto">
+        <Tooltip
+          content="Contraer todos los mensajes de este chat"
+          placement="top"
+          className="pointer-events-auto"
+        >
           <button
             type="button"
             className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
             onClick={handleFoldEverything}
             disabled={foldableRows.length === 0}
-            aria-label="Fold all"
+            aria-label="Contraer todos los mensajes de este chat"
           >
             <ListCollapse size={13} strokeWidth={2} />
           </button>
         </Tooltip>
-        <Tooltip content="Scroll to bottom" placement="top" className="pointer-events-auto">
+        <Tooltip content="Ir al final" placement="top" className="pointer-events-auto">
           <button
             type="button"
             className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
             onClick={scrollToBottom}
             disabled={nearBottom}
-            aria-label="Scroll to bottom"
+            aria-label="Ir al final"
           >
             <ArrowDownToLine size={13} strokeWidth={2} />
           </button>

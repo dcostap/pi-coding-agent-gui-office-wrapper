@@ -1,4 +1,4 @@
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, Square } from "lucide-react";
 import type { ClipboardEvent, RefObject } from "react";
 import { getPathForFileQuery } from "../../../query/desktop-query";
 import { cn } from "../../../utils/cn";
@@ -25,6 +25,7 @@ type ComposerPromptInputPanelProps = {
   extensionRunning: boolean;
   inputLocked: boolean;
   canSubmit: boolean;
+  canStop: boolean;
   placeholderText: string;
   slashCommandPanelRef: RefObject<HTMLDivElement | null>;
   slashCommands: ComposerSlashCommands;
@@ -35,6 +36,7 @@ type ComposerPromptInputPanelProps = {
   }) => Promise<void>;
   onLayoutChange?: () => void;
   onSubmit: () => void;
+  onStop: () => void;
   removeAttachment: (path: string) => void;
   setDraft: (value: string) => void;
 };
@@ -49,6 +51,7 @@ export function ComposerPromptInputPanel({
   extensionRunning,
   inputLocked,
   canSubmit,
+  canStop,
   placeholderText,
   slashCommandPanelRef,
   slashCommands,
@@ -56,6 +59,7 @@ export function ComposerPromptInputPanel({
   handlePaste,
   onLayoutChange,
   onSubmit,
+  onStop,
   removeAttachment,
   setDraft,
 }: ComposerPromptInputPanelProps) {
@@ -205,16 +209,33 @@ export function ComposerPromptInputPanel({
             <button
               type="button"
               className={cn(
-                "group inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-[color:var(--text)] shadow-[0_0_0_rgba(255,255,255,0)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.12] hover:text-white hover:shadow-[0_8px_22px_rgba(0,0,0,0.18)] active:translate-y-0 active:scale-95 disabled:pointer-events-none disabled:border-white/10 disabled:bg-white/[0.035] disabled:text-[color:var(--muted-2)] disabled:opacity-55",
+                "group relative inline-flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border shadow-[0_0_0_rgba(255,255,255,0)] transition-[background-color,border-color,color,opacity,transform] duration-200 ease-out active:scale-95 disabled:pointer-events-none",
+                canStop
+                  ? "border-[rgba(229,111,111,0.22)] bg-[rgba(229,111,111,0.14)] text-[#ffb4b4] hover:bg-[rgba(229,111,111,0.2)] hover:text-[#ffd1d1] disabled:opacity-55"
+                  : "border-white/15 bg-white/[0.06] text-[color:var(--text)] hover:border-white/25 hover:bg-white/[0.12] hover:text-white disabled:border-white/10 disabled:bg-white/[0.035] disabled:text-[color:var(--muted-2)] disabled:opacity-55",
               )}
-              onClick={onSubmit}
-              disabled={!canSubmit || inputLocked}
-              aria-label="Enviar prompt"
-              data-tooltip="Enviar · Enter"
+              onClick={canStop ? onStop : onSubmit}
+              disabled={canStop ? false : !canSubmit || inputLocked}
+              aria-label={canStop ? "Detener Pi" : "Enviar prompt"}
+              data-tooltip={canStop ? "Detener Pi" : "Enviar · Enter"}
+              data-mode={canStop ? "stop" : "send"}
             >
               <ArrowRight
                 size={15}
-                className="transition-transform duration-200 ease-out group-hover:translate-x-0.5"
+                className={cn(
+                  "absolute transition-all duration-300 ease-out",
+                  canStop
+                    ? "translate-x-2 scale-75 opacity-0 rotate-45"
+                    : "translate-x-0 scale-100 opacity-100 rotate-0",
+                )}
+              />
+              <Square
+                size={11}
+                fill="currentColor"
+                className={cn(
+                  "absolute transition-all duration-300 ease-out",
+                  canStop ? "scale-100 opacity-100 rotate-0" : "scale-50 opacity-0 -rotate-45",
+                )}
               />
             </button>
           </div>

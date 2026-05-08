@@ -133,8 +133,8 @@ export function DiffChangedFilesTree({
 
   const hasSelection = selectedPaths.length > 0;
   const statusLabel = hasSelection
-    ? `${focusedFileCount}/${paths.length} selected`
-    : `${paths.length} changed`;
+    ? `${focusedFileCount}/${paths.length} seleccionados`
+    : `${paths.length} modificados`;
   const clearSelection = () => {
     for (const path of model.getSelectedPaths()) {
       model.getItem(path)?.deselect();
@@ -146,7 +146,7 @@ export function DiffChangedFilesTree({
     <div className="flex h-full min-h-0 w-full flex-col border-l border-[color:var(--border)] bg-[color:var(--workspace)]">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[color:var(--border)] px-2.5">
         <div className="min-w-0 flex-1 truncate pl-2.5 text-[12px] font-medium text-[color:var(--text)]">
-          Changed
+          Cambios
         </div>
         <div className="shrink-0 text-[11px] font-medium tabular-nums text-[color:var(--muted)]">
           {statusLabel}
@@ -156,8 +156,8 @@ export function DiffChangedFilesTree({
             type="button"
             className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[color:var(--muted)] transition hover:bg-[rgba(169,178,215,0.08)] hover:text-[color:var(--text)]"
             onClick={clearSelection}
-            aria-label="Clear file focus"
-            data-tooltip="Clear file focus"
+            aria-label="Quitar foco de archivos"
+            data-tooltip="Quitar foco de archivos"
           >
             <FilterX size={13} />
           </button>
@@ -172,16 +172,16 @@ export function DiffChangedFilesTree({
           <input
             value={search.value}
             onChange={(event) => search.setValue(event.target.value)}
-            placeholder="Search"
+            placeholder="Buscar"
             className="min-w-0 flex-1 bg-transparent p-0 text-[13px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
-            aria-label="Search changed files"
+            aria-label="Buscar archivos modificados"
           />
         </label>
         <FileTree
           model={model}
           className={cn("-mr-[6px] min-h-0 w-[calc(100%+6px)] flex-1")}
           style={treeHostStyle}
-          aria-label="Changed files"
+          aria-label="Archivos modificados"
         />
       </div>
     </div>

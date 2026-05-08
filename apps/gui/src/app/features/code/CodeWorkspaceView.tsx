@@ -3,6 +3,7 @@ import { FolderGit2 } from "lucide-react";
 import type { AppShellController } from "../../app-shell/useAppShellController";
 import { defaultPiSettings } from "../../../../shared/default-pi-settings";
 import { parseComposerAttachmentBlock } from "../../../../shared/composer-attachment-prompt";
+import { isUnassignedChatProjectId } from "../../../../shared/unassigned-chats";
 import { Composer } from "../../components/workspace/Composer";
 import { DiffPanel } from "../../components/workspace/DiffPanel";
 import { GitOpsComposerPanel } from "../../components/workspace/GitOpsComposerPanel";
@@ -287,6 +288,9 @@ export function CodeWorkspaceView({
     state.activeView === "thread" && activeThreadData && !threadContentVisible
       ? { ...activeThreadData, messages: [] }
       : activeThreadData;
+  const projectFilesPanelTitle = isUnassignedChatProjectId(composerProjectId)
+    ? "Archivos del chat"
+    : "Archivos del proyecto";
   const attachedFilePaths = useMemo(
     () =>
       new Set(
@@ -404,6 +408,7 @@ export function CodeWorkspaceView({
               docked
               open={projectFilesOpen}
               projectId={composerProjectId}
+              title={projectFilesPanelTitle}
               attachedFilePaths={attachedFilePaths}
             />
           </div>
@@ -412,7 +417,7 @@ export function CodeWorkspaceView({
             <button
               type="button"
               className="absolute inset-0 h-full w-full cursor-default border-0 bg-[rgba(7,9,16,0.42)] p-0 backdrop-blur-[3px]"
-              aria-label="Close project files"
+              aria-label="Cerrar archivos del proyecto"
               onClick={() => setProjectFilesOpen(false)}
             />
             <div className="absolute top-0 right-0 bottom-0 w-[min(22rem,calc(100%-2rem))] overflow-hidden">
@@ -420,6 +425,7 @@ export function CodeWorkspaceView({
                 docked={false}
                 open={projectFilesOpen}
                 projectId={composerProjectId}
+                title={projectFilesPanelTitle}
                 attachedFilePaths={attachedFilePaths}
               />
             </div>
@@ -585,9 +591,15 @@ export function CodeWorkspaceView({
                     type="button"
                     className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--muted)] opacity-70 transition hover:bg-[rgba(169,178,215,0.1)] hover:text-[color:var(--text)] hover:opacity-100"
                     onClick={toggleGitOpsFileTree}
-                    aria-label={gitOpsFileTreeVisible ? "Hide changed files" : "Show changed files"}
+                    aria-label={
+                      gitOpsFileTreeVisible
+                        ? "Ocultar archivos modificados"
+                        : "Mostrar archivos modificados"
+                    }
                     data-tooltip={
-                      gitOpsFileTreeVisible ? "Hide changed files" : "Show changed files"
+                      gitOpsFileTreeVisible
+                        ? "Ocultar archivos modificados"
+                        : "Mostrar archivos modificados"
                     }
                   >
                     <FolderGit2 size={15} />

@@ -31,6 +31,7 @@ import type {
   PiSkillMutationResult,
   ProjectCommitEntry,
   ProjectFileEntriesResult,
+  ProjectFilePreviewResult,
   ProjectDiffBaseline,
   ProjectDiffResolvedBaseline,
   ProjectDiffResult,
@@ -153,6 +154,10 @@ declare global {
         projectId: string;
         directoryPath?: string | null;
       }) => Promise<ProjectFileEntriesResult>;
+      getProjectFilePreview?: (request: {
+        projectId: string;
+        filePath: string;
+      }) => Promise<ProjectFilePreviewResult | null>;
       getComposerState?: (request?: ComposerStateRequest) => Promise<ComposerState>;
       getComposerSlashCommands?: (
         request?: ComposerStateRequest,

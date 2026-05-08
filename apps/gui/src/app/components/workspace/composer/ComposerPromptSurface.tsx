@@ -1,6 +1,4 @@
-import { Square } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
-import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
 import type { ComposerProps } from "../Composer";
 import { ComposerFooter } from "./ComposerFooter";
@@ -15,6 +13,12 @@ type ComposerPromptSurfaceProps = ComposerProps & {
   workspaceFooterRef: RefObject<HTMLElement | null>;
   onOpenGitOps: () => void;
 };
+
+const blockedAttachmentDropSelector = "[data-block-composer-attachment-drop='true']";
+
+function isBlockedAttachmentDropTarget(target: EventTarget | null) {
+  return target instanceof Element && target.closest(blockedAttachmentDropSelector) !== null;
+}
 
 export function ComposerPromptSurface({
   activeView,
@@ -101,7 +105,6 @@ export function ComposerPromptSurface({
   const dictationTranscribing = dictationInterimText.length > 0;
   const composerMode = activeView === "chat" ? "chat" : "code";
   const slashCommandPanelRef = useRef<HTMLDivElement>(null);
-  const stopButtonBoundaryRef = useRef<HTMLDivElement>(null);
   const slashCommands = useComposerSlashCommands({
     draft,
     projectId,
@@ -126,8 +129,7 @@ export function ComposerPromptSurface({
       if (
         !target ||
         slashCommandPanelRef.current?.contains(target) ||
-        composerPanelRef.current?.contains(target) ||
-        stopButtonBoundaryRef.current?.contains(target)
+        composerPanelRef.current?.contains(target)
       ) {
         return;
       }
@@ -228,6 +230,15 @@ export function ComposerPromptSurface({
         return;
       }
 
+      if (isBlockedAttachmentDropTarget(event.target)) {
+        event.preventDefault();
+        resetAttachmentDrag();
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "none";
+        }
+        return;
+      }
+
       event.preventDefault();
       dragDepthRef.current += 1;
       setAttachmentDragActive(true);
@@ -238,6 +249,15 @@ export function ComposerPromptSurface({
 
     const handleGlobalFileDrag = (event: DragEvent) => {
       if (!hasAttachmentHintInClipboardData(event.dataTransfer)) {
+        return;
+      }
+
+      if (isBlockedAttachmentDropTarget(event.target)) {
+        event.preventDefault();
+        resetAttachmentDrag();
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "none";
+        }
         return;
       }
 
@@ -273,6 +293,13 @@ export function ComposerPromptSurface({
 
       event.preventDefault();
       resetAttachmentDrag();
+      if (isBlockedAttachmentDropTarget(event.target)) {
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "none";
+        }
+        return;
+      }
+
       void handleDrop(event.dataTransfer);
     };
 
@@ -308,7 +335,7 @@ export function ComposerPromptSurface({
       >
         <div className="composer-attachment-drop-glow" aria-hidden="true" />
         <div className="composer-attachment-drop-label" aria-hidden="true">
-          Suelta para adjuntar archivos
+          Suelta aquí para adjuntar archivos
         </div>
         {/* Let the prompt column size itself to one line by default, then grow upward naturally as
             the textarea expands. */}
@@ -325,6 +352,7 @@ export function ComposerPromptSurface({
             extensionRunning={extensionRunning}
             inputLocked={inputLocked}
             canSubmit={canSend}
+            canStop={canStopComposer}
             placeholderText={placeholderText}
             slashCommandPanelRef={slashCommandPanelRef}
             slashCommands={slashCommands}
@@ -332,6 +360,7 @@ export function ComposerPromptSurface({
             handlePaste={handlePaste}
             onLayoutChange={onLayoutChange}
             onSubmit={slashCommands.submit}
+            onStop={() => void stop()}
             removeAttachment={removeAttachment}
             setDraft={setDraft}
           />
@@ -415,27 +444,6 @@ export function ComposerPromptSurface({
         />
       </div>
 
-      <div
-        ref={stopButtonBoundaryRef}
-        className="mb-[3.55rem] inline-flex h-8 shrink-0 items-center justify-end text-[color:var(--muted)]"
-      >
-        <button
-          type="button"
-          className={cn(
-            compactIconButtonClass,
-            "h-7 w-7 shrink-0 rounded-full text-[#ffb4b4] hover:bg-[rgba(229,111,111,0.2)] hover:text-[#ffd1d1]",
-            canStopComposer
-              ? "bg-[rgba(229,111,111,0.14)] opacity-80"
-              : "bg-transparent opacity-25 hover:opacity-45",
-          )}
-          onClick={() => void stop()}
-          disabled={!canStopComposer}
-          aria-label="Stop Pi"
-          data-tooltip="Stop Pi"
-        >
-          <Square size={11} fill="currentColor" />
-        </button>
-      </div>
     </div>
   );
 }

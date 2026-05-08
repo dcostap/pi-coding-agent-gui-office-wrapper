@@ -282,7 +282,7 @@ export function SidebarProjectsSection({
   }
 
   return (
-    <section className="sidebar-section">
+    <section className="sidebar-section" data-block-composer-attachment-drop="true">
       <div className="sidebar-toolbar">
         <label
           className="sidebar-search-field"

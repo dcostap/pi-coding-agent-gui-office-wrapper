@@ -370,7 +370,16 @@ export async function revealPathQuery(path: string) {
 }
 
 export async function copyTextToClipboardQuery(text: string) {
-  return (await window.piDesktop?.copyTextToClipboard?.(text)) ?? false;
+  if (await window.piDesktop?.copyTextToClipboard?.(text)) {
+    return true;
+  }
+
+  try {
+    await navigator.clipboard?.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function copyFilesToClipboardQuery(paths: string[]) {
@@ -382,6 +391,13 @@ export async function listProjectFileEntriesQuery(request: {
   directoryPath?: string | null;
 }): Promise<ProjectFileEntriesResult | null> {
   return (await window.piDesktop?.listProjectFileEntries?.(request)) ?? null;
+}
+
+export async function getProjectFilePreviewQuery(request: {
+  projectId: string;
+  filePath: string;
+}) {
+  return (await window.piDesktop?.getProjectFilePreview?.(request)) ?? null;
 }
 
 export async function getThreadQuery(

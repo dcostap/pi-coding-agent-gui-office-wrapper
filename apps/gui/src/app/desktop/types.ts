@@ -54,6 +54,7 @@ export type {
   ProjectCommitEntry,
   ProjectFileEntry,
   ProjectFileEntriesResult,
+  ProjectFilePreviewResult,
   ProjectDiffBaseline,
   ProjectDiffDefaultBaseline,
   ProjectDiffRenderMode,

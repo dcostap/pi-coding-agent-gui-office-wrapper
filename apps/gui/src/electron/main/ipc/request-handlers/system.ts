@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { app, clipboard, dialog, shell } from "electron";
@@ -23,6 +23,7 @@ type SystemRequestHandlers = Pick<
   | "getAttachmentKindsForPaths"
   | "listComposerAttachmentEntries"
   | "listProjectFileEntries"
+  | "getProjectFilePreview"
   | "openExternal"
   | "openPath"
   | "revealPath"
@@ -46,6 +47,75 @@ const hiddenProjectFileNames = new Set([
 ]);
 const maxClipboardImagePixels = 32_000_000;
 const maxClipboardImageBytes = 25 * 1024 * 1024;
+const maxProjectPreviewTextBytes = 256 * 1024;
+const maxProjectPreviewImageBytes = 12 * 1024 * 1024;
+
+const projectPreviewImageMimeTypes: Record<string, string> = {
+  ".apng": "image/apng",
+  ".avif": "image/avif",
+  ".bmp": "image/bmp",
+  ".gif": "image/gif",
+  ".ico": "image/x-icon",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+};
+
+const projectPreviewTextExtensions = new Set([
+  ".bat",
+  ".c",
+  ".cc",
+  ".cmd",
+  ".cpp",
+  ".cs",
+  ".css",
+  ".csv",
+  ".cts",
+  ".env",
+  ".go",
+  ".h",
+  ".hpp",
+  ".htm",
+  ".html",
+  ".java",
+  ".js",
+  ".json",
+  ".jsx",
+  ".less",
+  ".log",
+  ".lua",
+  ".md",
+  ".mdx",
+  ".mjs",
+  ".mts",
+  ".php",
+  ".ps1",
+  ".py",
+  ".rb",
+  ".rs",
+  ".scss",
+  ".sh",
+  ".sql",
+  ".svg",
+  ".toml",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".xml",
+  ".yaml",
+  ".yml",
+]);
+
+const projectPreviewTextFileNames = new Set([
+  ".gitignore",
+  ".npmrc",
+  "dockerfile",
+  "license",
+  "makefile",
+  "readme",
+]);
 
 function isClipboardImageWithinLimits(size: { width: number; height: number }) {
   const width = Math.max(0, Math.floor(size.width));
@@ -124,6 +194,70 @@ async function listProjectFileEntriesForDirectory(request: {
   );
 
   return { rootPath, directoryPath, entries };
+}
+
+function getProjectPreviewTextSupport(fileName: string) {
+  const extension = path.extname(fileName).toLowerCase();
+  if (projectPreviewTextExtensions.has(extension)) return true;
+  return projectPreviewTextFileNames.has(fileName.toLowerCase());
+}
+
+async function getProjectFilePreview(request: { projectId: string; filePath: string }) {
+  const rootPath = path.resolve(request.projectId || getDesktopWorkingDirectory());
+  const filePath = path.resolve(request.filePath);
+  if (!isPathWithinRoot(filePath, rootPath)) {
+    return null;
+  }
+
+  const stats = await stat(filePath);
+  if (!stats.isFile()) {
+    return null;
+  }
+
+  const name = path.basename(filePath);
+  const base = {
+    filePath,
+    name,
+    size: stats.size,
+    modifiedMs: stats.mtimeMs,
+  };
+  const extension = path.extname(name).toLowerCase();
+  const imageMimeType = projectPreviewImageMimeTypes[extension];
+
+  if (imageMimeType) {
+    if (stats.size > maxProjectPreviewImageBytes) {
+      return { kind: "unsupported" as const, ...base, reason: "Image is too large to preview." };
+    }
+
+    const data = await readFile(filePath);
+    return {
+      kind: "image" as const,
+      ...base,
+      mimeType: imageMimeType,
+      dataUrl: `data:${imageMimeType};base64,${data.toString("base64")}`,
+    };
+  }
+
+  if (getProjectPreviewTextSupport(name)) {
+    const limit = maxProjectPreviewTextBytes;
+    const file = await open(filePath, "r");
+    try {
+      const length = Math.min(stats.size, limit + 1);
+      const buffer = Buffer.alloc(length);
+      const { bytesRead } = await file.read(buffer, 0, length, 0);
+      const truncated = bytesRead > limit || stats.size > limit;
+      return {
+        kind: "text" as const,
+        ...base,
+        text: buffer.subarray(0, Math.min(bytesRead, limit)).toString("utf8"),
+        truncated,
+      };
+    } finally {
+      await file.close();
+    }
+  }
+
+  return { kind: "unsupported" as const, ...base };
 }
 
 async function writeUniqueTextFile(directoryPath: string, fileName: string, content: string) {
@@ -235,6 +369,7 @@ export function createSystemHandlers(): SystemRequestHandlers {
     },
     listComposerAttachmentEntries: (request) => listComposerAttachmentEntries(request),
     listProjectFileEntries: (request) => listProjectFileEntriesForDirectory(request),
+    getProjectFilePreview,
     openExternal: async ({ url }) => {
       const safeUrl = getSafeExternalUrl(url);
       if (!safeUrl) {
