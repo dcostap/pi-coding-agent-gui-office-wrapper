@@ -1,5 +1,6 @@
 import { FolderPlus } from "lucide-react";
 import { type CSSProperties, type RefObject, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAnimatedDisclosure } from "../../../hooks/useAnimatedPresence";
 
 type SidebarProjectsCreatePopoverProps = {
@@ -10,7 +11,7 @@ type SidebarProjectsCreatePopoverProps = {
   defaultLocation: string | null;
   busy: boolean;
   errorMessage: string | null;
-  panelRef?: RefObject<HTMLDialogElement | null>;
+  panelRef?: RefObject<HTMLDivElement | null>;
   onChangeDraft: (value: string) => void;
   onCreate: () => void;
   onClose: () => void;
@@ -40,27 +41,41 @@ export function SidebarProjectsCreatePopover({
       return;
     }
 
-    const anchor = anchorRef.current;
-    if (anchor) {
-      setStyle({
-        top: anchor.offsetTop + anchor.offsetHeight + 6,
-        left: anchor.offsetLeft,
-        width: anchor.offsetWidth,
-      });
-    }
+    const updatePosition = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) {
+        return;
+      }
 
+      const rect = anchor.getBoundingClientRect();
+      setStyle({
+        position: "fixed",
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: rect.width,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
     inputRef.current?.focus();
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
   }, [anchorRef, open]);
 
   if (!disclosure.present) {
     return null;
   }
 
-  return (
-    <dialog
+  return createPortal(
+    <div
       ref={panelRef}
       id={menuId}
-      open
+      role="dialog"
       aria-label="Añadir proyecto"
       data-open={disclosure.visible ? "true" : "false"}
       className="sidebar-popover-panel sidebar-project-create-popover motion-popover"
@@ -100,6 +115,7 @@ export function SidebarProjectsCreatePopover({
         </button>
       </div>
       {errorMessage ? <div className="sidebar-inline-error">{errorMessage}</div> : null}
-    </dialog>
+    </div>,
+    document.body,
   );
 }

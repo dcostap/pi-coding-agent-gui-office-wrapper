@@ -7,6 +7,8 @@ import {
   type IpcMainInvokeEvent,
   type MenuItemConstructorOptions,
 } from "electron";
+import { existsSync, statSync } from "node:fs";
+import path from "node:path";
 import {
   getDesktopEventIpcChannel,
   getDesktopRequestIpcChannel,
@@ -90,21 +92,43 @@ function getTitleBarMenuTemplate(menuId: TitleBarMenuId): MenuItemConstructorOpt
   }
 }
 
-const dragIcon = nativeImage.createFromDataURL(
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAJklEQVR4Ae3NMQEAAAgDINc/9K3hHBQg7WQAAAAAAAAAAAAAAADwGx4gAAH4MSk3AAAAAElFTkSuQmCC",
-);
+const dragIcon = nativeImage
+  .createFromDataURL(
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+  )
+  .resize({ width: 32, height: 32 });
+
+function getExistingDragFiles(paths: unknown) {
+  if (!Array.isArray(paths)) {
+    return [];
+  }
+
+  return paths
+    .filter((filePath): filePath is string => typeof filePath === "string" && filePath.length > 0)
+    .map((filePath) => path.resolve(filePath))
+    .filter((filePath) => {
+      try {
+        return existsSync(filePath) && statSync(filePath).isFile();
+      } catch {
+        return false;
+      }
+    });
+}
 
 function registerFileDragHandler(getMainWindow: () => BrowserWindow | null) {
   ipcMain.on("howcode:start-file-drag", (event, payload) => {
     assertTrustedDesktopIpcEvent(event, getMainWindow);
-    const files = Array.isArray(payload?.paths)
-      ? payload.paths.filter((filePath: unknown): filePath is string => typeof filePath === "string")
-      : [];
-    if (files.length === 0) {
+    const files = getExistingDragFiles(payload?.paths);
+    const [firstFile] = files;
+    if (!firstFile) {
       return;
     }
 
-    event.sender.startDrag({ file: files[0], files, icon: dragIcon } as Parameters<typeof event.sender.startDrag>[0]);
+    event.sender.startDrag({
+      file: firstFile,
+      ...(files.length > 1 ? { files } : {}),
+      icon: dragIcon,
+    });
   });
 }
 

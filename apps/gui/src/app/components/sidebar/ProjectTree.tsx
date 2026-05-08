@@ -38,7 +38,7 @@ type ProjectTreeProps = {
   onAction: DesktopActionInvoker;
   onProjectSelect: (projectId: string) => void;
   onProjectReorder: (projectIds: string[]) => void;
-  onStartProjectChat: (projectId: string) => void;
+  onStartProjectChat: (projectId: string, projectName?: string) => void;
   onThreadOpen: (
     projectId: string,
     threadId: string,

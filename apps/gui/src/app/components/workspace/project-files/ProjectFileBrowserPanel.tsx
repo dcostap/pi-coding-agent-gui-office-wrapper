@@ -111,10 +111,12 @@ function ProjectFilePreviewPane({
   row,
   preview,
   loading,
+  onDragStart,
 }: {
   row: VisibleProjectFileRow | null;
   preview: ProjectFilePreviewResult | null;
   loading: boolean;
+  onDragStart: (row: VisibleProjectFileRow, event: DragEvent<HTMLElement>) => void;
 }) {
   if (!row) {
     return (
@@ -126,9 +128,17 @@ function ProjectFilePreviewPane({
 
   const entry = row.entry;
   const details = (
-    <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-[color:var(--muted-2)]">
+    <div className="flex min-w-0 flex-wrap justify-start gap-x-3 gap-y-1 text-left text-[11px] text-[color:var(--muted-2)]">
       <span>{formatFileSize(entry.size)}</span>
       <span>{formatModifiedTime(entry.modifiedMs)}</span>
+    </div>
+  );
+  const compactHeader = (
+    <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 border-t border-white/[0.06] px-3 py-2">
+      <div className="min-w-0 truncate text-right text-[12px] font-medium text-[color:var(--text)]">
+        {entry.name}
+      </div>
+      {details}
     </div>
   );
   const previewActionButtonClass =
@@ -166,11 +176,16 @@ function ProjectFilePreviewPane({
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <div className="min-h-0 flex-1 p-3">
-          <img src={preview.dataUrl} alt={preview.name} className="h-full w-full rounded-lg object-contain" />
+          <img
+            src={preview.dataUrl}
+            alt={preview.name}
+            className="h-full w-full cursor-grab rounded-lg object-contain active:cursor-grabbing"
+            draggable
+            onDragStart={(event) => onDragStart(row, event)}
+          />
         </div>
-        <div className="shrink-0 border-t border-white/[0.06] px-3 py-2 text-center">
-          <div className="truncate text-[12px] font-medium text-[color:var(--text)]">{entry.name}</div>
-          {details}
+        <div className="shrink-0">
+          {compactHeader}
           {actions}
         </div>
       </div>
@@ -180,9 +195,9 @@ function ProjectFilePreviewPane({
   if (preview?.kind === "text") {
     return (
       <div className="flex h-full flex-col overflow-hidden">
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-2">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.06] px-3 py-2">
           <div className="min-w-0 truncate text-[12px] font-medium text-[color:var(--text)]">{entry.name}</div>
-          <div className="shrink-0 text-[11px] text-[color:var(--muted-2)]">{formatFileSize(entry.size)}</div>
+          {details}
         </div>
         <pre className="m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[11px] leading-5 text-[color:var(--text)]">{preview.text}</pre>
         {preview.truncated ? <div className="shrink-0 border-t border-white/[0.06] px-3 py-1.5 text-[11px] text-[color:var(--muted-2)]">Previsualización truncada.</div> : null}
@@ -192,7 +207,14 @@ function ProjectFilePreviewPane({
 
   return (
     <div className="flex h-full flex-col items-center justify-center px-4 text-center">
-      <FileTypeIcon kind={entry.kind} name={entry.name} size={54} />
+      <div
+        className="cursor-grab active:cursor-grabbing"
+        draggable
+        onDragStart={(event) => onDragStart(row, event)}
+        aria-label={`Arrastrar ${entry.name}`}
+      >
+        <FileTypeIcon kind={entry.kind} name={entry.name} size={54} />
+      </div>
       <div className="mt-3 max-w-full truncate text-[13px] font-medium text-[color:var(--text)]">{entry.name}</div>
       {details}
       {preview?.kind === "unsupported" && preview.reason ? (
@@ -219,6 +241,7 @@ export function ProjectFileBrowserPanel({
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [preview, setPreview] = useState<ProjectFilePreviewResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const panelRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -227,12 +250,33 @@ export function ProjectFileBrowserPanel({
     setExpandedPaths({});
     setSelectedPaths(new Set());
     setAnchorSelectionPath(null);
+    setRefreshRevision(0);
   }, [open, projectId]);
 
   useEffect(() => {
     if (!open || !projectId) return;
     void loadDirectory(projectId);
   }, [open, projectId]);
+
+  useEffect(() => {
+    if (!open || !projectId) return;
+
+    const refreshProjectFiles = () => {
+      const directoryPaths = Object.keys(directories);
+      const pathsToRefresh = directoryPaths.length > 0 ? directoryPaths : [projectId];
+      void Promise.allSettled(pathsToRefresh.map((directoryPath) => loadDirectory(directoryPath))).then(
+        () => setRefreshRevision((revision) => revision + 1),
+      );
+    };
+
+    const intervalId = window.setInterval(refreshProjectFiles, 2500);
+    window.addEventListener("focus", refreshProjectFiles);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshProjectFiles);
+    };
+  }, [directories, open, projectId]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -305,7 +349,7 @@ export function ProjectFileBrowserPanel({
     return () => {
       cancelled = true;
     };
-  }, [projectId, selectedPreviewRow]);
+  }, [projectId, refreshRevision, selectedPreviewRow]);
 
   async function loadDirectory(directoryPath: string) {
     setDirectories((current) => ({
@@ -384,17 +428,28 @@ export function ProjectFileBrowserPanel({
     }
   }
 
-  function handleDragStart(row: VisibleProjectFileRow, event: DragEvent<HTMLDivElement>) {
+  function handleDragStart(row: VisibleProjectFileRow, event: DragEvent<HTMLElement>) {
     const rows = getSelectedRowsForAction(row);
     const paths = rows.map((selectedRow) => selectedRow.entry.path);
     const uriList = paths.map((path) => `file:///${path.replaceAll("\\", "/")}`).join("\n");
 
     event.dataTransfer.effectAllowed = "copy";
-    event.dataTransfer.setData("text/plain", paths.join("\n"));
-    event.dataTransfer.setData("text/uri-list", uriList);
     event.dataTransfer.setData("application/x-office-agent-file-paths", JSON.stringify(paths));
 
-    window.piDesktop?.startFileDrag?.(paths);
+    if (paths.length === 1) {
+      event.dataTransfer.setData(
+        "DownloadURL",
+        `application/octet-stream:${row.entry.name}:file:///${paths[0].replaceAll("\\", "/")}`,
+      );
+    }
+
+    if (window.piDesktop?.startFileDrag) {
+      window.piDesktop.startFileDrag(paths);
+      return;
+    }
+
+    event.dataTransfer.setData("text/plain", paths.join("\n"));
+    event.dataTransfer.setData("text/uri-list", uriList);
   }
 
   function renderSortIndicator(key: SortKey) {
@@ -433,9 +488,6 @@ export function ProjectFileBrowserPanel({
 
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 overflow-auto px-1 py-1.5">
-        {visibleRows.length === 0 && directories[projectId]?.loading ? (
-          <div className="px-3 py-4 text-[12px] text-[color:var(--muted)]">Cargando archivos…</div>
-        ) : null}
         {visibleRows.map((row) => {
           const selected = selectedPaths.has(row.entry.path);
           const attached = attachedFilePaths.has(row.entry.path);
@@ -510,7 +562,12 @@ export function ProjectFileBrowserPanel({
         })}
         </div>
         <div className="h-1/2 min-h-[190px] shrink-0 border-t border-white/10 bg-black/[0.08]">
-          <ProjectFilePreviewPane row={selectedPreviewRow} preview={preview} loading={previewLoading} />
+          <ProjectFilePreviewPane
+            row={selectedPreviewRow}
+            preview={preview}
+            loading={previewLoading}
+            onDragStart={handleDragStart}
+          />
         </div>
       </div>
 

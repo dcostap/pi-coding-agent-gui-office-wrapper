@@ -93,7 +93,9 @@ export function useAppShellController() {
 
       mergedProjects.set(localProject.id, {
         ...persistedProject,
-        name: UNASSIGNED_CHAT_PROJECT_NAME,
+        name: isUnassignedChatProjectId(localProject.id)
+          ? UNASSIGNED_CHAT_PROJECT_NAME
+          : (persistedProject.name || localProject.name),
         threads: [...localOnlyThreads, ...persistedProject.threads],
         threadsLoaded: persistedProject.threadsLoaded || localProject.threadsLoaded,
         threadCount: Math.max(
@@ -375,13 +377,11 @@ export function useAppShellController() {
   );
 
   const handleStartProjectChat = useCallback(
-    (projectId: string) => {
+    (projectId: string, projectName?: string) => {
       const project = projects.find((candidate) => candidate.id === projectId);
-      if (!project) {
-        return;
-      }
+      const resolvedProjectName = projectName?.trim() || project?.name || projectId.split(/[\\/]+/).pop() || projectId;
 
-      openLocalDraftThread({ projectId, projectName: project.name });
+      openLocalDraftThread({ projectId, projectName: resolvedProjectName });
     },
     [openLocalDraftThread, projects],
   );

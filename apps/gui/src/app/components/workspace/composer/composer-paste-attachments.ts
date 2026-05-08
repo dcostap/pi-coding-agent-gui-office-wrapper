@@ -31,7 +31,10 @@ export type ComposerClipboardDataLike = {
 type ComposerClipboardTextSourceLike = Pick<ComposerClipboardDataLike, "getData" | "types">;
 type ClipboardFilePathResolver = (file: ClipboardFileLike) => string | null;
 
+const officeAgentFilePathsClipboardType = "application/x-office-agent-file-paths";
+
 const preferredClipboardTypes = [
+  officeAgentFilePathsClipboardType,
   "text/uri-list",
   "x-special/gnome-copied-files",
   "public.file-url",
@@ -41,6 +44,7 @@ const preferredClipboardTypes = [
 ];
 
 const attachmentHintClipboardTypes = new Set([
+  officeAgentFilePathsClipboardType,
   "text/uri-list",
   "x-special/gnome-copied-files",
   "public.file-url",
@@ -199,10 +203,33 @@ function getClipboardFileAttachments(
   );
 }
 
+function getOfficeAgentFilePathAttachments(value: string) {
+  try {
+    const paths = JSON.parse(value) as unknown;
+    if (!Array.isArray(paths)) {
+      return [];
+    }
+
+    return paths
+      .filter((filePath): filePath is string => typeof filePath === "string" && filePath.length > 0)
+      .map(buildAttachmentFromPath);
+  } catch {
+    return [];
+  }
+}
+
 function getClipboardTextAttachments(clipboardData: ComposerClipboardDataLike) {
   let attachments: ComposerAttachment[] = [];
 
   for (const { type, value: normalizedValue } of getClipboardTextValues(clipboardData)) {
+    if (type === officeAgentFilePathsClipboardType) {
+      attachments = mergeComposerAttachments(
+        attachments,
+        getOfficeAgentFilePathAttachments(normalizedValue),
+      );
+      continue;
+    }
+
     if (!shouldTreatClipboardValueAsAttachment(clipboardData, type, normalizedValue)) {
       continue;
     }

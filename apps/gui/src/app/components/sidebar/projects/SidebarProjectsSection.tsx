@@ -48,7 +48,7 @@ type SidebarProjectsSectionProps = {
   onProjectSelect: (projectId: string) => void;
   onProjectReorder: (projectIds: string[]) => void;
   onStartUnassignedChat: () => void;
-  onStartProjectChat: (projectId: string) => void;
+  onStartProjectChat: (projectId: string, projectName?: string) => void;
   onThreadOpen: (projectId: string, threadId: string, sessionPath: string) => void;
   onToggleProjectCollapse: (projectId: string) => void;
 };
@@ -96,7 +96,7 @@ export function SidebarProjectsSection({
   const [pendingProject, setPendingProject] = useState<PendingProject | null>(null);
   const desktopBridgeAvailable = useDesktopBridgeAvailable();
   const lastProjectCreateRequestIdRef = useRef(0);
-  const createPanelRef = useRef<HTMLDialogElement>(null);
+  const createPanelRef = useRef<HTMLDivElement>(null);
   const [unassignedChatsExpanded, setUnassignedChatsExpanded] = useState(true);
 
   const regularProjects = useMemo(
@@ -217,8 +217,10 @@ export function SidebarProjectsSection({
       return;
     }
 
-    setCreateErrorMessage(null);
-    setCreateOpen(true);
+    window.requestAnimationFrame(() => {
+      setCreateErrorMessage(null);
+      setCreateOpen(true);
+    });
   }, [activeView, appSettings.preferredProjectLocation, projectCreateRequestId]);
 
   const dismissCreate = useCallback(() => {
@@ -264,6 +266,7 @@ export function SidebarProjectsSection({
         typeof result?.result?.projectId === "string" ? result.result.projectId : null;
       if (projectId) {
         setCreatedProjectIds((current) => [projectId, ...current.filter((id) => id !== projectId)]);
+        onStartProjectChat(projectId, draft);
       }
 
       setPendingProject(null);
