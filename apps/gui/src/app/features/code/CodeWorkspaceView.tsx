@@ -338,7 +338,6 @@ export function CodeWorkspaceView({
               open={projectFilesOpen}
               projectId={composerProjectId}
               attachedFilePaths={attachedFilePaths}
-              onClose={() => setProjectFilesOpen(false)}
             />
           </div>
         ) : (
@@ -355,7 +354,6 @@ export function CodeWorkspaceView({
                 open={projectFilesOpen}
                 projectId={composerProjectId}
                 attachedFilePaths={attachedFilePaths}
-                onClose={() => setProjectFilesOpen(false)}
               />
             </div>
           </div>

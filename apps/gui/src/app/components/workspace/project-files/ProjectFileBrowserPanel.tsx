@@ -1,7 +1,6 @@
-import { ChevronDown, ChevronRight, Copy, ExternalLink, FolderOpen, PanelRightClose, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, ExternalLink, FolderOpen } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import type { ProjectFileEntry } from "../../../../../shared/desktop-contracts";
-import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
 import { FileTypeIcon } from "../../common/FileTypeIcon";
 import {
@@ -37,7 +36,6 @@ type ProjectFileBrowserPanelProps = {
   open: boolean;
   projectId: string;
   attachedFilePaths?: Set<string>;
-  onClose: () => void;
 };
 
 function formatModifiedTime(modifiedMs: number) {
@@ -88,7 +86,6 @@ export function ProjectFileBrowserPanel({
   open,
   projectId,
   attachedFilePaths = new Set(),
-  onClose,
 }: ProjectFileBrowserPanelProps) {
   const [directories, setDirectories] = useState<Record<string, LoadedDirectory>>({});
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
@@ -252,21 +249,13 @@ export function ProjectFileBrowserPanel({
       aria-label="Project files"
       onContextMenu={(event) => event.preventDefault()}
     >
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-3">
+      <header className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
         <div className="min-w-0">
           <h2 className="m-0 truncate text-[13px] font-medium text-[color:var(--text)]">
             Project files
           </h2>
           <p className="m-0 truncate text-[11px] text-[color:var(--muted-2)]">{projectId}</p>
         </div>
-        <button
-          type="button"
-          className={cn(compactIconButtonClass, "h-7 w-7 rounded-full")}
-          onClick={onClose}
-          aria-label={docked ? "Collapse project files" : "Close project files"}
-        >
-          {docked ? <PanelRightClose size={14} /> : <X size={14} />}
-        </button>
       </header>
 
       <div className="grid h-8 shrink-0 grid-cols-[minmax(0,1fr)_6.8rem] items-center border-b border-white/[0.06] px-2 text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--muted-2)]">

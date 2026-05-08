@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownToLine, ListCollapse, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { Message } from "../../../types";
+import { Tooltip } from "../../common/Tooltip";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { CHAT_TEXT_MAX_WIDTH_CLASS } from "../../../ui/layout";
 import { cn } from "../../../utils/cn";
@@ -310,41 +311,47 @@ export function ThreadTimeline({
           </div>
         </div>
       ) : null}
+      {onToggleProjectFiles ? (
+        <div className="pointer-events-none absolute top-4 right-0 z-10 flex w-7 items-center justify-center">
+          <Tooltip content={projectFilesOpen ? "Collapse project files" : "Open project files"} placement="top" className="pointer-events-auto">
+            <button
+              type="button"
+              className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
+              onClick={onToggleProjectFiles}
+              aria-label={projectFilesOpen ? "Collapse project files" : "Open project files"}
+            >
+              {projectFilesOpen ? (
+                <PanelRightClose size={13} strokeWidth={2} />
+              ) : (
+                <PanelRightOpen size={13} strokeWidth={2} />
+              )}
+            </button>
+          </Tooltip>
+        </div>
+      ) : null}
       <div className="pointer-events-none absolute right-0 bottom-4 z-10 flex w-7 flex-col items-center gap-1.5">
-        {onToggleProjectFiles ? (
+        <Tooltip content="Fold all" placement="top" className="pointer-events-auto">
           <button
             type="button"
             className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
-            onClick={onToggleProjectFiles}
-            aria-label={projectFilesOpen ? "Collapse project files" : "Open project files"}
+            onClick={handleFoldEverything}
+            disabled={foldableRows.length === 0}
+            aria-label="Fold all"
           >
-            {projectFilesOpen ? (
-              <PanelRightClose size={13} strokeWidth={2} />
-            ) : (
-              <PanelRightOpen size={13} strokeWidth={2} />
-            )}
+            <ListCollapse size={13} strokeWidth={2} />
           </button>
-        ) : null}
-        <button
-          type="button"
-          className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
-          onClick={handleFoldEverything}
-          disabled={foldableRows.length === 0}
-          aria-label="Fold all"
-          data-tooltip="Fold all"
-        >
-          <ListCollapse size={13} strokeWidth={2} />
-        </button>
-        <button
-          type="button"
-          className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
-          onClick={scrollToBottom}
-          disabled={nearBottom}
-          aria-label="Scroll to bottom"
-          data-tooltip="Scroll to bottom"
-        >
-          <ArrowDownToLine size={13} strokeWidth={2} />
-        </button>
+        </Tooltip>
+        <Tooltip content="Scroll to bottom" placement="top" className="pointer-events-auto">
+          <button
+            type="button"
+            className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
+            onClick={scrollToBottom}
+            disabled={nearBottom}
+            aria-label="Scroll to bottom"
+          >
+            <ArrowDownToLine size={13} strokeWidth={2} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
