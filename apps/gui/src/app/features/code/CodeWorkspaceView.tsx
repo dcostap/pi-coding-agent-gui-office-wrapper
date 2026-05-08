@@ -180,9 +180,7 @@ export function CodeWorkspaceView({
   }, []);
 
   useEffect(() => {
-    if (projectFilesDocked) {
-      setProjectFilesOpen(true);
-    }
+    setProjectFilesOpen(projectFilesDocked);
   }, [projectFilesDocked]);
 
   useEffect(() => {
