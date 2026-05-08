@@ -1,10 +1,11 @@
 import path from "node:path";
-import { stat } from "node:fs/promises";
+import { copyFile, mkdir, open, rm, stat } from "node:fs/promises";
 import type { ComposerAttachment } from "../../shared/desktop-contracts";
 import { getSafeExternalUrl, isSafeExternalUrl } from "../../shared/external-url";
 import { getAttachmentKind, normalizeComposerAttachments } from "../../shared/composer-attachments";
 
 const maxConcurrentAttachmentStats = 8;
+
 function hasControlCharacters(value: string) {
   return Array.from(value).some((character) => {
     const codePoint = character.codePointAt(0) ?? 0;
@@ -98,9 +99,107 @@ async function statLocalAttachmentPaths(
   return localAttachmentKinds;
 }
 
+function isPathInsideDirectory(candidatePath: string, directoryPath: string) {
+  const relativePath = path.relative(path.resolve(directoryPath), path.resolve(candidatePath));
+  return (
+    relativePath.length === 0 || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
+}
+
+function getUniqueAttachmentName(fileName: string, usedNames: Set<string>) {
+  const parsed = path.parse(fileName.trim() || "attachment");
+  const baseName = parsed.name || "attachment";
+  const extension = parsed.ext;
+
+  for (let index = 0; index < 10_000; index += 1) {
+    const candidateName = index === 0 ? `${baseName}${extension}` : `${baseName} ${index + 1}${extension}`;
+    const key = candidateName.toLocaleLowerCase();
+    if (!usedNames.has(key)) {
+      usedNames.add(key);
+      return candidateName;
+    }
+  }
+
+  throw new Error(`Could not allocate a unique attachment name for ${fileName}.`);
+}
+
+async function reserveUniqueAttachmentPath(targetRootPath: string, fileName: string, usedNames: Set<string>) {
+  await mkdir(targetRootPath, { recursive: true });
+  const parsed = path.parse(getUniqueAttachmentName(fileName, usedNames));
+
+  for (let index = 0; index < 10_000; index += 1) {
+    const candidateName = index === 0 ? `${parsed.name}${parsed.ext}` : `${parsed.name} ${index + 1}${parsed.ext}`;
+    const candidatePath = path.join(targetRootPath, candidateName);
+    try {
+      const file = await open(candidatePath, "wx", 0o600);
+      await file.close();
+      return candidatePath;
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "EEXIST"
+      ) {
+        usedNames.add(candidateName.toLocaleLowerCase());
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error(`Could not allocate a unique attachment path for ${fileName}.`);
+}
+
+async function copyAttachmentToProjectRoot(
+  attachment: ComposerAttachment,
+  options: {
+    targetRootPath: string;
+    usedNames: Set<string>;
+  },
+): Promise<ComposerAttachment | null> {
+  if (attachment.kind === "directory") {
+    return null;
+  }
+
+  const sourcePath = path.resolve(attachment.path);
+  const targetRootPath = path.resolve(options.targetRootPath);
+  if (isPathInsideDirectory(sourcePath, targetRootPath)) {
+    return { ...attachment, path: sourcePath, name: path.basename(sourcePath) || attachment.name };
+  }
+
+  const targetPath = await reserveUniqueAttachmentPath(
+    targetRootPath,
+    path.basename(sourcePath) || attachment.name || "attachment",
+    options.usedNames,
+  );
+
+  try {
+    await copyFile(sourcePath, targetPath);
+  } catch (error) {
+    try {
+      await rm(targetPath, { force: true });
+    } catch {
+      // Best-effort cleanup of the reservation file; preserve the original copy error.
+    }
+    throw error;
+  }
+
+  return {
+    ...attachment,
+    path: targetPath,
+    name: path.basename(targetPath),
+    kind: getAttachmentKind(targetPath),
+  };
+}
+
 export async function normalizeComposerSendAttachments(
   attachments: ComposerAttachment[],
-  options?: { statAttachmentPath?: AttachmentStat; platform?: AttachmentPlatform },
+  options?: {
+    statAttachmentPath?: AttachmentStat;
+    platform?: AttachmentPlatform;
+    targetRootPath?: string | null;
+  },
 ): Promise<{ attachments: ComposerAttachment[]; rejected: boolean }> {
   const statAttachmentPath = options?.statAttachmentPath ?? stat;
   const platform = options?.platform ?? process.platform;
@@ -139,8 +238,9 @@ export async function normalizeComposerSendAttachments(
         }
 
         const kind = localAttachmentKinds.get(pathParts.normalizedPath) ?? null;
-        if (kind === null) {
+        if (kind === null || kind === "directory") {
           rejected = true;
+          return null;
         }
 
         return kind;
@@ -148,5 +248,33 @@ export async function normalizeComposerSendAttachments(
     },
   );
 
-  return { attachments: normalizedAttachments, rejected };
+  if (rejected || normalizedAttachments.length === 0 || !options?.targetRootPath) {
+    return { attachments: normalizedAttachments, rejected };
+  }
+
+  const usedNames = new Set<string>();
+  const preparedAttachments: ComposerAttachment[] = [];
+
+  for (const attachment of normalizedAttachments) {
+    if (isSafeExternalUrl(attachment.path)) {
+      preparedAttachments.push(attachment);
+      continue;
+    }
+
+    try {
+      const copiedAttachment = await copyAttachmentToProjectRoot(attachment, {
+        targetRootPath: options.targetRootPath,
+        usedNames,
+      });
+      if (!copiedAttachment) {
+        rejected = true;
+        continue;
+      }
+      preparedAttachments.push(copiedAttachment);
+    } catch {
+      rejected = true;
+    }
+  }
+
+  return { attachments: preparedAttachments, rejected };
 }

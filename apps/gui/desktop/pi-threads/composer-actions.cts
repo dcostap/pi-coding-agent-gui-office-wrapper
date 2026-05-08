@@ -53,13 +53,16 @@ export async function handleComposerDesktopAction(
       let attachments: ComposerAttachment[] = [];
 
       if (!isCompactSlashCommand(text)) {
+        const composerRequest = getComposerRequest(payload);
         const rawAttachments = getComposerAttachments(payload);
-        const normalizedAttachmentPayload = await normalizeComposerSendAttachments(rawAttachments);
+        const normalizedAttachmentPayload = await normalizeComposerSendAttachments(rawAttachments, {
+          targetRootPath: composerRequest.projectId ?? null,
+        });
         attachments = normalizedAttachmentPayload.attachments;
         if (normalizedAttachmentPayload.rejected) {
           return handledAction({
             error:
-              "Could not send prompt because one or more attached files are no longer available.",
+              "Could not send prompt because one or more attachments are unavailable or unsupported. Attach files only; folders are not supported yet.",
           });
         }
       }

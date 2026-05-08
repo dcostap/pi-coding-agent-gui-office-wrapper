@@ -115,6 +115,8 @@ export function createDesktopApi() {
     },
     listComposerAttachmentEntries: (request = {}) =>
       invokeRequest("listComposerAttachmentEntries", request),
+    listProjectFileEntries: (request: { projectId: string; directoryPath?: string | null }) =>
+      invokeRequest("listProjectFileEntries", request),
     getComposerState: (request = {}) => invokeRequest("getComposerState", request),
     getComposerSlashCommands: (request = {}) => invokeRequest("getComposerSlashCommands", request),
     getDictationState: () => invokeRequest("getDictationState", {}),
@@ -172,6 +174,14 @@ export function createDesktopApi() {
     getTerminalStatus: (sessionId: string) => invokeRequest("terminalStatus", { sessionId }),
     openExternal: (url: string) => invokeRequest("openExternal", { url }).then(({ ok }) => ok),
     openPath: (path: string) => invokeRequest("openPath", { path }).then(({ ok }) => ok),
+    revealPath: (path: string) => invokeRequest("revealPath", { path }).then(({ ok }) => ok),
+    copyTextToClipboard: (text: string) =>
+      invokeRequest("copyTextToClipboard", { text }).then(({ ok }) => ok),
+    copyFilesToClipboard: (paths: string[]) =>
+      invokeRequest("copyFilesToClipboard", { paths }).then(({ ok }) => ok),
+    startFileDrag: (paths: string[]) => {
+      ipcRenderer.send("howcode:start-file-drag", { paths });
+    },
     saveTextToDownloads: (fileName: string, content: string) =>
       invokeRequest("saveTextToDownloads", { fileName, content }),
     subscribe: (listener: (event: DesktopEvent) => void) =>

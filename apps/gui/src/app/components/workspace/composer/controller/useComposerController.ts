@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DesktopAction } from "../../../../desktop/actions";
 import { getErrorMessage } from "../../../../desktop/error-messages";
 import type {
-  ComposerFilePickerState,
   ComposerModel,
   ComposerStreamingBehavior,
   ComposerThinkingLevel,
@@ -10,7 +9,6 @@ import type {
 } from "../../../../desktop/types";
 import type { View } from "../../../../types";
 import { useDismissibleLayer } from "../../../../hooks/useDismissibleLayer";
-import { useComposerAttachmentPicker } from "../useComposerAttachmentPicker";
 import { useComposerClipboardHandlers } from "../useComposerClipboardHandlers";
 import { useComposerDictation } from "../useComposerDictation";
 import { useComposerSubmission } from "../useComposerSubmission";
@@ -35,9 +33,6 @@ function getModelLabel(model: ComposerModel | null) {
 
 type UseComposerControllerProps = {
   activeView: View;
-  composerPanelRef: RefObject<HTMLDivElement | null>;
-  mainViewRef: RefObject<HTMLElement | null>;
-  workspaceFooterRef: RefObject<HTMLElement | null>;
   model: ComposerModel | null;
   projectId: string;
   chatGroupId?: string | null;
@@ -52,18 +47,10 @@ type UseComposerControllerProps = {
   streamingBehaviorPreference: ComposerStreamingBehavior;
   onAction: DesktopActionInvoker;
   onRestoredQueuedPromptApplied: () => void;
-  onListAttachmentEntries: (request: {
-    projectId?: string | null;
-    path?: string | null;
-    rootPath?: string | null;
-  }) => Promise<ComposerFilePickerState | null>;
 };
 
 export function useComposerController({
   activeView,
-  composerPanelRef,
-  mainViewRef,
-  workspaceFooterRef,
   model,
   projectId,
   chatGroupId = null,
@@ -78,7 +65,6 @@ export function useComposerController({
   streamingBehaviorPreference,
   onAction,
   onRestoredQueuedPromptApplied,
-  onListAttachmentEntries,
 }: UseComposerControllerProps) {
   const [openMenu, setOpenMenu] = useState<"model" | "picker" | null>(null);
   const [localExtensionCommandRunning, setLocalExtensionCommandRunning] = useState(false);
@@ -88,8 +74,6 @@ export function useComposerController({
   const pendingSubmittedDraftScopeKeyRef = useRef<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const composerMode = activeView === "chat" ? "chat" : "code";
-  const pickerButtonRef = useRef<HTMLButtonElement>(null);
-  const pickerPanelRef = useRef<HTMLDivElement>(null);
   const modelButtonRef = useRef<HTMLButtonElement>(null);
   const modelMenuRef = useRef<HTMLDivElement>(null);
   const sendLockRef = useRef(false);
@@ -122,36 +106,6 @@ export function useComposerController({
     refs: [modelButtonRef, modelMenuRef],
   });
 
-  useEffect(() => {
-    if (openMenu !== "picker") {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-
-      if (!target) {
-        return;
-      }
-
-      if (pickerButtonRef.current?.contains(target) || pickerPanelRef.current?.contains(target)) {
-        return;
-      }
-
-      if (composerPanelRef.current?.contains(target)) {
-        return;
-      }
-
-      if (mainViewRef.current?.contains(target) || workspaceFooterRef.current?.contains(target)) {
-        setOpenMenu((current) => (current === "picker" ? null : current));
-      }
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown, true);
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown, true);
-    };
-  }, [composerPanelRef, mainViewRef, openMenu, workspaceFooterRef]);
 
   const extensionCommandRunning = isExtensionCommandRunning || localExtensionCommandRunning;
   const canSend =
@@ -218,25 +172,19 @@ export function useComposerController({
     setErrorMessage,
   });
 
-  const {
-    attachPickerAttachments,
-    clearAttachments,
-    openPickerDirectory,
-    openPickerRoot,
-    pickAttachments,
-    pickerLoading,
-    pickerState,
-    removeAttachment,
-    togglePendingPickerAttachment,
-  } = useComposerAttachmentPicker({
-    openMenu,
-    pickerRootPath: projectId,
-    pickerSessionKey: draftThreadId,
-    setAttachments: setAttachmentValue,
-    setErrorMessage,
-    setOpenMenu,
-    onListAttachmentEntries,
-  });
+  const removeAttachment = useCallback(
+    (attachmentPath: string) => {
+      setAttachmentValue((current) =>
+        current.filter((currentAttachment) => currentAttachment.path !== attachmentPath),
+      );
+    },
+    [setAttachmentValue],
+  );
+
+  const clearAttachments = useCallback(() => {
+    setAttachmentValue([]);
+    setErrorMessage(null);
+  }, [setAttachmentValue, setErrorMessage]);
 
   const runComposerAction = async (
     action: DesktopAction,
@@ -309,19 +257,11 @@ export function useComposerController({
     extensionCommandRunning,
     isSending,
     inputLocked: isSending || pendingSubmittedDraft !== null,
-    pickerButtonRef,
-    pickerLoading,
-    pickerOpen: openMenu === "picker",
-    pickerPanelRef,
-    pickerState,
     modelButtonRef,
     modelLabel,
     modelMenuOpen: openMenu === "model",
     modelMenuRef,
     isStreaming,
-    pickAttachments,
-    openPickerDirectory,
-    openPickerRoot,
     removeAttachment,
     runComposerAction,
     compact,
@@ -331,8 +271,6 @@ export function useComposerController({
     setOpenMenu,
     stop,
     toggleDictation,
-    attachPickerAttachments,
-    togglePendingPickerAttachment,
     thinkingLevelLabels,
   };
 }

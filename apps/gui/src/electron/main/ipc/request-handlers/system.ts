@@ -9,7 +9,7 @@ import {
   listComposerAttachmentEntries,
   normalizeDialogFilePaths,
 } from "../../../../desktop-host/composer-attachments";
-import { readNativeClipboardFilePaths } from "./clipboard-file-paths";
+import { readNativeClipboardFilePaths, writeNativeClipboardFilePaths } from "./clipboard-file-paths";
 import { getDesktopWorkingDirectory } from "../../../../../shared/desktop-working-directory";
 import type { DesktopRequestHandlerMap } from "../../../../../shared/desktop-ipc";
 
@@ -22,12 +22,28 @@ type SystemRequestHandlers = Pick<
   | "readClipboardImage"
   | "getAttachmentKindsForPaths"
   | "listComposerAttachmentEntries"
+  | "listProjectFileEntries"
   | "openExternal"
   | "openPath"
+  | "revealPath"
+  | "copyTextToClipboard"
+  | "copyFilesToClipboard"
   | "saveTextToDownloads"
 >;
 
 const clipboardImageTempDir = path.join(tmpdir(), "howcode-clipboard-images");
+const hiddenProjectFileNames = new Set([
+  ".git",
+  ".hg",
+  ".svn",
+  ".officeagent",
+  ".cache",
+  ".vite",
+  ".next",
+  "node_modules",
+  "dist",
+  "build",
+]);
 const maxClipboardImagePixels = 32_000_000;
 const maxClipboardImageBytes = 25 * 1024 * 1024;
 
@@ -72,6 +88,42 @@ async function clearClipboardImageTempFiles() {
     clearedCount: results.filter((result) => result.status === "fulfilled").length,
     clearFailedCount: results.filter((result) => result.status === "rejected").length,
   };
+}
+
+function isPathWithinRoot(candidatePath: string, rootPath: string) {
+  const relativePath = path.relative(rootPath, candidatePath);
+  return (
+    relativePath.length === 0 || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
+}
+
+async function listProjectFileEntriesForDirectory(request: {
+  projectId: string;
+  directoryPath?: string | null;
+}) {
+  const rootPath = path.resolve(request.projectId || getDesktopWorkingDirectory());
+  const requestedDirectoryPath = path.resolve(request.directoryPath || rootPath);
+  const directoryPath = isPathWithinRoot(requestedDirectoryPath, rootPath)
+    ? requestedDirectoryPath
+    : rootPath;
+  const directoryEntries = await readdir(directoryPath, { withFileTypes: true });
+  const entries = await Promise.all(
+    directoryEntries
+      .filter((entry) => !hiddenProjectFileNames.has(entry.name))
+      .map(async (entry) => {
+        const entryPath = path.join(directoryPath, entry.name);
+        const stats = await stat(entryPath);
+        return {
+          path: entryPath,
+          name: entry.name,
+          kind: entry.isDirectory() ? ("directory" as const) : ("file" as const),
+          modifiedMs: stats.mtimeMs,
+          size: entry.isDirectory() ? null : stats.size,
+        };
+      }),
+  );
+
+  return { rootPath, directoryPath, entries };
 }
 
 async function writeUniqueTextFile(directoryPath: string, fileName: string, content: string) {
@@ -182,6 +234,7 @@ export function createSystemHandlers(): SystemRequestHandlers {
       return Object.fromEntries(entries);
     },
     listComposerAttachmentEntries: (request) => listComposerAttachmentEntries(request),
+    listProjectFileEntries: (request) => listProjectFileEntriesForDirectory(request),
     openExternal: async ({ url }) => {
       const safeUrl = getSafeExternalUrl(url);
       if (!safeUrl) {
@@ -202,6 +255,27 @@ export function createSystemHandlers(): SystemRequestHandlers {
         return { ok: false };
       }
     },
+    revealPath: async ({ path }) => {
+      try {
+        shell.showItemInFolder(path);
+        return { ok: true };
+      } catch {
+        return { ok: false };
+      }
+    },
+    copyTextToClipboard: ({ text }) => {
+      try {
+        clipboard.writeText(text);
+        return { ok: true };
+      } catch {
+        return { ok: false };
+      }
+    },
+    copyFilesToClipboard: async ({ paths }) => ({
+      ok: await writeNativeClipboardFilePaths(
+        Array.isArray(paths) ? paths.filter((path): path is string => typeof path === "string") : [],
+      ),
+    }),
     saveTextToDownloads: async ({ fileName, content }) => {
       const safeFileName = fileName
         .replace(/[\\/:*?"<>|]/g, "-")

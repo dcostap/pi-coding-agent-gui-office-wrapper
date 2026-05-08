@@ -1,8 +1,10 @@
 import { memo, useEffect, useId, useRef, useState } from "react";
+import { parseComposerAttachmentBlock } from "../../../../shared/composer-attachment-prompt";
 import type { Message } from "../../types";
 import { getThinkingPreview } from "../../utils/thread-previews";
 import { ExpandablePanel } from "./ExpandablePanel";
 import { MarkdownContent } from "./MarkdownContent";
+import { UserMessageAttachments } from "./UserMessageAttachments";
 
 type ThreadMessageProps = {
   message: Message;
@@ -158,10 +160,18 @@ export const ThreadMessage = memo(function ThreadMessage({
   primaryToggleAction,
 }: ThreadMessageProps) {
   if (message.role === "user") {
+    const parsedParagraphs = message.content.map((paragraph) =>
+      parseComposerAttachmentBlock(paragraph),
+    );
+    const parsedUserContent = {
+      paragraphs: parsedParagraphs.map((paragraph) => paragraph.text).filter(Boolean),
+      attachmentPaths: parsedParagraphs.flatMap((paragraph) => paragraph.attachmentPaths),
+    };
+
     return (
       <div className="ml-auto w-fit max-w-[min(70%,36rem)] min-w-0 rounded-2xl bg-white/[0.075] px-4 py-2.5 text-[14px] leading-[1.55] text-[color:var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
         <div className="grid min-w-0 gap-3 [overflow-wrap:anywhere]">
-          {message.content.map((paragraph) => (
+          {parsedUserContent.paragraphs.map((paragraph) => (
             <MarkdownContent
               key={paragraph}
               markdown={paragraph}
@@ -170,6 +180,7 @@ export const ThreadMessage = memo(function ThreadMessage({
             />
           ))}
         </div>
+        <UserMessageAttachments attachmentPaths={parsedUserContent.attachmentPaths} />
       </div>
     );
   }

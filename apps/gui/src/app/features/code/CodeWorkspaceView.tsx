@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FolderGit2 } from "lucide-react";
 import type { AppShellController } from "../../app-shell/useAppShellController";
 import { defaultPiSettings } from "../../../../shared/default-pi-settings";
+import { parseComposerAttachmentBlock } from "../../../../shared/composer-attachment-prompt";
 import { Composer } from "../../components/workspace/Composer";
 import { DiffPanel } from "../../components/workspace/DiffPanel";
 import { GitOpsComposerPanel } from "../../components/workspace/GitOpsComposerPanel";
 import { QueuedPromptsCard } from "../../components/workspace/composer/QueuedPromptsCard";
+import { ProjectFileBrowserPanel } from "../../components/workspace/project-files/ProjectFileBrowserPanel";
 import type { ProjectDiffBaseline, ProjectDiffRenderMode } from "../../desktop/types";
 import type { Message } from "../../types";
 import { useDesktopDiff } from "../../hooks/useDesktopDiff";
@@ -34,6 +36,57 @@ type CodeWorkspaceViewProps = {
 };
 
 const TERMINAL_DRAWER_OFFSET = "min(28rem, calc(100% - 2.5rem))";
+const PROJECT_FILES_PANEL_MIN_WIDTH_PX = 320;
+const PROJECT_FILES_DOCKED_MIN_WIDTH = 1180;
+const PROJECT_FILES_CHAT_TARGET_WIDTH_PX = 920;
+
+function useProjectFilesDockedMode() {
+  const [docked, setDocked] = useState(() =>
+    typeof window === "undefined" ? true : window.innerWidth >= PROJECT_FILES_DOCKED_MIN_WIDTH,
+  );
+
+  useEffect(() => {
+    const updateDockedMode = () => setDocked(window.innerWidth >= PROJECT_FILES_DOCKED_MIN_WIDTH);
+    updateDockedMode();
+    window.addEventListener("resize", updateDockedMode);
+    return () => window.removeEventListener("resize", updateDockedMode);
+  }, []);
+
+  return docked;
+}
+
+function getProjectFilesPanelWidth(containerWidth: number) {
+  if (containerWidth <= PROJECT_FILES_DOCKED_MIN_WIDTH) {
+    return PROJECT_FILES_PANEL_MIN_WIDTH_PX;
+  }
+
+  const splitGrowthWidth =
+    PROJECT_FILES_PANEL_MIN_WIDTH_PX +
+    (containerWidth - PROJECT_FILES_DOCKED_MIN_WIDTH) / 2;
+  const splitChatWidth = containerWidth - splitGrowthWidth;
+
+  if (splitChatWidth < PROJECT_FILES_CHAT_TARGET_WIDTH_PX) {
+    return Math.round(splitGrowthWidth);
+  }
+
+  return Math.max(
+    PROJECT_FILES_PANEL_MIN_WIDTH_PX,
+    Math.round(containerWidth - PROJECT_FILES_CHAT_TARGET_WIDTH_PX),
+  );
+}
+
+function combineRightInsets(...insets: Array<string | null | false | undefined>) {
+  const activeInsets = insets.filter((inset): inset is string => Boolean(inset));
+  if (activeInsets.length === 0) {
+    return undefined;
+  }
+
+  if (activeInsets.length === 1) {
+    return { right: activeInsets[0] };
+  }
+
+  return { right: `calc(${activeInsets.join(" + ")})` };
+}
 
 function getReplyActivityKey(messages: readonly Message[]) {
   return messages
@@ -61,8 +114,12 @@ export function CodeWorkspaceView({
     Record<string, boolean>
   >({});
   const [composerLayoutVersion, setComposerLayoutVersion] = useState(0);
+  const [projectFilesOpen, setProjectFilesOpen] = useState(false);
+  const projectFilesDocked = useProjectFilesDockedMode();
+  const rootRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLElement>(null);
   const mainViewRef = useRef<HTMLElement>(null);
+  const [workspaceWidth, setWorkspaceWidth] = useState(0);
   const {
     handleAction,
     handleLoadEarlierMessages,
@@ -109,6 +166,36 @@ export function CodeWorkspaceView({
   const footerInset = showWorkspaceFooter && !centerThreadFooter ? footerHeight : 0;
 
   useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof ResizeObserver === "undefined") {
+      setWorkspaceWidth(root?.clientWidth ?? 0);
+      return;
+    }
+
+    const updateWidth = () => setWorkspaceWidth(root.clientWidth);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!projectFilesOpen || projectFilesDocked) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setProjectFilesOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [projectFilesDocked, projectFilesOpen]);
+
+  useEffect(() => {
     if (!hasThreadConversation) {
       previousHasThreadConversationRef.current = false;
       setThreadContentVisible(false);
@@ -152,25 +239,48 @@ export function CodeWorkspaceView({
     terminalSessionPath,
   });
 
-  const terminalDrawerInsetStyle = showDesktopTerminalDrawer
-    ? { right: TERMINAL_DRAWER_OFFSET }
-    : undefined;
+  const projectFilesPanelWidth = getProjectFilesPanelWidth(workspaceWidth);
+  const projectFilesPanelWidthStyle = `${projectFilesPanelWidth}px`;
+  const projectFilesDockedOffset = projectFilesOpen && projectFilesDocked ? projectFilesPanelWidthStyle : null;
+  const workspaceRightInsetStyle = combineRightInsets(
+    showDesktopTerminalDrawer ? TERMINAL_DRAWER_OFFSET : null,
+    projectFilesDockedOffset,
+  );
+  const projectFilesPanelRightStyle = {
+    right: showDesktopTerminalDrawer ? TERMINAL_DRAWER_OFFSET : "0px",
+  };
   const threadFooterStyle = showPromptComposer
     ? {
-        ...terminalDrawerInsetStyle,
+        ...workspaceRightInsetStyle,
         top: centerThreadFooter ? "50%" : `calc(100% - ${footerHeight}px)`,
       }
-    : terminalDrawerInsetStyle;
+    : workspaceRightInsetStyle;
   const visibleThreadData =
     state.activeView === "thread" && activeThreadData && !threadContentVisible
       ? { ...activeThreadData, messages: [] }
       : activeThreadData;
+  const attachedFilePaths = useMemo(
+    () =>
+      new Set(
+        (activeThreadData?.messages ?? [])
+          .flatMap((message) => {
+            if (message.role !== "user") {
+              return [];
+            }
+
+            return message.content.flatMap(
+              (paragraph: string) => parseComposerAttachmentBlock(paragraph).attachmentPaths,
+            );
+          }),
+      ),
+    [activeThreadData?.messages],
+  );
 
   return (
-    <div className="relative min-h-0 flex-1 overflow-hidden">
+    <div ref={rootRef} className="relative min-h-0 flex-1 overflow-hidden">
       <div
         className="motion-terminal-drawer-offset absolute inset-x-0 top-0 overflow-hidden px-5"
-        style={{ ...terminalDrawerInsetStyle, bottom: `${footerInset}px` }}
+        style={{ ...workspaceRightInsetStyle, bottom: `${footerInset}px` }}
       >
         <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)] gap-3 overflow-hidden">
           <main
@@ -238,6 +348,8 @@ export function CodeWorkspaceView({
                 workspaceContentClass={workspaceContentClass}
                 threadData={visibleThreadData}
                 composerLayoutVersion={composerLayoutVersion}
+                projectFilesOpen={projectFilesOpen}
+                onToggleProjectFiles={() => setProjectFilesOpen((open) => !open)}
                 onAction={handleAction}
                 onDismissInboxThread={controller.handleDismissInboxThread}
                 onListAttachmentEntries={listComposerAttachmentEntries}
@@ -253,6 +365,39 @@ export function CodeWorkspaceView({
           </main>
         </div>
       </div>
+
+      {projectFilesOpen ? (
+        projectFilesDocked ? (
+          <div
+            className="motion-terminal-drawer-offset absolute top-0 bottom-0 z-20 overflow-hidden transition-[right,width] duration-200 ease-out"
+            style={{ ...projectFilesPanelRightStyle, width: projectFilesPanelWidthStyle }}
+          >
+            <ProjectFileBrowserPanel
+              docked
+              open={projectFilesOpen}
+              projectId={composerProjectId}
+              attachedFilePaths={attachedFilePaths}
+            />
+          </div>
+        ) : (
+          <div className="absolute inset-0 z-30">
+            <button
+              type="button"
+              className="absolute inset-0 h-full w-full cursor-default border-0 bg-[rgba(7,9,16,0.42)] p-0 backdrop-blur-[3px]"
+              aria-label="Close project files"
+              onClick={() => setProjectFilesOpen(false)}
+            />
+            <div className="absolute top-0 right-0 bottom-0 w-[min(22rem,calc(100%-2rem))] overflow-hidden">
+              <ProjectFileBrowserPanel
+                docked={false}
+                open={projectFilesOpen}
+                projectId={composerProjectId}
+                attachedFilePaths={attachedFilePaths}
+              />
+            </div>
+          </div>
+        )
+      ) : null}
 
       {showWorkspaceFooter ? (
         <footer

@@ -30,6 +30,7 @@ import type {
   PiSkillCatalogPage,
   PiSkillMutationResult,
   ProjectCommitEntry,
+  ProjectFileEntriesResult,
   ProjectDiffBaseline,
   ProjectDiffResolvedBaseline,
   ProjectDiffResult,
@@ -184,6 +185,10 @@ export type DesktopRequestMap = {
     params: { projectId?: string | null; path?: string | null; rootPath?: string | null };
     response: ComposerFilePickerState;
   };
+  listProjectFileEntries: {
+    params: { projectId: string; directoryPath?: string | null };
+    response: ProjectFileEntriesResult;
+  };
   getComposerState: { params: ComposerStateRequest; response: ComposerState };
   getComposerSlashCommands: { params: ComposerStateRequest; response: ComposerSlashCommand[] };
   getDictationState: { params: Record<string, never>; response: DictationState };
@@ -245,6 +250,9 @@ export type DesktopRequestMap = {
   terminalStatus: { params: TerminalStatusRequest; response: TerminalStatusSnapshot };
   openExternal: { params: { url: string }; response: { ok: boolean } };
   openPath: { params: { path: string }; response: { ok: boolean } };
+  revealPath: { params: { path: string }; response: { ok: boolean } };
+  copyTextToClipboard: { params: { text: string }; response: { ok: boolean } };
+  copyFilesToClipboard: { params: { paths: string[] }; response: { ok: boolean } };
   saveTextToDownloads: {
     params: { fileName: string; content: string };
     response: { ok: boolean; path?: string; error?: string };

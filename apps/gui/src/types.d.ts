@@ -30,6 +30,7 @@ import type {
   PiSkillCatalogPage,
   PiSkillMutationResult,
   ProjectCommitEntry,
+  ProjectFileEntriesResult,
   ProjectDiffBaseline,
   ProjectDiffResolvedBaseline,
   ProjectDiffResult,
@@ -148,6 +149,10 @@ declare global {
         path?: string | null;
         rootPath?: string | null;
       }) => Promise<ComposerFilePickerState>;
+      listProjectFileEntries?: (request: {
+        projectId: string;
+        directoryPath?: string | null;
+      }) => Promise<ProjectFileEntriesResult>;
       getComposerState?: (request?: ComposerStateRequest) => Promise<ComposerState>;
       getComposerSlashCommands?: (
         request?: ComposerStateRequest,
@@ -197,6 +202,10 @@ declare global {
       subscribeTerminal?: (listener: (event: TerminalEvent) => void) => () => void;
       openExternal?: (url: string) => Promise<boolean>;
       openPath?: (path: string) => Promise<boolean>;
+      revealPath?: (path: string) => Promise<boolean>;
+      copyTextToClipboard?: (text: string) => Promise<boolean>;
+      copyFilesToClipboard?: (paths: string[]) => Promise<boolean>;
+      startFileDrag?: (paths: string[]) => void;
       saveTextToDownloads?: (
         fileName: string,
         content: string,
