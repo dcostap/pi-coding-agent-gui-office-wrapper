@@ -14,6 +14,8 @@ Current status: the helper launches real Windows commands using a Medium Integri
 
 This is write containment, not read confinement.
 
+Experimental identity spike: setting `OFFICE_AGENT_SANDBOX_IDENTITY_MODE=logon-user` makes the helper log on a dedicated Windows account from `OFFICE_AGENT_SANDBOX_LOGON_USER`, `OFFICE_AGENT_SANDBOX_LOGON_DOMAIN` (default `.`), and `OFFICE_AGENT_SANDBOX_LOGON_PASSWORD`, grant that account access to the managed writable roots, and launch the command with that account token. This is for local sandbox-v2 research only; it is not the default product path. Use `cd apps/gui && bun run sandbox:logon-spike:setup` to create/update the local test account and persist the required user environment variables; use `bun run sandbox:logon-spike:disable` to clear them.
+
 ## Protocol
 
 The helper reads one JSON request from stdin and writes one JSON response to stdout.

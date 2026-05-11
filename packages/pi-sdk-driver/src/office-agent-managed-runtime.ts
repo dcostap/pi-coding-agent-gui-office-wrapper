@@ -1,6 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import {
+  ensureOfficeAgentManagedProjectStateLayout,
   ensureOfficeAgentManagedSessionLayout,
   findOfficeAgentManagedRootForPath,
   getOfficeAgentManagedSessionEnv,
@@ -57,7 +58,10 @@ export async function createOfficeAgentManagedSessionRuntime(
     throw new Error("OfficeAgent managed runtime requires a session manager with a session id.");
   }
 
-  const sessionPaths = await ensureOfficeAgentManagedSessionLayout(sessionId, managedRootDir);
+  const [sessionPaths, projectStatePaths] = await Promise.all([
+    ensureOfficeAgentManagedSessionLayout(sessionId, managedRootDir),
+    ensureOfficeAgentManagedProjectStateLayout(cwd, managedRootDir),
+  ]);
   const shellConfig = await ensureOfficeAgentSandboxShellConfig(managedRootDir);
   const appPromptContext = getOfficeAgentAppPromptContext({ cwd, managedRootDir, sessionId });
   const shellPromptContext = getOfficeAgentSandboxShellPromptContext(shellConfig);
@@ -76,6 +80,7 @@ export async function createOfficeAgentManagedSessionRuntime(
     operations: createOfficeAgentSandboxBashOperations({
       managedRootDir,
       sessionPaths,
+      projectStatePaths,
       env: sessionEnv,
       shellConfig,
     }),

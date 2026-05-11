@@ -1687,6 +1687,7 @@ Future work should investigate and fix the underlying AppContainer compatibility
 - current TypeScript path checks are defense-in-depth only for file tools
 - Rust helper is now in the managed `bash` execution path, but the bridge is one-command-at-a-time and log-file based rather than a persistent sandboxed worker protocol
 - real sandbox compatibility remains unverified for current Node/Pi/Python/npm workflows until worker execution and shell/runtime packaging decisions are hardened
+- cleanup after the robust sandbox/runtime-state work lands: remove temporary compatibility hacks that become obsolete (Python temp/sitecustomize workaround if no longer needed, uv compatibility shims once real uv works, legacy per-session package-state paths, and any tool-specific ACL repair/retry code)
 
 ---
 
@@ -2201,3 +2202,19 @@ Smoke confirmed the default backend on this machine is now:
 ```text
 C:\Program Files\PowerShell\7\pwsh.exe
 ```
+
+## 2026-05-08 direction: project-scoped tool state and Windows sandbox v2
+
+The Python/pip ACL failures showed that per-session package directories and inherited ACEs are not enough for a robust package-manager experience.
+
+Current direction:
+
+- package/tool state should be project-scoped, not session-scoped
+- temp/log/profile should remain session-scoped
+- new writable roots should be explicit inputs to the sandbox helper
+- the long-term Windows sandbox should move toward a Codex-inspired execution identity model instead of relying solely on inherited ACLs for a synthetic restricting SID
+- avoid piling on new tool-specific repair hacks; remove temporary shims once the identity model makes them obsolete
+
+Detailed direction: [`windows-sandbox-v2-codex-inspired.md`](./windows-sandbox-v2-codex-inspired.md).
+
+Final refactor/redesign plan: [`windows-sandbox-codex-aligned-redesign.md`](./windows-sandbox-codex-aligned-redesign.md).

@@ -16,6 +16,7 @@ export const OFFICE_AGENT_DEFAULT_GATEWAY_TOKEN = "d4e36536607aac0b45ff59b5c60c2
 export const OFFICE_AGENT_MANAGED_PROJECTS_DIR_NAME = "projects";
 export const OFFICE_AGENT_MANAGED_INTERNAL_DIR_NAME = ".officeagent";
 export const OFFICE_AGENT_MANAGED_SESSIONS_DIR_NAME = "sessions";
+export const OFFICE_AGENT_MANAGED_PROJECT_STATE_DIR_NAME = "project-state";
 export const OFFICE_AGENT_MANAGED_SESSION_FILES_DIR_NAME = "workspace-files";
 export const OFFICE_AGENT_MANAGED_SESSION_PROFILE_DIR_NAME = "profile";
 export const OFFICE_AGENT_MANAGED_SESSION_TEMP_DIR_NAME = "temp";
@@ -28,6 +29,11 @@ export const OFFICE_AGENT_MANAGED_SESSION_UV_TOOL_DIR_NAME = "uv-tools";
 export const OFFICE_AGENT_MANAGED_SESSION_UV_TOOL_BIN_DIR_NAME = "uv-tools-bin";
 export const OFFICE_AGENT_MANAGED_SESSION_UV_PYTHON_INSTALL_DIR_NAME = "uv-python";
 export const OFFICE_AGENT_MANAGED_SESSION_UV_PYTHON_BIN_DIR_NAME = "uv-python-bin";
+export const OFFICE_AGENT_MANAGED_PROJECT_CACHE_DIR_NAME = "cache";
+export const OFFICE_AGENT_MANAGED_PROJECT_CONFIG_DIR_NAME = "config";
+export const OFFICE_AGENT_MANAGED_PROJECT_DATA_DIR_NAME = "data";
+export const OFFICE_AGENT_MANAGED_PROJECT_TOOLS_DIR_NAME = "tools";
+export const OFFICE_AGENT_MANAGED_PROJECT_BIN_DIR_NAME = "bin";
 export const OFFICE_AGENT_MANAGED_SESSION_LOGS_DIR_NAME = "logs";
 export const OFFICE_AGENT_MANAGED_RUNTIME_DIR_NAME = "runtime";
 export const OFFICE_AGENT_STAGED_GIT_BASH_RUNTIME_NAME = "git-bash";
@@ -47,6 +53,9 @@ export const OFFICE_AGENT_REAL_VIDEOS_ENV_NAME = "OFFICE_AGENT_REAL_VIDEOS";
 export const OFFICE_AGENT_SANDBOX_PROFILE_ENV_NAME = "OFFICE_AGENT_SANDBOX_PROFILE";
 export const OFFICE_AGENT_MANAGED_ROOT_ENV_NAME = "OFFICE_AGENT_MANAGED_ROOT";
 export const OFFICE_AGENT_ACTIVE_PROJECT_ENV_NAME = "OFFICE_AGENT_ACTIVE_PROJECT";
+export const OFFICE_AGENT_PROJECT_STATE_ENV_NAME = "OFFICE_AGENT_PROJECT_STATE";
+export const OFFICE_AGENT_PROJECT_CACHE_ENV_NAME = "OFFICE_AGENT_PROJECT_CACHE";
+export const OFFICE_AGENT_PROJECT_TOOLS_ENV_NAME = "OFFICE_AGENT_PROJECT_TOOLS";
 
 export type OfficeAgentClientKind = "gui" | "tui" | "unknown";
 
@@ -66,6 +75,24 @@ export interface OfficeAgentManagedSessionPaths {
   readonly uvPythonInstallDir: string;
   readonly uvPythonBinDir: string;
   readonly logsDir: string;
+}
+
+export interface OfficeAgentManagedProjectStatePaths {
+  readonly projectStateDir: string;
+  readonly cacheDir: string;
+  readonly configDir: string;
+  readonly dataDir: string;
+  readonly toolsDir: string;
+  readonly binDir: string;
+  readonly npmCacheDir: string;
+  readonly npmPrefixDir: string;
+  readonly pipCacheDir: string;
+  readonly pythonUserBaseDir: string;
+  readonly uvCacheDir: string;
+  readonly uvToolDir: string;
+  readonly uvToolBinDir: string;
+  readonly uvPythonInstallDir: string;
+  readonly uvPythonBinDir: string;
 }
 
 export const OFFICE_AGENT_MANAGED_SETTINGS = {
@@ -144,6 +171,41 @@ export function getOfficeAgentInternalDir(managedRootDir: string = getOfficeAgen
 
 export function getOfficeAgentSessionsDir(managedRootDir: string = getOfficeAgentManagedRootDir()): string {
   return path.join(getOfficeAgentInternalDir(managedRootDir), OFFICE_AGENT_MANAGED_SESSIONS_DIR_NAME);
+}
+
+export function getOfficeAgentProjectStateRootDir(managedRootDir: string = getOfficeAgentManagedRootDir()): string {
+  return path.join(getOfficeAgentInternalDir(managedRootDir), OFFICE_AGENT_MANAGED_PROJECT_STATE_DIR_NAME);
+}
+
+export function getOfficeAgentProjectStateDir(
+  projectPath: string,
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): string {
+  return path.join(getOfficeAgentProjectStateRootDir(managedRootDir), encodeOfficeAgentPathSegment(path.resolve(projectPath)));
+}
+
+export function getOfficeAgentManagedProjectStatePaths(
+  projectPath: string,
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): OfficeAgentManagedProjectStatePaths {
+  const projectStateDir = getOfficeAgentProjectStateDir(projectPath, managedRootDir);
+  return {
+    projectStateDir,
+    cacheDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_PROJECT_CACHE_DIR_NAME),
+    configDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_PROJECT_CONFIG_DIR_NAME),
+    dataDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_PROJECT_DATA_DIR_NAME),
+    toolsDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_PROJECT_TOOLS_DIR_NAME),
+    binDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_PROJECT_BIN_DIR_NAME),
+    npmCacheDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_SESSION_NPM_CACHE_DIR_NAME),
+    npmPrefixDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_SESSION_NPM_PREFIX_DIR_NAME),
+    pipCacheDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_SESSION_PIP_CACHE_DIR_NAME),
+    pythonUserBaseDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_SESSION_PYTHON_USER_BASE_DIR_NAME),
+    uvCacheDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_SESSION_UV_CACHE_DIR_NAME),
+    uvToolDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_SESSION_UV_TOOL_DIR_NAME),
+    uvToolBinDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_SESSION_UV_TOOL_BIN_DIR_NAME),
+    uvPythonInstallDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_SESSION_UV_PYTHON_INSTALL_DIR_NAME),
+    uvPythonBinDir: path.join(projectStateDir, OFFICE_AGENT_MANAGED_SESSION_UV_PYTHON_BIN_DIR_NAME),
+  };
 }
 
 export function getOfficeAgentRuntimeDir(managedRootDir: string = getOfficeAgentManagedRootDir()): string {
@@ -322,6 +384,7 @@ export async function ensureOfficeAgentManagedRoot(managedRootDir: string = getO
   await mkdir(getOfficeAgentProjectsDir(managedRootDir), { recursive: true });
   await mkdir(getOfficeAgentInternalDir(managedRootDir), { recursive: true });
   await mkdir(getOfficeAgentSessionsDir(managedRootDir), { recursive: true });
+  await mkdir(getOfficeAgentProjectStateRootDir(managedRootDir), { recursive: true });
   await mkdir(getOfficeAgentRuntimeDir(managedRootDir), { recursive: true });
   return managedRootDir;
 }
@@ -350,6 +413,30 @@ export async function ensureOfficeAgentManagedSessionLayout(
   return paths;
 }
 
+export async function ensureOfficeAgentManagedProjectStateLayout(
+  projectPath: string,
+  managedRootDir: string = getOfficeAgentManagedRootDir(),
+): Promise<OfficeAgentManagedProjectStatePaths> {
+  await ensureOfficeAgentManagedRoot(managedRootDir);
+  const paths = getOfficeAgentManagedProjectStatePaths(projectPath, managedRootDir);
+  await mkdir(paths.projectStateDir, { recursive: true });
+  await mkdir(paths.cacheDir, { recursive: true });
+  await mkdir(paths.configDir, { recursive: true });
+  await mkdir(paths.dataDir, { recursive: true });
+  await mkdir(paths.toolsDir, { recursive: true });
+  await mkdir(paths.binDir, { recursive: true });
+  await mkdir(paths.npmCacheDir, { recursive: true });
+  await mkdir(paths.npmPrefixDir, { recursive: true });
+  await mkdir(paths.pipCacheDir, { recursive: true });
+  await mkdir(paths.pythonUserBaseDir, { recursive: true });
+  await mkdir(paths.uvCacheDir, { recursive: true });
+  await mkdir(paths.uvToolDir, { recursive: true });
+  await mkdir(paths.uvToolBinDir, { recursive: true });
+  await mkdir(paths.uvPythonInstallDir, { recursive: true });
+  await mkdir(paths.uvPythonBinDir, { recursive: true });
+  return paths;
+}
+
 export function getOfficeAgentManagedSessionEnv(
   sessionId: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -368,6 +455,10 @@ export function getOfficeAgentManagedSessionEnv(
   const managedEnv = getOfficeAgentManagedEnv(env, options);
   const managedRootDir = options.managedRootDir ?? getOfficeAgentManagedRootDir();
   const paths = getOfficeAgentManagedSessionPaths(sessionId, managedRootDir);
+  const projectStatePaths = options.activeProjectDir
+    ? getOfficeAgentManagedProjectStatePaths(options.activeProjectDir, managedRootDir)
+    : undefined;
+  const packageStatePaths = projectStatePaths ?? paths;
   const realUserFolders = getOfficeAgentRealUserFolders(env);
   return {
     ...managedEnv,
@@ -384,20 +475,30 @@ export function getOfficeAgentManagedSessionEnv(
     [OFFICE_AGENT_SANDBOX_PROFILE_ENV_NAME]: paths.profileDir,
     [OFFICE_AGENT_MANAGED_ROOT_ENV_NAME]: managedRootDir,
     ...(options.activeProjectDir ? { [OFFICE_AGENT_ACTIVE_PROJECT_ENV_NAME]: options.activeProjectDir } : {}),
+    ...(projectStatePaths
+      ? {
+          [OFFICE_AGENT_PROJECT_STATE_ENV_NAME]: projectStatePaths.projectStateDir,
+          [OFFICE_AGENT_PROJECT_CACHE_ENV_NAME]: projectStatePaths.cacheDir,
+          [OFFICE_AGENT_PROJECT_TOOLS_ENV_NAME]: projectStatePaths.toolsDir,
+          XDG_CACHE_HOME: projectStatePaths.cacheDir,
+          XDG_CONFIG_HOME: projectStatePaths.configDir,
+          XDG_DATA_HOME: projectStatePaths.dataDir,
+        }
+      : {}),
     TEMP: paths.tempDir,
     TMP: paths.tempDir,
     TMPDIR: paths.tempDir,
-    npm_config_cache: paths.npmCacheDir,
-    NPM_CONFIG_CACHE: paths.npmCacheDir,
-    npm_config_prefix: paths.npmPrefixDir,
-    NPM_CONFIG_PREFIX: paths.npmPrefixDir,
-    PIP_CACHE_DIR: paths.pipCacheDir,
-    PYTHONUSERBASE: paths.pythonUserBaseDir,
-    UV_CACHE_DIR: paths.uvCacheDir,
-    UV_TOOL_DIR: paths.uvToolDir,
-    UV_TOOL_BIN_DIR: paths.uvToolBinDir,
-    UV_PYTHON_INSTALL_DIR: paths.uvPythonInstallDir,
-    UV_PYTHON_BIN_DIR: paths.uvPythonBinDir,
+    npm_config_cache: packageStatePaths.npmCacheDir,
+    NPM_CONFIG_CACHE: packageStatePaths.npmCacheDir,
+    npm_config_prefix: packageStatePaths.npmPrefixDir,
+    NPM_CONFIG_PREFIX: packageStatePaths.npmPrefixDir,
+    PIP_CACHE_DIR: packageStatePaths.pipCacheDir,
+    PYTHONUSERBASE: packageStatePaths.pythonUserBaseDir,
+    UV_CACHE_DIR: packageStatePaths.uvCacheDir,
+    UV_TOOL_DIR: packageStatePaths.uvToolDir,
+    UV_TOOL_BIN_DIR: packageStatePaths.uvToolBinDir,
+    UV_PYTHON_INSTALL_DIR: packageStatePaths.uvPythonInstallDir,
+    UV_PYTHON_BIN_DIR: packageStatePaths.uvPythonBinDir,
     UV_PYTHON_NO_REGISTRY: "1",
     UV_PYTHON_DOWNLOADS: "manual",
     UV_LINK_MODE: "copy",

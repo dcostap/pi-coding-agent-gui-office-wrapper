@@ -169,13 +169,16 @@ mod windows_sandbox {
         EXPLICIT_ACCESS_W, GRANT_ACCESS, SE_FILE_OBJECT,
     };
     use windows::Win32::Security::{
-        AllocateAndInitializeSid, CopySid, CreateRestrictedToken, FreeSid, GetLengthSid,
-        GetTokenInformation, ImpersonateLoggedOnUser, RevertToSelf, SetTokenInformation,
-        TokenDefaultDacl, TokenGroups, ACL, CREATE_RESTRICTED_TOKEN_FLAGS,
-        DACL_SECURITY_INFORMATION, PSID, SECURITY_NT_AUTHORITY, SECURITY_WORLD_SID_AUTHORITY,
-        SID_AND_ATTRIBUTES, SUB_CONTAINERS_AND_OBJECTS_INHERIT, TOKEN_ADJUST_DEFAULT,
-        TOKEN_ADJUST_SESSIONID, TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE,
-        TOKEN_GROUPS, TOKEN_IMPERSONATE, TOKEN_QUERY,
+        AllocateAndInitializeSid, CopySid, CreateRestrictedToken, EqualSid, FreeSid, GetAce,
+        GetAclInformation, GetLengthSid, GetTokenInformation, ImpersonateLoggedOnUser,
+        LogonUserW, RevertToSelf, SetTokenInformation, TokenDefaultDacl, TokenGroups, TokenUser,
+        ACE_HEADER, ACCESS_ALLOWED_ACE, ACL, ACL_SIZE_INFORMATION, AclSizeInformation,
+        CONTAINER_INHERIT_ACE, CREATE_RESTRICTED_TOKEN_FLAGS, DACL_SECURITY_INFORMATION,
+        LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, OBJECT_INHERIT_ACE, PSID,
+        SECURITY_NT_AUTHORITY, SECURITY_WORLD_SID_AUTHORITY, SID_AND_ATTRIBUTES,
+        SUB_CONTAINERS_AND_OBJECTS_INHERIT, TOKEN_ADJUST_DEFAULT, TOKEN_ADJUST_SESSIONID,
+        TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE, TOKEN_GROUPS,
+        TOKEN_IMPERSONATE, TOKEN_QUERY, TOKEN_USER,
     };
     use windows::Win32::Storage::FileSystem::{
         DELETE, FILE_DELETE_CHILD, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
@@ -192,6 +195,8 @@ mod windows_sandbox {
         STARTF_USESTDHANDLES, STARTUPINFOW,
     };
 
+    const ACCESS_ALLOWED_ACE_TYPE: u8 = 0;
+    const INHERIT_ONLY_ACE: u32 = 0x08;
     const WRITE_RESTRICTED: u32 = 0x08;
     const GENERIC_ALL: u32 = 0x1000_0000;
     const SE_GROUP_LOGON_ID: u32 = 0xC000_0000;
@@ -201,9 +206,16 @@ mod windows_sandbox {
             .map_err(|error| format!("failed to create sessionDir: {error}"))?;
 
         let request_id = request.request_id.clone();
-        let restricting_sid = RestrictingSid::for_managed_root(&request.managed_root)?;
-        grant_write_restricted_paths(&request, restricting_sid.sid())?;
-        let process = unsafe { create_write_restricted_process(&request, restricting_sid.sid())? };
+        let process = unsafe {
+            match SandboxIdentityMode::from_env()? {
+                SandboxIdentityMode::WriteRestricted => {
+                    let restricting_sid = RestrictingSid::for_managed_root(&request.managed_root)?;
+                    grant_write_restricted_paths(&request, restricting_sid.sid())?;
+                    create_write_restricted_process(&request, restricting_sid.sid())?
+                }
+                SandboxIdentityMode::LogonUserSpike => create_logon_user_process(&request)?,
+            }
+        };
         let pid = process.process_id;
         let wait_ms = request
             .timeout_ms
@@ -277,6 +289,28 @@ mod windows_sandbox {
         let token = create_write_restricted_primary_token(restricting_sid)?;
         let _token_guard = HandleGuard(token);
         create_token_process(request, token, restricting_sid)
+    }
+
+    unsafe fn create_logon_user_process(request: &LaunchRequest) -> Result<SandboxedProcess, String> {
+        let credentials = LogonUserSpikeCredentials::from_env()?;
+        let mut token = HANDLE::default();
+        let username_w = wide_null(&credentials.username);
+        let domain_w = wide_null(&credentials.domain);
+        let password_w = wide_null(&credentials.password);
+        LogonUserW(
+            PCWSTR(username_w.as_ptr()),
+            PCWSTR(domain_w.as_ptr()),
+            PCWSTR(password_w.as_ptr()),
+            LOGON32_LOGON_INTERACTIVE,
+            LOGON32_PROVIDER_DEFAULT,
+            &mut token,
+        )
+        .map_err(|error| format!("LogonUserW sandbox identity spike failed: {error}"))?;
+        let _token_guard = HandleGuard(token);
+        let mut user_sid_bytes = get_token_user_sid_bytes(token)?;
+        let user_sid = PSID(user_sid_bytes.as_mut_ptr().cast());
+        grant_write_restricted_paths(request, user_sid)?;
+        create_token_process(request, token, user_sid)
     }
 
     unsafe fn with_strict_write_restricted_impersonation<T>(
@@ -402,6 +436,29 @@ mod windows_sandbox {
         .map_err(|error| format!("SetTokenInformation(TokenDefaultDacl) failed: {error}"))
     }
 
+    unsafe fn get_token_user_sid_bytes(token: HANDLE) -> Result<Vec<u8>, String> {
+        let mut needed = 0u32;
+        let _ = GetTokenInformation(token, TokenUser, None, 0, &mut needed);
+        if needed == 0 {
+            return Err("GetTokenInformation(TokenUser) did not report buffer size".to_string());
+        }
+        let mut buffer = vec![0u8; needed as usize];
+        GetTokenInformation(
+            token,
+            TokenUser,
+            Some(buffer.as_mut_ptr().cast()),
+            needed,
+            &mut needed,
+        )
+        .map_err(|error| format!("GetTokenInformation(TokenUser) failed: {error}"))?;
+        let token_user = &*(buffer.as_ptr().cast::<TOKEN_USER>());
+        let sid_len = GetLengthSid(token_user.User.Sid) as u32;
+        let mut sid_bytes = vec![0u8; sid_len as usize];
+        CopySid(sid_len, PSID(sid_bytes.as_mut_ptr().cast()), token_user.User.Sid)
+            .map_err(|error| format!("CopySid(TokenUser SID) failed: {error}"))?;
+        Ok(sid_bytes)
+    }
+
     unsafe fn get_logon_sid_bytes(token: HANDLE) -> Result<Vec<u8>, String> {
         let mut needed = 0u32;
         let _ = GetTokenInformation(token, TokenGroups, None, 0, &mut needed);
@@ -494,7 +551,7 @@ mod windows_sandbox {
             &startup_info,
             &mut process_information,
         )
-        .map_err(|error| format!("CreateProcessAsUserW write-restricted launch failed: {error}"))?;
+        .map_err(|error| format!("CreateProcessAsUserW sandbox launch failed: {error}"))?;
 
         let mut process_guard = CreatedProcessGuard::new(process_information);
         let job_guard = HandleGuard(create_kill_on_close_job()?);
@@ -611,14 +668,16 @@ mod windows_sandbox {
             }
             let _sd_guard = LocalMemoryGuard(HLOCAL(security_descriptor.0));
 
+            if dacl_has_inheritable_allow_for_sid(old_dacl, sid, access_mask) {
+                return Ok(());
+            }
+
             let mut explicit_access = EXPLICIT_ACCESS_W::default();
             explicit_access.grfAccessPermissions = access_mask;
             explicit_access.grfAccessMode = GRANT_ACCESS;
             explicit_access.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
             BuildTrusteeWithSidW(&mut explicit_access.Trustee, sid);
 
-            // FIXME: Repeated GRANT_ACCESS calls look idempotent in smoke tests, but this still mutates
-            // ACLs on every launch/file op. Add explicit de-dupe or a regression test against DACL growth.
             let mut new_dacl: *mut ACL = std::ptr::null_mut();
             let acl_error =
                 SetEntriesInAclW(Some(&[explicit_access]), Some(old_dacl), &mut new_dacl);
@@ -647,6 +706,54 @@ mod windows_sandbox {
             }
         }
         Ok(())
+    }
+
+    unsafe fn dacl_has_inheritable_allow_for_sid(
+        dacl: *mut ACL,
+        sid: PSID,
+        access_mask: u32,
+    ) -> bool {
+        if dacl.is_null() {
+            return false;
+        }
+
+        let mut info: ACL_SIZE_INFORMATION = zeroed();
+        if GetAclInformation(
+            dacl,
+            (&mut info as *mut ACL_SIZE_INFORMATION).cast::<c_void>(),
+            size_of::<ACL_SIZE_INFORMATION>() as u32,
+            AclSizeInformation,
+        )
+        .is_err()
+        {
+            return false;
+        }
+
+        for index in 0..info.AceCount {
+            let mut ace_ptr: *mut c_void = std::ptr::null_mut();
+            if GetAce(dacl, index, &mut ace_ptr).is_err() || ace_ptr.is_null() {
+                continue;
+            }
+            let header = &*(ace_ptr.cast::<ACE_HEADER>());
+            if header.AceType != ACCESS_ALLOWED_ACE_TYPE {
+                continue;
+            }
+            let ace = &*(ace_ptr.cast::<ACCESS_ALLOWED_ACE>());
+            if (ace.Mask & access_mask) != access_mask {
+                continue;
+            }
+            let ace_flags = u32::from(header.AceFlags);
+            let inheritance_flags = OBJECT_INHERIT_ACE.0 | CONTAINER_INHERIT_ACE.0;
+            if (ace_flags & inheritance_flags) != inheritance_flags || (ace_flags & INHERIT_ONLY_ACE) != 0 {
+                continue;
+            }
+            let ace_sid = PSID((&ace.SidStart as *const u32).cast::<c_void>().cast_mut());
+            if EqualSid(ace_sid, sid).is_ok() {
+                return true;
+            }
+        }
+
+        false
     }
 
     unsafe fn explicit_access_for_sid(sid: PSID, access_mask: u32) -> EXPLICIT_ACCESS_W {
@@ -737,6 +844,55 @@ mod windows_sandbox {
             hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
         }
         hash
+    }
+
+    enum SandboxIdentityMode {
+        WriteRestricted,
+        LogonUserSpike,
+    }
+
+    impl SandboxIdentityMode {
+        fn from_env() -> Result<Self, String> {
+            match std::env::var("OFFICE_AGENT_SANDBOX_IDENTITY_MODE")
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase()
+                .as_str()
+            {
+                "" | "write-restricted" | "write_restricted" => Ok(Self::WriteRestricted),
+                "logon-user" | "logon_user" => Ok(Self::LogonUserSpike),
+                other => Err(format!(
+                    "unsupported OFFICE_AGENT_SANDBOX_IDENTITY_MODE={other}; expected write-restricted or logon-user"
+                )),
+            }
+        }
+    }
+
+    struct LogonUserSpikeCredentials {
+        username: String,
+        domain: String,
+        password: String,
+    }
+
+    impl LogonUserSpikeCredentials {
+        fn from_env() -> Result<Self, String> {
+            let username = required_env("OFFICE_AGENT_SANDBOX_LOGON_USER")?;
+            let domain = std::env::var("OFFICE_AGENT_SANDBOX_LOGON_DOMAIN").unwrap_or_else(|_| ".".to_string());
+            let password = required_env("OFFICE_AGENT_SANDBOX_LOGON_PASSWORD")?;
+            Ok(Self {
+                username,
+                domain,
+                password,
+            })
+        }
+    }
+
+    fn required_env(name: &str) -> Result<String, String> {
+        let value = std::env::var(name).map_err(|_| format!("{name} is required"))?;
+        if value.is_empty() {
+            return Err(format!("{name} must not be empty"));
+        }
+        Ok(value)
     }
 
     struct RestrictingSidPolicy {

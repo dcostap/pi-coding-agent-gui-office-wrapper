@@ -19,6 +19,7 @@ import {
   OFFICE_AGENT_SANDBOX_BASH_PATH_ENV_NAME,
   OFFICE_AGENT_STAGED_GIT_BASH_DIR_ENV_NAME,
   OFFICE_AGENT_UV_RUNTIME_MANIFEST_NAME,
+  type OfficeAgentManagedProjectStatePaths,
   type OfficeAgentManagedSessionPaths,
 } from "@office-agent/runtime";
 
@@ -75,6 +76,7 @@ export interface WindowsSandboxHelperResponse {
 export interface OfficeAgentSandboxBashOptions {
   readonly managedRootDir: string;
   readonly sessionPaths: OfficeAgentManagedSessionPaths;
+  readonly projectStatePaths?: OfficeAgentManagedProjectStatePaths;
   readonly env: NodeJS.ProcessEnv;
   readonly shellConfig?: OfficeAgentSandboxShellConfig;
 }
@@ -120,6 +122,9 @@ export function createOfficeAgentSandboxBashOperations(
         ? Math.ceil(execOptions.timeout * 1000)
         : undefined;
       const commandLaunch = await prepareSandboxCommandLaunch(command, shellConfig, options.managedRootDir, options.sessionPaths.sessionDir, runId);
+      const pythonCompatDir = await ensureOfficeAgentSessionPythonCompat(options.managedRootDir, options.sessionPaths);
+      const sandboxEnv = createSandboxEnvironment(shellConfig, options.env, execOptions.env, cwd);
+      prependPathLikeEnv(sandboxEnv, "PYTHONPATH", pythonCompatDir);
 
       if (execOptions.signal?.aborted) {
         throw new Error("aborted");
@@ -133,8 +138,13 @@ export function createOfficeAgentSandboxBashOperations(
         cwd,
         managedRoot: options.managedRootDir,
         sessionDir: options.sessionPaths.sessionDir,
-        env: createSandboxEnvironment(shellConfig, options.env, execOptions.env, cwd),
-        writablePaths: [cwd, options.sessionPaths.sessionDir, ...commandLaunch.writableScriptPaths],
+        env: sandboxEnv,
+        writablePaths: [
+          cwd,
+          ...getOfficeAgentSessionWritablePaths(options.sessionPaths),
+          ...(options.projectStatePaths ? getOfficeAgentProjectStateWritablePaths(options.projectStatePaths) : []),
+          ...commandLaunch.writableScriptPaths,
+        ],
         stdoutPath,
         stderrPath,
         ...(timeoutMs ? { timeoutMs } : {}),
@@ -164,6 +174,148 @@ export function createOfficeAgentSandboxBashOperations(
       return { exitCode: response.result?.exitCode ?? null };
     },
   };
+}
+
+function getOfficeAgentSessionWritablePaths(paths: OfficeAgentManagedSessionPaths): string[] {
+  return [
+    paths.sessionDir,
+    paths.profileDir,
+    paths.appDataDir,
+    paths.localAppDataDir,
+    paths.tempDir,
+    paths.logsDir,
+    getOfficeAgentSessionPythonCompatDir(paths),
+  ];
+}
+
+function getOfficeAgentProjectStateWritablePaths(paths: OfficeAgentManagedProjectStatePaths): string[] {
+  return [
+    paths.projectStateDir,
+    paths.cacheDir,
+    paths.configDir,
+    paths.dataDir,
+    paths.toolsDir,
+    paths.binDir,
+    paths.npmCacheDir,
+    paths.npmPrefixDir,
+    paths.pipCacheDir,
+    paths.pythonUserBaseDir,
+    paths.uvCacheDir,
+    paths.uvToolDir,
+    paths.uvToolBinDir,
+    paths.uvPythonInstallDir,
+    paths.uvPythonBinDir,
+  ];
+}
+
+function getOfficeAgentSessionPythonCompatDir(paths: OfficeAgentManagedSessionPaths): string {
+  return join(paths.sessionDir, "python-compat");
+}
+
+function getOfficeAgentPythonSiteCustomizeSource(): string {
+  return [
+    "import os",
+    "import tempfile",
+    "import uuid",
+    "_officeagent_tmp = os.environ.get('TMPDIR') or os.environ.get('TEMP') or os.environ.get('TMP')",
+    "_officeagent_orig_mkdir = os.mkdir",
+    "_officeagent_orig_mkdtemp = tempfile.mkdtemp",
+    "_officeagent_orig_named_temporary_file = tempfile.NamedTemporaryFile",
+    "def _officeagent_mkdir(path, mode=0o777, *, dir_fd=None):",
+    "    create_mode = 0o777 if mode == 0o700 else mode",
+    "    return _officeagent_orig_mkdir(path, create_mode, dir_fd=dir_fd) if dir_fd is not None else _officeagent_orig_mkdir(path, create_mode)",
+    "os.mkdir = _officeagent_mkdir",
+    "if _officeagent_tmp:",
+    "    try:",
+    "        os.makedirs(_officeagent_tmp, exist_ok=True)",
+    "        tempfile.tempdir = _officeagent_tmp",
+    "    except OSError:",
+    "        pass",
+    "def _officeagent_mkdtemp(suffix=None, prefix=None, dir=None):",
+    "    suffix = '' if suffix is None else suffix",
+    "    prefix = 'tmp' if prefix is None else prefix",
+    "    dir = tempfile.gettempdir() if dir is None else dir",
+    "    for _ in range(100):",
+    "        path = os.path.join(dir, prefix + uuid.uuid4().hex[:8] + suffix)",
+    "        if os.path.exists(path):",
+    "            continue",
+    "        try:",
+    "            _officeagent_orig_mkdir(path, 0o777)",
+    "            return path",
+    "        except FileExistsError:",
+    "            continue",
+    "        except OSError:",
+    "            break",
+    "    return _officeagent_orig_mkdtemp(suffix=suffix, prefix=prefix, dir=dir)",
+    "tempfile.mkdtemp = _officeagent_mkdtemp",
+    "class _OfficeAgentNamedTemporaryFile:",
+    "    def __init__(self, file, name, delete=True):",
+    "        self.file = file",
+    "        self.name = name",
+    "        self.delete = delete",
+    "        self._closed = False",
+    "    def __getattr__(self, name):",
+    "        return getattr(self.file, name)",
+    "    def __enter__(self):",
+    "        self.file.__enter__()",
+    "        return self",
+    "    def __exit__(self, exc_type, exc, tb):",
+    "        try:",
+    "            return self.file.__exit__(exc_type, exc, tb)",
+    "        finally:",
+    "            self._delete_if_needed()",
+    "    def close(self):",
+    "        try:",
+    "            return self.file.close()",
+    "        finally:",
+    "            self._delete_if_needed()",
+    "    def _delete_if_needed(self):",
+    "        if self.delete and not self._closed:",
+    "            self._closed = True",
+    "            try:",
+    "                os.unlink(self.name)",
+    "            except OSError:",
+    "                pass",
+    "def _officeagent_named_temporary_file(mode='w+b', buffering=-1, encoding=None, newline=None, suffix=None, prefix=None, dir=None, delete=True, errors=None, delete_on_close=True):",
+    "    suffix = '' if suffix is None else suffix",
+    "    prefix = 'tmp' if prefix is None else prefix",
+    "    dir = tempfile.gettempdir() if dir is None else dir",
+    "    for _ in range(100):",
+    "        path = os.path.join(dir, prefix + uuid.uuid4().hex[:8] + suffix)",
+    "        if os.path.exists(path):",
+    "            continue",
+    "        try:",
+    "            fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o666)",
+    "            file = os.fdopen(fd, mode, buffering=buffering, encoding=encoding, errors=errors, newline=newline)",
+    "            return _OfficeAgentNamedTemporaryFile(file, path, delete=delete and delete_on_close)",
+    "        except FileExistsError:",
+    "            continue",
+    "        except OSError:",
+    "            break",
+    "    return _officeagent_orig_named_temporary_file(mode=mode, buffering=buffering, encoding=encoding, newline=newline, suffix=suffix, prefix=prefix, dir=dir, delete=delete, errors=errors)",
+    "tempfile.NamedTemporaryFile = _officeagent_named_temporary_file",
+    "",
+  ].join("\n");
+}
+
+async function ensureOfficeAgentSessionPythonCompat(
+  managedRootDir: string,
+  paths: OfficeAgentManagedSessionPaths,
+): Promise<string> {
+  const pythonCompatDir = getOfficeAgentSessionPythonCompatDir(paths);
+  await mkdirWithOfficeAgentSandbox(managedRootDir, pythonCompatDir);
+  await writeFileWithOfficeAgentSandbox(
+    managedRootDir,
+    join(pythonCompatDir, "sitecustomize.py"),
+    getOfficeAgentPythonSiteCustomizeSource(),
+    { createParentDirs: true },
+  );
+  return pythonCompatDir;
+}
+
+function prependPathLikeEnv(env: Record<string, string>, key: string, entry: string): void {
+  const existing = env[key];
+  env[key] = existing && existing.length > 0 ? `${entry}${delimiter}${existing}` : entry;
 }
 
 export async function ensureOfficeAgentSandboxShellConfig(managedRootDir: string): Promise<OfficeAgentSandboxShellConfig> {
@@ -678,10 +830,18 @@ async function ensureOfficeAgentPythonRuntime(managedRootDir: string): Promise<O
         "    completed = subprocess.run([cmd, '/d', '/q', '/c', 'mkdir', os.fspath(path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)",
         "    return completed.returncode == 0",
         "def _officeagent_mkdir(path, mode=0o777, *, dir_fd=None):",
-        "    if dir_fd is None and isinstance(path, (str, bytes, os.PathLike)):",
-        "        if _officeagent_cmd_mkdir(path):",
-        "            return None",
-        "    return _officeagent_orig_mkdir(path, mode, dir_fd=dir_fd) if dir_fd is not None else _officeagent_orig_mkdir(path, mode)",
+        "    # Python 3.12+ maps mode=0o700 on Windows to an owner-only DACL. That breaks",
+        "    # OfficeAgent's write-restricted token because the token also needs the managed",
+        "    # restricting SID to be present on created temp directories. Use an inheritable",
+        "    # mode for sandbox-created directories so children keep the parent OfficeAgent ACE.",
+        "    create_mode = 0o777 if mode == 0o700 else mode",
+        "    try:",
+        "        return _officeagent_orig_mkdir(path, create_mode, dir_fd=dir_fd) if dir_fd is not None else _officeagent_orig_mkdir(path, create_mode)",
+        "    except OSError:",
+        "        if dir_fd is None and isinstance(path, (str, bytes, os.PathLike)):",
+        "            if _officeagent_cmd_mkdir(path):",
+        "                return None",
+        "        raise",
         "os.mkdir = _officeagent_mkdir",
         "if _officeagent_tmp:",
         "    try:",
@@ -698,10 +858,16 @@ async function ensureOfficeAgentPythonRuntime(managedRootDir: string): Promise<O
         "        if os.path.exists(path):",
         "            continue",
         "        try:",
-        "            if _officeagent_cmd_mkdir(path):",
-        "                return path",
+        "            _officeagent_orig_mkdir(path, 0o777)",
+        "            return path",
+        "        except FileExistsError:",
+        "            continue",
         "        except OSError:",
-        "            break",
+        "            try:",
+        "                if _officeagent_cmd_mkdir(path):",
+        "                    return path",
+        "            except OSError:",
+        "                break",
         "    return _officeagent_orig_mkdtemp(suffix=suffix, prefix=prefix, dir=dir)",
         "tempfile.mkdtemp = _officeagent_mkdtemp",
         "class _OfficeAgentNamedTemporaryFile:",
@@ -741,7 +907,7 @@ async function ensureOfficeAgentPythonRuntime(managedRootDir: string): Promise<O
         "        if os.path.exists(path):",
         "            continue",
         "        try:",
-        "            fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)",
+        "            fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o666)",
         "            file = os.fdopen(fd, mode, buffering=buffering, encoding=encoding, errors=errors, newline=newline)",
         "            return _OfficeAgentNamedTemporaryFile(file, path, delete=delete and delete_on_close)",
         "        except FileExistsError:",

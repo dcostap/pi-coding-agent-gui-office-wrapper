@@ -5,6 +5,7 @@ import type { CreateAgentSessionOptions } from "@mariozechner/pi-coding-agent";
 import type { PiModule } from "./pi-module.cts";
 import {
   ensureOfficeAgentManagedAgentDir,
+  ensureOfficeAgentManagedProjectStateLayout,
   ensureOfficeAgentManagedRoot,
   ensureOfficeAgentManagedSessionLayout,
   findOfficeAgentManagedRootForPath,
@@ -74,19 +75,24 @@ export async function createOfficeAgentManagedCustomTools(options: {
     throw new Error(`OfficeAgent project is outside managed AgentData: ${cwd}`);
   }
 
-  const sessionPaths = await ensureOfficeAgentManagedSessionLayout(options.sessionId, managedRootDir);
+  const [sessionPaths, projectStatePaths] = await Promise.all([
+    ensureOfficeAgentManagedSessionLayout(options.sessionId, managedRootDir),
+    ensureOfficeAgentManagedProjectStateLayout(cwd, managedRootDir),
+  ]);
   const shellConfig = await ensureOfficeAgentSandboxShellConfig(managedRootDir);
   const shellPromptContext = getOfficeAgentSandboxShellPromptContext(shellConfig);
   const sessionEnv = getOfficeAgentManagedSessionEnv(options.sessionId, process.env, {
     managedRootDir,
     agentDir: options.agentDir,
     clientKind: "gui",
+    activeProjectDir: cwd,
   });
 
   const sandboxCommandTool = options.pi.createBashToolDefinition(cwd, {
     operations: createOfficeAgentSandboxBashOperations({
       managedRootDir,
       sessionPaths,
+      projectStatePaths,
       env: sessionEnv,
       shellConfig,
     }),
