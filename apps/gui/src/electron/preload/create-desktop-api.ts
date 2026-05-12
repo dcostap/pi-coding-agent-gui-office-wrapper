@@ -46,6 +46,9 @@ export function createDesktopApi() {
     runTitleBarCommand: (commandId: import("../../../shared/desktop-ipc").TitleBarCommandId) =>
       invokeRequest("runTitleBarCommand", { commandId }).then(({ ok }) => ok),
     getAppUpdateState: () => invokeRequest("getAppUpdateState", {}),
+    getWindowsSandboxSetupStatus: () => invokeRequest("getWindowsSandboxSetupStatus", {}),
+    prepareWindowsSandboxSetup: (action: "setup" | "reset" = "setup") =>
+      invokeRequest("prepareWindowsSandboxSetup", { action }),
     checkAppUpdate: () => invokeRequest("checkAppUpdate", {}),
     installAppUpdate: () => invokeRequest("installAppUpdate", {}),
     restartAppUpdate: () => invokeRequest("restartAppUpdate", {}),

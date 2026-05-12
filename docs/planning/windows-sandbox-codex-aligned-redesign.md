@@ -42,7 +42,7 @@ This means we keep OfficeAgent-specific runtime layout, project state, GUI integ
 - a restricted token for the actual command
 - job-object process tree cleanup
 
-The current `OFFICE_AGENT_SANDBOX_IDENTITY_MODE=logon-user` spike should be treated as a temporary proof-of-concept only. It is useful for validating identity semantics, but the productized implementation should not store passwords in environment variables and should not require the user to manually manage sandbox account credentials.
+The old `OFFICE_AGENT_SANDBOX_IDENTITY_MODE=logon-user` password-in-environment spike was only a temporary proof-of-concept. It has been removed from the product path; v2 uses generated DPAPI-protected credentials and the elevated setup handoff instead.
 
 ## Why this refactor is needed
 
@@ -733,6 +733,8 @@ Tests:
 ### Phase 3: restricted token + capability SIDs
 
 Add the actual Codex-like restriction layer.
+
+Implementation status (2026-05-11): the v2 runner now receives persisted global/per-cwd capability SIDs and ACL refresh grants the sandbox group plus relevant capability SIDs to session/writable/output roots. The product default launches the actual command as `OfficeAgentSandbox`, with stdin/stdout/stderr named pipes and kill-on-close Job Object cleanup. The runner intentionally does not force `lpDesktop` for the default sandbox-user child because `CreateProcessWithLogonW` + `CREATE_NO_WINDOW` + `winsta0\\default` caused common console tools such as `whoami`, `node`, and `python -m pip` to fail DLL initialization under the sandbox account. It also uses a sandbox-profile CWD junction and Node symlink-preservation options so Node/npm can run from AgentData even when the real user's profile ancestors are not readable. The stricter write-restricted child-token layer exists as an experimental diagnostic path behind `OFFICE_AGENT_WINDOWS_SANDBOX_RESTRICTED_CHILD=1`, but remains off by default because some Windows tools fail DLL initialization under that token. Gated v2 smokes cover stdin/stdout/stderr named pipes, sandbox identity, allowed writes, a sibling-root denied-write case, junction writable-root escape rejection, symlink writable-root escape rejection when the host can create symlinks, sandbox-secrets unreadability, no duplicate per-cwd capability ACE growth across repeated launches, and package-manager acceptance for local pip wheel installs plus local npm package installs; uv is skipped with a clear diagnostic when unavailable on PATH. Managed runtime startup now defaults GUI/runtime sessions to v2, checks readiness, and surfaces an explicit elevated setup command instead of silently falling back. Electron IPC handlers expose setup status plus setup/reset handoff data, and the Settings view now includes a Windows sandbox v2 status/repair panel that can refresh readiness, prepare elevated setup/reset handoff commands, and copy the command for UAC execution. Remaining hardening includes broader secrets/control-path access tests. The legacy write-restricted backend is now disabled for product use and requires the explicit development escape hatch `OFFICE_AGENT_WINDOWS_SANDBOX_ALLOW_LEGACY=1`.
 
 Tasks:
 

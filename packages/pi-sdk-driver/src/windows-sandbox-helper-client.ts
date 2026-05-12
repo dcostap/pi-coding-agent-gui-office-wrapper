@@ -35,6 +35,7 @@ export interface WindowsSandboxLaunchRequest {
   readonly writablePaths?: readonly string[];
   readonly stdoutPath?: string;
   readonly stderrPath?: string;
+  readonly stdinContent?: string;
   readonly timeoutMs?: number;
 }
 
@@ -54,19 +55,47 @@ export interface WindowsSandboxMkdirRequest {
   readonly path: string;
 }
 
+export interface WindowsSandboxPrepareSetupRequest {
+  readonly kind: "prepareSandboxSetup";
+  readonly requestId?: string;
+  readonly action?: "setup" | "reset";
+  readonly managedRoot: string;
+  readonly projectRoot?: string;
+  readonly projectStateDir?: string;
+  readonly sessionDir?: string;
+  readonly readRoots?: readonly string[];
+  readonly writeRoots?: readonly string[];
+}
+
+export interface WindowsSandboxCheckSetupRequest {
+  readonly kind: "checkSandboxSetup";
+  readonly requestId?: string;
+  readonly managedRoot: string;
+}
+
+export interface WindowsSandboxRunnerSelfTestRequest {
+  readonly kind: "sandboxRunnerSelfTest";
+  readonly requestId?: string;
+  readonly managedRoot: string;
+}
+
 export type WindowsSandboxHelperRequest =
   | WindowsSandboxLaunchRequest
   | WindowsSandboxFileWriteRequest
   | WindowsSandboxMkdirRequest
+  | WindowsSandboxPrepareSetupRequest
+  | WindowsSandboxCheckSetupRequest
+  | WindowsSandboxRunnerSelfTestRequest
   | { readonly kind: "selfTest"; readonly requestId?: string };
 
 export interface WindowsSandboxHelperResponse {
   readonly ok: boolean;
   readonly requestId?: string;
-  readonly result?: {
-    readonly pid: number;
+  readonly result?: Readonly<{
+    readonly pid?: number;
     readonly exitCode?: number;
-  };
+    readonly [key: string]: unknown;
+  }>;
   readonly error?: {
     readonly code: string;
     readonly message: string;
@@ -158,10 +187,14 @@ export function createOfficeAgentSandboxBashOperations(
         throw new Error(response.error?.message ?? "OfficeAgent sandbox helper launch failed.");
       }
 
-      const [rawStdout, rawStderr] = await Promise.all([
-        readFileIfExists(stdoutPath),
-        readFileIfExists(stderrPath),
-      ]);
+      const responseStdout = typeof response.result?.stdout === "string" ? Buffer.from(response.result.stdout) : undefined;
+      const responseStderr = typeof response.result?.stderr === "string" ? Buffer.from(response.result.stderr) : undefined;
+      const [rawStdout, rawStderr] = responseStdout !== undefined || responseStderr !== undefined
+        ? [responseStdout ?? Buffer.alloc(0), responseStderr ?? Buffer.alloc(0)]
+        : await Promise.all([
+          readFileIfExists(stdoutPath),
+          readFileIfExists(stderrPath),
+        ]);
       const stdout = filterSandboxOutputBuffer(rawStdout);
       const stderr = filterSandboxOutputBuffer(rawStderr);
       if (stdout.length > 0) {
@@ -380,6 +413,13 @@ export function resolveOfficeAgentSandboxShellConfig(managedRootDir: string): Of
     return createCmdShellConfig(systemRoot, inheritedHostPathEntries);
   }
 
+  if (process.env.OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND?.trim().toLowerCase() === "codex-v2") {
+    // Phase 2 v2 currently launches reliably through cmd. PowerShell under the
+    // dedicated sandbox identity can hang on some machines until the named-pipe
+    // runner path is complete, so prefer cmd unless explicitly overridden.
+    return createCmdShellConfig(systemRoot, inheritedHostPathEntries);
+  }
+
   if (pwshOnPath) {
     return createPwshShellConfig(pwshOnPath, inheritedHostPathEntries);
   }
@@ -523,6 +563,88 @@ export async function mkdirWithOfficeAgentSandbox(managedRootDir: string, path: 
   }
 }
 
+export async function checkOfficeAgentWindowsSandboxSetup(
+  managedRootDir: string,
+): Promise<WindowsSandboxHelperResponse> {
+  return invokeWindowsSandboxHelper({
+    kind: "checkSandboxSetup",
+    requestId: randomUUID(),
+    managedRoot: managedRootDir,
+  });
+}
+
+export async function prepareOfficeAgentWindowsSandboxSetup(
+  request: Omit<WindowsSandboxPrepareSetupRequest, "kind" | "requestId" | "action"> & {
+    readonly action?: "setup" | "reset";
+    readonly requestId?: string;
+  },
+): Promise<WindowsSandboxHelperResponse> {
+  return invokeWindowsSandboxHelper({
+    kind: "prepareSandboxSetup",
+    requestId: request.requestId ?? randomUUID(),
+    action: request.action ?? "setup",
+    managedRoot: request.managedRoot,
+    ...(request.projectRoot ? { projectRoot: request.projectRoot } : {}),
+    ...(request.projectStateDir ? { projectStateDir: request.projectStateDir } : {}),
+    ...(request.sessionDir ? { sessionDir: request.sessionDir } : {}),
+    ...(request.readRoots ? { readRoots: request.readRoots } : {}),
+    ...(request.writeRoots ? { writeRoots: request.writeRoots } : {}),
+  });
+}
+
+export async function prepareOfficeAgentWindowsSandboxReset(
+  managedRootDir: string,
+): Promise<WindowsSandboxHelperResponse> {
+  return prepareOfficeAgentWindowsSandboxSetup({
+    action: "reset",
+    managedRoot: managedRootDir,
+  });
+}
+
+export async function runOfficeAgentWindowsSandboxRunnerSelfTest(
+  managedRootDir: string,
+): Promise<WindowsSandboxHelperResponse> {
+  return invokeWindowsSandboxHelper({
+    kind: "sandboxRunnerSelfTest",
+    requestId: randomUUID(),
+    managedRoot: managedRootDir,
+  });
+}
+
+export async function ensureOfficeAgentWindowsSandboxV2Ready(options: {
+  readonly managedRootDir: string;
+  readonly projectRoot?: string;
+  readonly projectStateDir?: string;
+  readonly sessionDir?: string;
+  readonly writeRoots?: readonly string[];
+}): Promise<void> {
+  if (!isOfficeAgentWindowsSandboxV2Enabled()) {
+    return;
+  }
+  const check = await checkOfficeAgentWindowsSandboxSetup(options.managedRootDir);
+  if (check.ok && check.result?.ready === true) {
+    return;
+  }
+  const setup = await prepareOfficeAgentWindowsSandboxSetup({
+    managedRoot: options.managedRootDir,
+    ...(options.projectRoot ? { projectRoot: options.projectRoot } : {}),
+    ...(options.projectStateDir ? { projectStateDir: options.projectStateDir } : {}),
+    ...(options.sessionDir ? { sessionDir: options.sessionDir } : {}),
+    ...(options.writeRoots ? { writeRoots: options.writeRoots } : {}),
+  });
+  const issues = Array.isArray(check.result?.issues) ? check.result.issues.join("; ") : check.error?.message;
+  const setupCommand = typeof setup.result?.setupCommand === "string" ? setup.result.setupCommand : undefined;
+  throw new Error([
+    "OfficeAgent Windows sandbox v2 setup is required before commands can run.",
+    ...(issues ? [`Readiness issues: ${issues}`] : []),
+    ...(setupCommand ? [`Run this command elevated, then retry: ${setupCommand}`] : []),
+  ].join("\n"));
+}
+
+function isOfficeAgentWindowsSandboxV2Enabled(): boolean {
+  return process.env.OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND?.trim().toLowerCase() === "codex-v2";
+}
+
 export async function resolveWindowsSandboxHelperPath(): Promise<string> {
   const candidates = candidateHelperPaths();
   for (const candidate of candidates) {
@@ -598,10 +720,10 @@ function candidateHelperPaths(): string[] {
     join(process.cwd(), "build", "native", "windows-sandbox-helper", fileName),
     join(process.cwd(), "apps", "gui", "desktop", "build", "native", "windows-sandbox-helper", fileName),
     resolve("apps", "gui", "desktop", "build", "native", "windows-sandbox-helper", fileName),
-    resolve("native", "windows-sandbox-helper", "target", "release", fileName),
     resolve("native", "windows-sandbox-helper", "target", "debug", fileName),
-    resolve("..", "..", "native", "windows-sandbox-helper", "target", "release", fileName),
+    resolve("native", "windows-sandbox-helper", "target", "release", fileName),
     resolve("..", "..", "native", "windows-sandbox-helper", "target", "debug", fileName),
+    resolve("..", "..", "native", "windows-sandbox-helper", "target", "release", fileName),
   ];
 }
 
@@ -1244,6 +1366,7 @@ function createSandboxEnvironment(
     PATHEXT: firstDefined(getEnvCaseInsensitive(process.env, "PATHEXT"), ".COM;.EXE;.BAT;.CMD"),
     PYTHONUTF8: "1",
     PIP_DISABLE_PIP_VERSION_CHECK: "1",
+    NODE_OPTIONS: "--preserve-symlinks --preserve-symlinks-main",
     ...(shellConfig.pythonRuntime?.environment ?? {}),
     ...(shellConfig.uvRuntime?.environment ?? {}),
     ...(shellConfig.pythonRuntime

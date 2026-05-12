@@ -1,4 +1,5 @@
-import { mkdir, rm } from "node:fs/promises";
+import { copyFile, mkdir, rm } from "node:fs/promises";
+import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 
 const isWatchMode = process.argv.includes("--watch");
@@ -59,8 +60,47 @@ const buildTargets = [
 async function prepareBuildDirectories() {
   await rm(path.join(buildRoot, "electron"), { recursive: true, force: true });
   await rm(path.join(buildRoot, "desktop"), { recursive: true, force: true });
+  await rm(path.join(buildRoot, "native"), { recursive: true, force: true });
   await mkdir(path.join(buildRoot, "electron"), { recursive: true });
   await mkdir(path.join(buildRoot, "desktop"), { recursive: true });
+}
+
+async function copyWindowsSandboxHelperBinaries() {
+  if (process.platform !== "win32") {
+    return;
+  }
+
+  const binaryNames = [
+    "officeagent-windows-sandbox-helper.exe",
+    "office-agent-windows-sandbox-setup.exe",
+    "office-agent-command-runner.exe",
+  ];
+  const sourceDirs = [
+    path.join(repoRoot, "native", "windows-sandbox-helper", "target", "release"),
+    path.join(repoRoot, "native", "windows-sandbox-helper", "target", "debug"),
+  ];
+  const outputDir = path.join(buildRoot, "native", "windows-sandbox-helper");
+  await mkdir(outputDir, { recursive: true });
+
+  const missing: string[] = [];
+  for (const binaryName of binaryNames) {
+    const source = sourceDirs
+      .map((dir) => path.join(dir, binaryName))
+      .filter((candidate) => existsSync(candidate))
+      .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
+    if (!source) {
+      missing.push(binaryName);
+      continue;
+    }
+    await copyFile(source, path.join(outputDir, binaryName));
+  }
+
+  if (missing.length > 0) {
+    console.warn(
+      `Windows sandbox helper binaries were not copied because they are missing: ${missing.join(", ")}. ` +
+        "Build native/windows-sandbox-helper first if packaging strong Windows sandbox support.",
+    );
+  }
 }
 
 async function runBuild() {
@@ -87,6 +127,8 @@ async function runBuild() {
   for (const [index, build] of builds.entries()) {
     console.log(`Built ${buildTargets[index].label} (${build.outputs.length} output(s)).`);
   }
+
+  await copyWindowsSandboxHelperBinaries();
 
   if (isWatchMode) {
     console.log("Watching Electron runtime bundles...");

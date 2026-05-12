@@ -1,4 +1,4 @@
-import { Search, X } from "lucide-react";
+import { Copy, RefreshCw, Search, ShieldCheck, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ViewHeader } from "../components/common/ViewHeader";
 import { ViewShell } from "../components/common/ViewShell";
@@ -9,7 +9,14 @@ import type {
   DesktopActionInvoker,
   DictationModelId,
   PiSettings,
+  WindowsSandboxSetupHandoff,
+  WindowsSandboxSetupStatus,
 } from "../desktop/types";
+import {
+  copyTextToClipboardQuery,
+  getWindowsSandboxSetupStatusQuery,
+  prepareWindowsSandboxSetupQuery,
+} from "../query/desktop-query";
 import { settingsSectionClass } from "../ui/classes";
 import { cn } from "../utils/cn";
 import type { Project } from "../types";
@@ -266,6 +273,8 @@ export function SettingsView({
             ))}
           </div>
 
+          <WindowsSandboxSetupSection />
+
           {visibleGroups.length > 0 ? (
             visibleGroups.map((group) => (
               <section key={group.id} className={cn(settingsSectionClass, "min-w-0 gap-1 p-2.5")}>
@@ -292,5 +301,125 @@ export function SettingsView({
         </div>
       </div>
     </ViewShell>
+  );
+}
+
+function WindowsSandboxSetupSection() {
+  const [status, setStatus] = useState<WindowsSandboxSetupStatus | null>(null);
+  const [handoff, setHandoff] = useState<WindowsSandboxSetupHandoff | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setBusy(true);
+    try {
+      setStatus(await getWindowsSandboxSetupStatusQuery());
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const prepare = useCallback(async (action: "setup" | "reset") => {
+    setBusy(true);
+    try {
+      const next = await prepareWindowsSandboxSetupQuery(action);
+      setHandoff(next);
+      setMessage(next?.ok ? "Elevated handoff command prepared." : next?.error ?? "Setup handoff failed.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const setupCommand = handoff?.setupCommand;
+  const issues = status?.issues ?? [];
+
+  return (
+    <section className={cn(settingsSectionClass, "min-w-0 gap-3 p-3")}> 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[15px] font-semibold text-[color:var(--text)]">
+            <ShieldCheck size={16} />
+            Windows sandbox v2
+          </div>
+          <p className="mt-1 text-[12px] text-[color:var(--muted)]">
+            Strong Windows command isolation uses the OfficeAgentSandbox account, DPAPI credentials, capability ACLs, and an elevated one-time setup.
+          </p>
+        </div>
+        <div className={cn(
+          "rounded-full border px-3 py-1 text-[12px]",
+          status?.ready
+            ? "border-emerald-400/35 bg-emerald-400/10 text-emerald-200"
+            : "border-amber-400/35 bg-amber-400/10 text-amber-100",
+        )}>
+          {status?.ready ? "Ready" : status?.available === false ? "Unavailable" : "Setup required"}
+        </div>
+      </div>
+
+      <div className="grid gap-1.5 text-[12px] text-[color:var(--muted)]">
+        {status?.managedRoot && <div>Managed root: <span className="text-[color:var(--text)]">{status.managedRoot}</span></div>}
+        {status?.username && <div>Sandbox account: <span className="text-[color:var(--text)]">{status.username}</span></div>}
+        {issues.length > 0 && (
+          <ul className="list-disc pl-5 text-amber-100">
+            {issues.map((issue) => <li key={issue}>{issue}</li>)}
+          </ul>
+        )}
+        {status?.error && <div className="text-rose-200">{status.error}</div>}
+        {message && <div className="text-[color:var(--text)]">{message}</div>}
+      </div>
+
+      {setupCommand && (
+        <div className="grid gap-2 rounded-xl border border-[color:var(--border)] bg-[rgba(0,0,0,0.18)] p-3">
+          <div className="text-[12px] text-[color:var(--muted)]">
+            Run this command elevated, then refresh status:
+          </div>
+          <code className="max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-black/30 p-2 text-[11px] text-[color:var(--text)]">
+            {setupCommand}
+          </code>
+          <button
+            type="button"
+            className="inline-flex h-8 w-fit items-center gap-2 rounded-lg border border-[color:var(--border)] px-3 text-[12px] text-[color:var(--text)] hover:bg-[rgba(255,255,255,0.07)]"
+            onClick={() => void copyTextToClipboardQuery(setupCommand)}
+          >
+            <Copy size={13} /> Copy command
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          className="inline-flex h-8 items-center gap-2 rounded-lg border border-[color:var(--border)] px-3 text-[12px] text-[color:var(--text)] disabled:opacity-50 hover:bg-[rgba(255,255,255,0.07)]"
+          onClick={() => void refresh()}
+        >
+          <RefreshCw size={13} /> Refresh
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          className="inline-flex h-8 items-center rounded-lg border border-[color:var(--border)] px-3 text-[12px] text-[color:var(--text)] disabled:opacity-50 hover:bg-[rgba(255,255,255,0.07)]"
+          onClick={() => void prepare("setup")}
+        >
+          Prepare elevated setup
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          className="inline-flex h-8 items-center rounded-lg border border-rose-400/35 px-3 text-[12px] text-rose-100 disabled:opacity-50 hover:bg-rose-400/10"
+          onClick={() => void prepare("reset")}
+        >
+          Prepare elevated reset
+        </button>
+      </div>
+    </section>
   );
 }

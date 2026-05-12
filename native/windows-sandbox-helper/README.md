@@ -4,17 +4,17 @@ Native helper for OfficeAgent's Windows write-contained command launch path.
 
 The helper is intentionally separate from Electron/Node so command execution can use Windows security primitives directly:
 
-- `CreateRestrictedToken(..., WRITE_RESTRICTED, ...)`
+- a dedicated `OfficeAgentSandbox` local account
 - OfficeAgent-managed-root ACL grants
-- real Windows process launch with `CreateProcessAsUserW`
+- Codex-style named-pipe stdin/stdout/stderr
 - Job Object process-tree lifetime control
-- stdout/stderr capture and timeout handling
+- an experimental restricted/capability child-token path
 
-Current status: the helper launches real Windows commands using a Medium Integrity write-restricted token. Reads use normal user permissions. Writes require both normal user access and an OfficeAgent restricting SID grant, which is applied only to the managed root/session/writable paths.
+Current status: v2 product launches run through `office-agent-command-runner.exe` as `OfficeAgentSandbox`. The actual child process also runs as that sandbox account by default, with named-pipe stdio and kill-on-close Job Object cleanup. The stricter restricted/capability child token remains opt-in via `OFFICE_AGENT_WINDOWS_SANDBOX_RESTRICTED_CHILD=1` while Windows tool compatibility is hardened.
 
-This is write containment, not read confinement.
+This is identity and write containment, not read or network confinement.
 
-Experimental identity spike: setting `OFFICE_AGENT_SANDBOX_IDENTITY_MODE=logon-user` makes the helper log on a dedicated Windows account from `OFFICE_AGENT_SANDBOX_LOGON_USER`, `OFFICE_AGENT_SANDBOX_LOGON_DOMAIN` (default `.`), and `OFFICE_AGENT_SANDBOX_LOGON_PASSWORD`, grant that account access to the managed writable roots, and launch the command with that account token. This is for local sandbox-v2 research only; it is not the default product path. Use `cd apps/gui && bun run sandbox:logon-spike:setup` to create/update the local test account and persist the required user environment variables; use `bun run sandbox:logon-spike:disable` to clear them.
+The old password-in-environment logon-user spike has been removed from the product path. Use `OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND=codex-v2` with the elevated setup handoff instead.
 
 ## Protocol
 
@@ -49,9 +49,60 @@ Example launch request:
 cargo build --manifest-path native/windows-sandbox-helper/Cargo.toml
 ```
 
+This builds the main helper plus the sandbox-v2 setup and command-runner binaries.
+
 Desktop packaging uses `apps/gui/scripts/build-windows-sandbox-helper.mjs` to copy the executable into `apps/gui/build/native/windows-sandbox-helper/`.
 
-## Current launch behavior
+## Sandbox v2 setup handoff
+
+The `prepareSandboxSetup` request is the current non-elevated UAC handoff point. It validates the managed-root policy, resolves the intended real user's SID before elevation, writes a setup payload under `<managedRoot>\.officeagent\sandbox\requests`, and returns the exact setup-helper command that must be run elevated.
+
+Example request:
+
+```json
+{
+  "kind": "prepareSandboxSetup",
+  "requestId": "setup-handoff",
+  "action": "setup",
+  "managedRoot": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData",
+  "projectRoot": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData\\projects\\demo",
+  "projectStateDir": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData\\.officeagent\\project-state\\demo",
+  "sessionDir": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData\\.officeagent\\sessions\\abc",
+  "writeRoots": [
+    "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData\\projects\\demo"
+  ]
+}
+```
+
+The response includes `status: "uac-handoff-ready"`, `setupCommand`, `payloadPath`, `intendedRealUserSid`, `username: "OfficeAgentSandbox"`, `groupName: "OfficeAgentSandboxUsers"`, and `networkRestricted: false`.
+
+Use `"action": "reset"` to prepare an elevated clean-slate reset command. The reset entry point is idempotent and removes the sandbox account/group plus v2 setup files where present.
+
+After setup, use `checkSandboxSetup` to validate non-elevated readiness. It verifies marker/secrets presence, DPAPI password decrypt, sandbox user existence, Secondary Logon (`seclogon`) service availability, and a password logon check without exposing the password:
+
+```json
+{
+  "kind": "checkSandboxSetup",
+  "requestId": "readiness",
+  "managedRoot": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData"
+}
+```
+
+Use `sandboxRunnerSelfTest` to exercise the first Phase 2 identity-launch seam. It loads the DPAPI credential and launches `office-agent-command-runner.exe --self-test` as `OfficeAgentSandbox` through the v2 credential path:
+
+```json
+{
+  "kind": "sandboxRunnerSelfTest",
+  "requestId": "runner-self-test",
+  "managedRoot": "C:\\Users\\me\\AppData\\Local\\OfficeAgent\\AgentData"
+}
+```
+
+Managed OfficeAgent GUI/runtime sessions default to `OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND=codex-v2`; setup-required states are surfaced explicitly instead of silently falling back. Set `OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND=codex-v2` in manual helper invocations to route `launch` requests through the v2 command runner. The current product v2 launch path runs `office-agent-command-runner.exe` as `OfficeAgentSandbox`; the runner launches the actual child as the sandbox account, connects stdin/stdout/stderr to named pipes, and assigns the child process tree to a kill-on-close Job Object. For compatibility, the runner does not force `STARTUPINFO.lpDesktop` on default sandbox-user children; forcing `winsta0\\default` together with `CREATE_NO_WINDOW` caused common console tools to fail DLL initialization under the sandbox account. Capability SIDs are persisted under `.officeagent\sandbox\cap_sid.json` and granted only to the current session/writable/output roots. The final restricted/capability child-token layer remains available as an experimental diagnostic path with `OFFICE_AGENT_WINDOWS_SANDBOX_RESTRICTED_CHILD=1`, but it is not the default because some Windows tools currently fail DLL initialization under that token.
+
+## Legacy launch behavior
+
+The non-v2 backend is disabled for product use and requires the explicit development escape hatch `OFFICE_AGENT_WINDOWS_SANDBOX_ALLOW_LEGACY=1`:
 
 - The helper derives a deterministic OfficeAgent restricting SID from `managedRoot`.
 - The helper grants that SID inherited read/write/execute/delete access to `managedRoot`, `sessionDir`, writable paths, and stdout/stderr parent directories.

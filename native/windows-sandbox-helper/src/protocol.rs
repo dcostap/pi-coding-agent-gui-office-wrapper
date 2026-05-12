@@ -1,5 +1,7 @@
+use crate::setup::SetupAction;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind")]
@@ -15,6 +17,12 @@ pub enum HelperRequest {
     FileWrite(FileWriteRequest),
     #[serde(rename = "mkdir")]
     Mkdir(MkdirRequest),
+    #[serde(rename = "prepareSandboxSetup")]
+    PrepareSandboxSetup(PrepareSandboxSetupRequest),
+    #[serde(rename = "checkSandboxSetup")]
+    CheckSandboxSetup(CheckSandboxSetupRequest),
+    #[serde(rename = "sandboxRunnerSelfTest")]
+    SandboxRunnerSelfTest(SandboxRunnerSelfTestRequest),
 }
 
 #[derive(Debug, Deserialize)]
@@ -33,6 +41,8 @@ pub struct LaunchRequest {
     pub writable_paths: Vec<String>,
     pub stdout_path: Option<String>,
     pub stderr_path: Option<String>,
+    #[serde(default)]
+    pub stdin_content: Option<String>,
     pub timeout_ms: Option<u64>,
 }
 
@@ -55,6 +65,43 @@ pub struct MkdirRequest {
     pub path: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrepareSandboxSetupRequest {
+    pub request_id: Option<String>,
+    #[serde(default = "default_setup_action")]
+    pub action: SetupAction,
+    pub managed_root: PathBuf,
+    #[serde(default)]
+    pub project_root: Option<PathBuf>,
+    #[serde(default)]
+    pub project_state_dir: Option<PathBuf>,
+    #[serde(default)]
+    pub session_dir: Option<PathBuf>,
+    #[serde(default)]
+    pub read_roots: Vec<PathBuf>,
+    #[serde(default)]
+    pub write_roots: Vec<PathBuf>,
+}
+
+fn default_setup_action() -> SetupAction {
+    SetupAction::Setup
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckSandboxSetupRequest {
+    pub request_id: Option<String>,
+    pub managed_root: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxRunnerSelfTestRequest {
+    pub request_id: Option<String>,
+    pub managed_root: PathBuf,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HelperResponse {
@@ -62,9 +109,18 @@ pub struct HelperResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub result: Option<LaunchResult>,
+    pub result: Option<HelperResult>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<HelperError>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum HelperResult {
+    Launch(LaunchResult),
+    PrepareSandboxSetup(PrepareSandboxSetupResult),
+    CheckSandboxSetup(CheckSandboxSetupResult),
+    SandboxRunnerSelfTest(SandboxRunnerSelfTestResult),
 }
 
 #[derive(Debug, Serialize)]
@@ -73,6 +129,64 @@ pub struct LaunchResult {
     pub pid: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stdout: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stderr: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrepareSandboxSetupResult {
+    pub status: String,
+    pub action: SetupAction,
+    pub requires_elevation: bool,
+    pub setup_exe_path: PathBuf,
+    pub payload_path: PathBuf,
+    pub setup_args: Vec<String>,
+    pub setup_command: String,
+    pub username: String,
+    pub group_name: String,
+    pub intended_real_user_name: String,
+    pub intended_real_user_sid: String,
+    pub network_restricted: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckSandboxSetupResult {
+    pub status: String,
+    pub ready: bool,
+    pub username: String,
+    pub group_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_root: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub marker_version: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secrets_version: Option<u32>,
+    pub marker_present: bool,
+    pub secrets_present: bool,
+    pub password_decrypts: bool,
+    pub credential_logon_works: bool,
+    pub secondary_logon_service_running: bool,
+    pub capability_sids_present: bool,
+    pub sandbox_user_exists: bool,
+    pub network_restricted: bool,
+    pub issues: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxRunnerSelfTestResult {
+    pub status: String,
+    pub launched: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runner_exe_path: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issue: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -88,7 +202,7 @@ impl HelperResponse {
         Self {
             ok: true,
             request_id,
-            result: Some(result),
+            result: Some(HelperResult::Launch(result)),
             error: None,
         }
     }
@@ -98,6 +212,36 @@ impl HelperResponse {
             ok: true,
             request_id,
             result: None,
+            error: None,
+        }
+    }
+
+    pub fn setup_handoff(request_id: Option<String>, result: PrepareSandboxSetupResult) -> Self {
+        Self {
+            ok: true,
+            request_id,
+            result: Some(HelperResult::PrepareSandboxSetup(result)),
+            error: None,
+        }
+    }
+
+    pub fn setup_status(request_id: Option<String>, result: CheckSandboxSetupResult) -> Self {
+        Self {
+            ok: true,
+            request_id,
+            result: Some(HelperResult::CheckSandboxSetup(result)),
+            error: None,
+        }
+    }
+
+    pub fn runner_self_test(
+        request_id: Option<String>,
+        result: SandboxRunnerSelfTestResult,
+    ) -> Self {
+        Self {
+            ok: true,
+            request_id,
+            result: Some(HelperResult::SandboxRunnerSelfTest(result)),
             error: None,
         }
     }

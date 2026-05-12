@@ -28,6 +28,7 @@ import { createPiThreadsHandlers } from "./request-handlers/pi-threads";
 import { createSkillCreatorHandlers } from "./request-handlers/skill-creator";
 import { createSystemHandlers } from "./request-handlers/system";
 import { createTerminalHandlers } from "./request-handlers/terminal";
+import { createWindowsSandboxHandlers } from "./request-handlers/windows-sandbox";
 
 function getRendererTrustConfig() {
   return {
@@ -229,6 +230,7 @@ export function registerDesktopIpc(
     ...createSkillCreatorHandlers(runtime.skillCreator),
     ...createTerminalHandlers(runtime.terminalManager),
     ...createSystemHandlers(),
+    ...createWindowsSandboxHandlers(),
   };
 
   registerFileDragHandler(getMainWindow);

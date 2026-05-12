@@ -42,6 +42,8 @@ import type {
   SkillCreatorSessionState,
   Thread,
   ThreadData,
+  WindowsSandboxSetupHandoff,
+  WindowsSandboxSetupStatus,
 } from "./desktop-contracts";
 import type {
   TerminalCloseRequest,
@@ -87,6 +89,11 @@ export type DesktopRequestMap = {
     response: { ok: boolean };
   };
   getAppUpdateState: { params: Record<string, never>; response: AppUpdateState };
+  getWindowsSandboxSetupStatus: { params: Record<string, never>; response: WindowsSandboxSetupStatus };
+  prepareWindowsSandboxSetup: {
+    params: { action?: "setup" | "reset" };
+    response: WindowsSandboxSetupHandoff;
+  };
   checkAppUpdate: { params: Record<string, never>; response: AppUpdateState };
   installAppUpdate: { params: Record<string, never>; response: AppUpdateState };
   restartAppUpdate: { params: Record<string, never>; response: AppUpdateState };

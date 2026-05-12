@@ -29,6 +29,8 @@ import type {
   SkillCreatorSessionState,
   Thread,
   ThreadData,
+  WindowsSandboxSetupHandoff,
+  WindowsSandboxSetupStatus,
 } from "../desktop/types";
 
 export const desktopQueryKeys = {
@@ -89,6 +91,16 @@ export async function restartAppUpdateQuery(): Promise<AppUpdateState | null> {
 
 export async function getShellStateQuery(): Promise<ShellState | null> {
   return (await window.piDesktop?.getShellState?.()) ?? null;
+}
+
+export async function getWindowsSandboxSetupStatusQuery(): Promise<WindowsSandboxSetupStatus | null> {
+  return (await window.piDesktop?.getWindowsSandboxSetupStatus?.()) ?? null;
+}
+
+export async function prepareWindowsSandboxSetupQuery(
+  action: "setup" | "reset" = "setup",
+): Promise<WindowsSandboxSetupHandoff | null> {
+  return (await window.piDesktop?.prepareWindowsSandboxSetup?.(action)) ?? null;
 }
 
 export async function getProjectThreadsQuery(projectId: string, chat = false): Promise<Thread[]> {

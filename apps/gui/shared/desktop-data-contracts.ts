@@ -9,3 +9,4 @@ export * from "./desktop-project-file-contracts";
 export * from "./desktop-project-git-contracts";
 export * from "./desktop-settings-contracts";
 export * from "./desktop-thread-contracts";
+export * from "./desktop-windows-sandbox-contracts";

@@ -138,22 +138,9 @@ Avoid adding new tool-specific auto-repair/retry hacks.
 
 ### Phase 3: sandbox identity v2 spike
 
-Status: started.
+Status: superseded by the Codex-aligned v2 implementation.
 
-Build a feature-flagged helper mode that runs commands under a dedicated sandbox execution identity/capability instead of depending solely on inherited ACEs for a synthetic restricting SID.
-
-Initial spike mode:
-
-```text
-OFFICE_AGENT_SANDBOX_IDENTITY_MODE=logon-user
-OFFICE_AGENT_SANDBOX_LOGON_USER=<local sandbox account>
-OFFICE_AGENT_SANDBOX_LOGON_DOMAIN=.   # optional; default is .
-OFFICE_AGENT_SANDBOX_LOGON_PASSWORD=<password>
-```
-
-For local testing, `cd apps/gui && bun run sandbox:logon-spike:setup` creates/updates the local test account and persists the required user environment variables. `bun run sandbox:logon-spike:disable` clears those variables.
-
-This mode logs on the supplied account, grants that account SID access to the managed writable roots, and launches the command with that account token. The goal is to test the core hypothesis: owner-private child dirs/files created by package managers should remain usable because the creator/owner is the sandbox execution identity.
+The old password-in-environment `logon-user` spike has been removed from the product path. Current v2 work uses `OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND=codex-v2`, an elevated setup handoff, DPAPI-protected generated credentials, `OfficeAgentSandbox`, and the command-runner/restricted-token architecture described in `windows-sandbox-codex-aligned-redesign.md`.
 
 Questions to answer in the spike:
 

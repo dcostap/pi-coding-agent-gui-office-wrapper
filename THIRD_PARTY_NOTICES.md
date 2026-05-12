@@ -4,6 +4,16 @@ OfficeAgent may package third-party command runtimes for Windows sandboxed proje
 
 This notice is for bundled/staged tool runtimes only. It is not a replacement for a full legal review before external distribution.
 
+## OpenAI Codex Windows sandbox reference code
+
+OfficeAgent's Windows sandbox v2 implementation includes code copied or closely adapted from the OpenAI Codex Windows sandbox implementation, especially DPAPI credential wrapping, local sandbox user/group provisioning patterns, hidden Winlogon user-list handling, setup error/reporting shapes, Windows path-normalization concepts, capability SID persistence, and restricted/capability token construction patterns.
+
+- Upstream project: <https://github.com/openai/codex>
+- Local reference during implementation: `C:\Projects\codex\codex-rs\windows-sandbox-rs`
+- License: Apache License 2.0
+
+Retain Apache-2.0 attribution for any copied or closely adapted Codex Windows sandbox source.
+
 ## CPython / Python runtime
 
 OfficeAgent can bundle CPython for Windows via Astral `python-build-standalone` release archives.

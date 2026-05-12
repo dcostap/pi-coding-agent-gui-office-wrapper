@@ -1,7 +1,5 @@
-mod platform;
-mod protocol;
-
-use crate::protocol::{HelperRequest, HelperResponse};
+use officeagent_windows_sandbox_helper::platform;
+use officeagent_windows_sandbox_helper::protocol::{HelperRequest, HelperResponse};
 use std::io::{self, Read};
 
 fn main() {
@@ -38,6 +36,11 @@ fn run() -> Result<HelperResponse, Box<dyn std::error::Error>> {
         HelperRequest::Launch(request) => platform::launch(request),
         HelperRequest::FileWrite(request) => platform::file_write(request),
         HelperRequest::Mkdir(request) => platform::mkdir(request),
+        HelperRequest::PrepareSandboxSetup(request) => platform::prepare_sandbox_setup(request),
+        HelperRequest::CheckSandboxSetup(request) => platform::check_sandbox_setup(request),
+        HelperRequest::SandboxRunnerSelfTest(request) => {
+            platform::sandbox_runner_self_test(request)
+        }
     };
     Ok(response)
 }

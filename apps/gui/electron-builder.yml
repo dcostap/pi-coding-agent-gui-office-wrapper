@@ -12,6 +12,10 @@ asar: false
 extraResources:
   - from: desktop/resources
     to: resources
+  - from: build/native/windows-sandbox-helper
+    to: windows-sandbox-helper
+    filter:
+      - "*.exe"
 mac:
   category: public.app-category.developer-tools
   extendInfo:

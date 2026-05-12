@@ -1,4 +1,7 @@
-use crate::protocol::{FileWriteRequest, HelperResponse, LaunchRequest, MkdirRequest};
+use crate::protocol::{
+    CheckSandboxSetupRequest, FileWriteRequest, HelperResponse, LaunchRequest, MkdirRequest,
+    PrepareSandboxSetupRequest, SandboxRunnerSelfTestRequest,
+};
 use std::path::{Path, PathBuf};
 
 pub fn launch(request: LaunchRequest) -> HelperResponse {
@@ -23,6 +26,26 @@ pub fn mkdir(request: MkdirRequest) -> HelperResponse {
     }
 
     mkdir_platform(request)
+}
+
+pub fn prepare_sandbox_setup(request: PrepareSandboxSetupRequest) -> HelperResponse {
+    let request_id = request.request_id.clone();
+    match crate::setup_orchestrator::prepare_setup_handoff(request) {
+        Ok(result) => HelperResponse::setup_handoff(request_id, result),
+        Err(error) => HelperResponse::err(request_id, "SETUP_HANDOFF_FAILED", error),
+    }
+}
+
+pub fn check_sandbox_setup(request: CheckSandboxSetupRequest) -> HelperResponse {
+    let request_id = request.request_id.clone();
+    let result = crate::setup_status::check_setup(request.managed_root);
+    HelperResponse::setup_status(request_id, result)
+}
+
+pub fn sandbox_runner_self_test(request: SandboxRunnerSelfTestRequest) -> HelperResponse {
+    let request_id = request.request_id.clone();
+    let result = crate::runner_launch::runner_self_test(request.managed_root);
+    HelperResponse::runner_self_test(request_id, result)
 }
 
 fn validate_launch_request(request: &LaunchRequest) -> Result<(), String> {
@@ -97,6 +120,19 @@ fn canonicalish(path: impl AsRef<Path>) -> PathBuf {
 #[cfg(windows)]
 fn launch_platform(request: LaunchRequest) -> HelperResponse {
     let request_id = request.request_id.clone();
+    if use_v2_backend() {
+        return match crate::runner_launch::launch_v2(request) {
+            Ok(response) => response,
+            Err(error) => HelperResponse::err(request_id, "V2_LAUNCH_FAILED", error),
+        };
+    }
+    if !allow_legacy_backend() {
+        return HelperResponse::err(
+            request_id,
+            "LEGACY_BACKEND_DISABLED",
+            "The legacy write-restricted Windows sandbox backend is disabled for product use. Set OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND=codex-v2 and complete v2 setup.",
+        );
+    }
     match windows_sandbox::launch_write_restricted(request) {
         Ok(result) => result,
         Err(error) => HelperResponse::err(request_id, "LAUNCH_FAILED", error),
@@ -106,6 +142,19 @@ fn launch_platform(request: LaunchRequest) -> HelperResponse {
 #[cfg(windows)]
 fn file_write_platform(request: FileWriteRequest) -> HelperResponse {
     let request_id = request.request_id.clone();
+    if use_v2_backend() {
+        return match crate::v2_file_ops::write_file(request) {
+            Ok(()) => HelperResponse::self_test(request_id),
+            Err(error) => HelperResponse::err(request_id, "V2_FILE_WRITE_FAILED", error),
+        };
+    }
+    if !allow_legacy_backend() {
+        return HelperResponse::err(
+            request_id,
+            "LEGACY_BACKEND_DISABLED",
+            "The legacy write-restricted Windows sandbox backend is disabled for product use. Set OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND=codex-v2 and complete v2 setup.",
+        );
+    }
     match windows_sandbox::write_file_strict(request) {
         Ok(()) => HelperResponse::self_test(request_id),
         Err(error) => HelperResponse::err(request_id, "FILE_WRITE_FAILED", error),
@@ -115,10 +164,37 @@ fn file_write_platform(request: FileWriteRequest) -> HelperResponse {
 #[cfg(windows)]
 fn mkdir_platform(request: MkdirRequest) -> HelperResponse {
     let request_id = request.request_id.clone();
+    if use_v2_backend() {
+        return match crate::v2_file_ops::mkdir(request) {
+            Ok(()) => HelperResponse::self_test(request_id),
+            Err(error) => HelperResponse::err(request_id, "V2_MKDIR_FAILED", error),
+        };
+    }
+    if !allow_legacy_backend() {
+        return HelperResponse::err(
+            request_id,
+            "LEGACY_BACKEND_DISABLED",
+            "The legacy write-restricted Windows sandbox backend is disabled for product use. Set OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND=codex-v2 and complete v2 setup.",
+        );
+    }
     match windows_sandbox::mkdir_strict(request) {
         Ok(()) => HelperResponse::self_test(request_id),
         Err(error) => HelperResponse::err(request_id, "MKDIR_FAILED", error),
     }
+}
+
+#[cfg(windows)]
+fn use_v2_backend() -> bool {
+    std::env::var("OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND")
+        .unwrap_or_default()
+        .eq_ignore_ascii_case("codex-v2")
+}
+
+#[cfg(windows)]
+fn allow_legacy_backend() -> bool {
+    std::env::var("OFFICE_AGENT_WINDOWS_SANDBOX_ALLOW_LEGACY")
+        .unwrap_or_default()
+        .eq_ignore_ascii_case("1")
 }
 
 #[cfg(not(windows))]
@@ -169,16 +245,15 @@ mod windows_sandbox {
         EXPLICIT_ACCESS_W, GRANT_ACCESS, SE_FILE_OBJECT,
     };
     use windows::Win32::Security::{
-        AllocateAndInitializeSid, CopySid, CreateRestrictedToken, EqualSid, FreeSid, GetAce,
-        GetAclInformation, GetLengthSid, GetTokenInformation, ImpersonateLoggedOnUser,
-        LogonUserW, RevertToSelf, SetTokenInformation, TokenDefaultDacl, TokenGroups, TokenUser,
-        ACE_HEADER, ACCESS_ALLOWED_ACE, ACL, ACL_SIZE_INFORMATION, AclSizeInformation,
-        CONTAINER_INHERIT_ACE, CREATE_RESTRICTED_TOKEN_FLAGS, DACL_SECURITY_INFORMATION,
-        LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, OBJECT_INHERIT_ACE, PSID,
+        AclSizeInformation, AllocateAndInitializeSid, CopySid, CreateRestrictedToken, EqualSid,
+        FreeSid, GetAce, GetAclInformation, GetLengthSid, GetTokenInformation,
+        ImpersonateLoggedOnUser, RevertToSelf, SetTokenInformation, TokenDefaultDacl, TokenGroups,
+        ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, ACL_SIZE_INFORMATION, CONTAINER_INHERIT_ACE,
+        CREATE_RESTRICTED_TOKEN_FLAGS, DACL_SECURITY_INFORMATION, OBJECT_INHERIT_ACE, PSID,
         SECURITY_NT_AUTHORITY, SECURITY_WORLD_SID_AUTHORITY, SID_AND_ATTRIBUTES,
         SUB_CONTAINERS_AND_OBJECTS_INHERIT, TOKEN_ADJUST_DEFAULT, TOKEN_ADJUST_SESSIONID,
-        TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE, TOKEN_GROUPS,
-        TOKEN_IMPERSONATE, TOKEN_QUERY, TOKEN_USER,
+        TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE, TOKEN_GROUPS, TOKEN_IMPERSONATE,
+        TOKEN_QUERY,
     };
     use windows::Win32::Storage::FileSystem::{
         DELETE, FILE_DELETE_CHILD, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
@@ -213,7 +288,6 @@ mod windows_sandbox {
                     grant_write_restricted_paths(&request, restricting_sid.sid())?;
                     create_write_restricted_process(&request, restricting_sid.sid())?
                 }
-                SandboxIdentityMode::LogonUserSpike => create_logon_user_process(&request)?,
             }
         };
         let pid = process.process_id;
@@ -240,7 +314,12 @@ mod windows_sandbox {
 
         Ok(HelperResponse::ok(
             request_id,
-            LaunchResult { pid, exit_code },
+            LaunchResult {
+                pid,
+                exit_code,
+                stdout: None,
+                stderr: None,
+            },
         ))
     }
 
@@ -289,28 +368,6 @@ mod windows_sandbox {
         let token = create_write_restricted_primary_token(restricting_sid)?;
         let _token_guard = HandleGuard(token);
         create_token_process(request, token, restricting_sid)
-    }
-
-    unsafe fn create_logon_user_process(request: &LaunchRequest) -> Result<SandboxedProcess, String> {
-        let credentials = LogonUserSpikeCredentials::from_env()?;
-        let mut token = HANDLE::default();
-        let username_w = wide_null(&credentials.username);
-        let domain_w = wide_null(&credentials.domain);
-        let password_w = wide_null(&credentials.password);
-        LogonUserW(
-            PCWSTR(username_w.as_ptr()),
-            PCWSTR(domain_w.as_ptr()),
-            PCWSTR(password_w.as_ptr()),
-            LOGON32_LOGON_INTERACTIVE,
-            LOGON32_PROVIDER_DEFAULT,
-            &mut token,
-        )
-        .map_err(|error| format!("LogonUserW sandbox identity spike failed: {error}"))?;
-        let _token_guard = HandleGuard(token);
-        let mut user_sid_bytes = get_token_user_sid_bytes(token)?;
-        let user_sid = PSID(user_sid_bytes.as_mut_ptr().cast());
-        grant_write_restricted_paths(request, user_sid)?;
-        create_token_process(request, token, user_sid)
     }
 
     unsafe fn with_strict_write_restricted_impersonation<T>(
@@ -434,29 +491,6 @@ mod windows_sandbox {
             size_of::<TOKEN_DEFAULT_DACL>() as u32,
         )
         .map_err(|error| format!("SetTokenInformation(TokenDefaultDacl) failed: {error}"))
-    }
-
-    unsafe fn get_token_user_sid_bytes(token: HANDLE) -> Result<Vec<u8>, String> {
-        let mut needed = 0u32;
-        let _ = GetTokenInformation(token, TokenUser, None, 0, &mut needed);
-        if needed == 0 {
-            return Err("GetTokenInformation(TokenUser) did not report buffer size".to_string());
-        }
-        let mut buffer = vec![0u8; needed as usize];
-        GetTokenInformation(
-            token,
-            TokenUser,
-            Some(buffer.as_mut_ptr().cast()),
-            needed,
-            &mut needed,
-        )
-        .map_err(|error| format!("GetTokenInformation(TokenUser) failed: {error}"))?;
-        let token_user = &*(buffer.as_ptr().cast::<TOKEN_USER>());
-        let sid_len = GetLengthSid(token_user.User.Sid) as u32;
-        let mut sid_bytes = vec![0u8; sid_len as usize];
-        CopySid(sid_len, PSID(sid_bytes.as_mut_ptr().cast()), token_user.User.Sid)
-            .map_err(|error| format!("CopySid(TokenUser SID) failed: {error}"))?;
-        Ok(sid_bytes)
     }
 
     unsafe fn get_logon_sid_bytes(token: HANDLE) -> Result<Vec<u8>, String> {
@@ -744,7 +778,9 @@ mod windows_sandbox {
             }
             let ace_flags = u32::from(header.AceFlags);
             let inheritance_flags = OBJECT_INHERIT_ACE.0 | CONTAINER_INHERIT_ACE.0;
-            if (ace_flags & inheritance_flags) != inheritance_flags || (ace_flags & INHERIT_ONLY_ACE) != 0 {
+            if (ace_flags & inheritance_flags) != inheritance_flags
+                || (ace_flags & INHERIT_ONLY_ACE) != 0
+            {
                 continue;
             }
             let ace_sid = PSID((&ace.SidStart as *const u32).cast::<c_void>().cast_mut());
@@ -848,7 +884,6 @@ mod windows_sandbox {
 
     enum SandboxIdentityMode {
         WriteRestricted,
-        LogonUserSpike,
     }
 
     impl SandboxIdentityMode {
@@ -860,39 +895,14 @@ mod windows_sandbox {
                 .as_str()
             {
                 "" | "write-restricted" | "write_restricted" => Ok(Self::WriteRestricted),
-                "logon-user" | "logon_user" => Ok(Self::LogonUserSpike),
+                "logon-user" | "logon_user" => Err(
+                    "OFFICE_AGENT_SANDBOX_IDENTITY_MODE=logon-user was a temporary password-in-env spike and is no longer supported; use OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND=codex-v2 with elevated setup instead".to_string(),
+                ),
                 other => Err(format!(
-                    "unsupported OFFICE_AGENT_SANDBOX_IDENTITY_MODE={other}; expected write-restricted or logon-user"
+                    "unsupported OFFICE_AGENT_SANDBOX_IDENTITY_MODE={other}; expected write-restricted"
                 )),
             }
         }
-    }
-
-    struct LogonUserSpikeCredentials {
-        username: String,
-        domain: String,
-        password: String,
-    }
-
-    impl LogonUserSpikeCredentials {
-        fn from_env() -> Result<Self, String> {
-            let username = required_env("OFFICE_AGENT_SANDBOX_LOGON_USER")?;
-            let domain = std::env::var("OFFICE_AGENT_SANDBOX_LOGON_DOMAIN").unwrap_or_else(|_| ".".to_string());
-            let password = required_env("OFFICE_AGENT_SANDBOX_LOGON_PASSWORD")?;
-            Ok(Self {
-                username,
-                domain,
-                password,
-            })
-        }
-    }
-
-    fn required_env(name: &str) -> Result<String, String> {
-        let value = std::env::var(name).map_err(|_| format!("{name} is required"))?;
-        if value.is_empty() {
-            return Err(format!("{name} must not be empty"));
-        }
-        Ok(value)
     }
 
     struct RestrictingSidPolicy {

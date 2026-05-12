@@ -37,9 +37,6 @@
     "typecheck:electron": "tsc -p tsconfig.electron.json --noEmit",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json --noEmit",
     "test": "vitest run",
-    "sandbox:logon-spike:setup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/setup-windows-sandbox-logon-spike.ps1",
-    "sandbox:logon-spike:disable": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/disable-windows-sandbox-logon-spike.ps1",
-    "sandbox:logon-spike:remove": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/disable-windows-sandbox-logon-spike.ps1 -RemoveUser",
     "test:composer": "vitest run src/test/composer",
     "test:watch": "vitest",
     "check": "bun run lint && bun run typecheck && bun run test && bun run build"

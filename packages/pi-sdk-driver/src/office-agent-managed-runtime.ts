@@ -24,6 +24,7 @@ import { getOfficeAgentAppPromptContext } from "./office-agent-prompt-context.js
 import {
   createOfficeAgentSandboxBashOperations,
   ensureOfficeAgentSandboxShellConfig,
+  ensureOfficeAgentWindowsSandboxV2Ready,
   getOfficeAgentSandboxShellPromptContext,
   mkdirWithOfficeAgentSandbox,
   writeFileWithOfficeAgentSandbox,
@@ -38,6 +39,7 @@ import {
 export async function createOfficeAgentManagedSessionRuntime(
   options: CreateAgentSessionOptions = {},
 ) {
+  defaultWindowsSandboxBackendToV2();
   const cwd = resolve(options.cwd ?? process.cwd());
   const managedRootDir = findOfficeAgentManagedRootForPath(cwd);
   if (!managedRootDir) {
@@ -62,6 +64,17 @@ export async function createOfficeAgentManagedSessionRuntime(
     ensureOfficeAgentManagedSessionLayout(sessionId, managedRootDir),
     ensureOfficeAgentManagedProjectStateLayout(cwd, managedRootDir),
   ]);
+  await ensureOfficeAgentWindowsSandboxV2Ready({
+    managedRootDir,
+    projectRoot: cwd,
+    projectStateDir: projectStatePaths.projectStateDir,
+    sessionDir: sessionPaths.sessionDir,
+    writeRoots: [
+      cwd,
+      ...getOfficeAgentSessionWritablePathsForSetup(sessionPaths),
+      ...getOfficeAgentProjectStateWritablePathsForSetup(projectStatePaths),
+    ],
+  });
   const shellConfig = await ensureOfficeAgentSandboxShellConfig(managedRootDir);
   const appPromptContext = getOfficeAgentAppPromptContext({ cwd, managedRootDir, sessionId });
   const shellPromptContext = getOfficeAgentSandboxShellPromptContext(shellConfig);
@@ -142,6 +155,46 @@ export async function createOfficeAgentManagedSessionRuntime(
   };
 
   return withScopedProcessEnv(sessionEnv, () => createAgentSessionRuntimeWithNpmFallback(managedOptions));
+}
+
+function getOfficeAgentSessionWritablePathsForSetup(paths: Awaited<ReturnType<typeof ensureOfficeAgentManagedSessionLayout>>): string[] {
+  return [
+    paths.sessionDir,
+    paths.profileDir,
+    paths.appDataDir,
+    paths.localAppDataDir,
+    paths.tempDir,
+    paths.logsDir,
+  ];
+}
+
+function getOfficeAgentProjectStateWritablePathsForSetup(paths: Awaited<ReturnType<typeof ensureOfficeAgentManagedProjectStateLayout>>): string[] {
+  return [
+    paths.projectStateDir,
+    paths.cacheDir,
+    paths.configDir,
+    paths.dataDir,
+    paths.toolsDir,
+    paths.binDir,
+    paths.npmCacheDir,
+    paths.npmPrefixDir,
+    paths.pipCacheDir,
+    paths.pythonUserBaseDir,
+    paths.uvCacheDir,
+    paths.uvToolDir,
+    paths.uvToolBinDir,
+    paths.uvPythonInstallDir,
+    paths.uvPythonBinDir,
+  ];
+}
+
+function defaultWindowsSandboxBackendToV2(): void {
+  if (process.platform !== "win32") {
+    return;
+  }
+  if (!process.env.OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND?.trim()) {
+    process.env.OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND = "codex-v2";
+  }
 }
 
 async function createOfficeAgentResourceLoader(
