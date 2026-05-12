@@ -11,6 +11,7 @@ import type {
 } from "../../shared/desktop-contracts.ts";
 import { getDesktopWorkingDirectory } from "../../shared/desktop-working-directory.ts";
 import { getPersistedSessionPath } from "../../shared/session-paths.ts";
+import { officeAgentModelSelection } from "../office-agent-runtime.cts";
 import { getPiModule } from "../pi-module.cts";
 import {
   createIsolatedRuntimeResourceLoader,
@@ -29,6 +30,32 @@ type BuildComposerStateOptions = {
 
 const contextUsageCache = new WeakMap<AgentSession, ComposerContextUsage | null>();
 
+function isOfficeAgentProviderModel(model: Pick<ComposerModel, "provider">) {
+  return model.provider === officeAgentModelSelection.provider;
+}
+
+function isDefaultOfficeAgentModel(model: Pick<ComposerModel, "provider" | "id">) {
+  return model.provider === officeAgentModelSelection.provider && model.id === officeAgentModelSelection.id;
+}
+
+function getComposerModelDisplayName(model: Pick<ComposerModel, "provider" | "id" | "name">) {
+  if (!isOfficeAgentProviderModel(model)) {
+    return model.name;
+  }
+  return model.id === "assistant" ? "GPT Codex Spark" : model.name;
+}
+
+function filterComposerModels(models: ComposerSourceModel[]) {
+  const managedModels = models.filter(isOfficeAgentProviderModel);
+  return managedModels.length > 0
+    ? [...managedModels].sort((left, right) => {
+        const leftDefault = isDefaultOfficeAgentModel(left) ? -1 : 0;
+        const rightDefault = isDefaultOfficeAgentModel(right) ? -1 : 0;
+        return leftDefault - rightDefault || left.name.localeCompare(right.name);
+      })
+    : models;
+}
+
 function mapComposerModel(
   model: AgentSession["model"] | ComposerSourceModel | null | undefined,
 ): ComposerModel | null {
@@ -36,10 +63,11 @@ function mapComposerModel(
     return null;
   }
 
+  const name = model.name ?? model.id;
   return {
     provider: model.provider,
     id: model.id,
-    name: model.name ?? model.id,
+    name: getComposerModelDisplayName({ provider: model.provider, id: model.id, name }),
     reasoning: Boolean(model.reasoning),
     input: (model.input ?? ["text"]) as Array<"text" | "image">,
   };
@@ -155,7 +183,9 @@ async function resolveComposerStateSnapshot(request: ComposerStateRequest = {}) 
   const { cwd, session } = await createComposerSnapshotSession(request);
 
   try {
-    const availableModels = (await session.modelRegistry.getAvailable()) as ComposerSourceModel[];
+    const availableModels = filterComposerModels(
+      (await session.modelRegistry.getAvailable()) as ComposerSourceModel[],
+    );
     const modeModelSelection = getModeModelSelection(request);
     const currentModel = resolveCurrentModel(
       availableModels,
@@ -253,7 +283,11 @@ export async function buildComposerStateSnapshot(
     availableModels: snapshot.availableModels.map((model) => ({
       provider: model.provider,
       id: model.id,
-      name: model.name ?? model.id,
+      name: getComposerModelDisplayName({
+        provider: model.provider,
+        id: model.id,
+        name: model.name ?? model.id,
+      }),
       reasoning: Boolean(model.reasoning),
       input: (model.input ?? ["text"]) as Array<"text" | "image">,
     })),
@@ -270,16 +304,30 @@ export async function buildComposerState(
   runtime: PiRuntime,
   options: BuildComposerStateOptions = {},
 ): Promise<ComposerState> {
-  const availableModels = (await runtime.session.modelRegistry.getAvailable()).map((model) => ({
+  const sourceAvailableModels = filterComposerModels(
+    (await runtime.session.modelRegistry.getAvailable()) as ComposerSourceModel[],
+  );
+  const availableModels = sourceAvailableModels.map((model) => ({
     provider: model.provider,
     id: model.id,
-    name: model.name ?? model.id,
+    name: getComposerModelDisplayName({
+      provider: model.provider,
+      id: model.id,
+      name: model.name ?? model.id,
+    }),
     reasoning: Boolean(model.reasoning),
     input: (model.input ?? ["text"]) as Array<"text" | "image">,
   }));
 
   return {
-    currentModel: mapComposerModel(runtime.session.model),
+    currentModel: mapComposerModel(
+      resolveCurrentModel(
+        sourceAvailableModels,
+        runtime.session.model
+          ? { provider: runtime.session.model.provider, id: runtime.session.model.id }
+          : null,
+      ),
+    ),
     availableModels,
     currentThinkingLevel: runtime.session.thinkingLevel as ComposerThinkingLevel,
     availableThinkingLevels: mapThinkingLevels(runtime.session.getAvailableThinkingLevels()),

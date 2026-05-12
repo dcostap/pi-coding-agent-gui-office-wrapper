@@ -15,12 +15,12 @@ import { useComposerSubmission } from "../useComposerSubmission";
 import { useComposerDraftState } from "./useComposerDraftState";
 
 const thinkingLevelLabels: Record<ComposerThinkingLevel, string> = {
-  off: "Off",
-  minimal: "Minimal",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  xhigh: "X-High",
+  off: "Desactivado",
+  minimal: "Mínimo",
+  low: "Bajo",
+  medium: "Medio",
+  high: "Alto",
+  xhigh: "Muy alto",
 };
 
 function getModelLabel(model: ComposerModel | null) {

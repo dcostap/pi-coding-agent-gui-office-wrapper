@@ -89,10 +89,10 @@ function OldSessionsRow({
       </button>
 
       <button type="button" className="sidebar-old-sessions-button" onClick={onToggle}>
-        <span className="truncate">Old sessions</span>
+        <span className="truncate">Sesiones antiguas</span>
       </button>
 
-      <Tooltip content="Archive old" placement="right" className="sidebar-old-sessions-action">
+      <Tooltip content="Archivar antiguas" placement="right" className="sidebar-old-sessions-action">
         <button
           type="button"
           className={cn(
@@ -100,7 +100,7 @@ function OldSessionsRow({
             "h-full w-full border-transparent bg-transparent text-[color:var(--muted-2)] hover:bg-transparent hover:text-[color:var(--text)]",
           )}
           onClick={onArchiveAll}
-          aria-label="Archive old"
+          aria-label="Archivar antiguas"
         >
           <Archive size={12} />
         </button>

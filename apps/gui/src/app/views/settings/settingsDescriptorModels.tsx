@@ -31,6 +31,9 @@ export function buildModelSettingsDescriptors({
   onAction: DesktopActionInvoker;
 }): SettingDescriptor[] {
   const modelProviders = [...new Set(availableModels.map((model) => model.provider))].sort();
+  const getProviderLabel = (provider: string) => (provider === "corp" ? "Castrosua IA" : provider);
+  const getModelDescription = (model: Pick<ComposerModel, "provider" | "id">) =>
+    model.provider === "corp" ? "Castrosua IA" : `${model.provider}/${model.id}`;
   const allThinkingLevels: ComposerThinkingLevel[] = [
     "off",
     "minimal",
@@ -83,7 +86,7 @@ export function buildModelSettingsDescriptors({
       open={openSelectId === id}
       options={[
         { value: "composer-default", label: "Composer default" },
-        ...modelProviders.map((provider) => ({ value: provider, label: provider })),
+        ...modelProviders.map((provider) => ({ value: provider, label: getProviderLabel(provider) })),
       ]}
       onOpenChange={(open) => setOpenSelectId(open ? id : null)}
       onChange={(value) =>
@@ -118,7 +121,7 @@ export function buildModelSettingsDescriptors({
           ...providerModels.map((model) => ({
             value: `${model.provider}/${model.id}`,
             label: model.name,
-            description: `${model.provider}/${model.id}`,
+            description: getModelDescription(model),
           })),
         ]}
         onOpenChange={(open) => setOpenSelectId(open ? id : null)}
@@ -127,12 +130,12 @@ export function buildModelSettingsDescriptors({
     );
   };
   const thinkingLevelLabels: Record<ComposerThinkingLevel, string> = {
-    off: "Off",
-    minimal: "Minimal",
-    low: "Low",
-    medium: "Medium",
-    high: "High",
-    xhigh: "Extra high",
+    off: "Desactivado",
+    minimal: "Mínimo",
+    low: "Bajo",
+    medium: "Medio",
+    high: "Alto",
+    xhigh: "Muy alto",
   };
   const renderThinkingSelector = (
     id: string,

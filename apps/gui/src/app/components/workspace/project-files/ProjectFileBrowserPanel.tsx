@@ -144,7 +144,7 @@ function ProjectFilePreviewPane({
   const previewActionButtonClass =
     "inline-flex items-center gap-1.5 rounded-lg bg-white/[0.07] px-2.5 py-1.5 text-[12px] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)] transition-[transform,background-color,box-shadow] duration-150 ease-out hover:bg-white/[0.11] hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06),0_8px_18px_rgba(0,0,0,0.18)] active:scale-[0.96] active:bg-white/[0.16] active:duration-75";
   const actions = (
-    <div className="mt-3 flex flex-wrap justify-center gap-2">
+    <div className="mt-3 flex flex-wrap justify-center gap-2 px-3 pb-3">
       <button className={previewActionButtonClass} type="button" onClick={() => void openPathQuery(entry.path)}>
         <ExternalLink size={13} /> Abrir
       </button>
@@ -241,7 +241,6 @@ export function ProjectFileBrowserPanel({
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [preview, setPreview] = useState<ProjectFilePreviewResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [refreshRevision, setRefreshRevision] = useState(0);
   const panelRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -250,7 +249,6 @@ export function ProjectFileBrowserPanel({
     setExpandedPaths({});
     setSelectedPaths(new Set());
     setAnchorSelectionPath(null);
-    setRefreshRevision(0);
   }, [open, projectId]);
 
   useEffect(() => {
@@ -264,9 +262,7 @@ export function ProjectFileBrowserPanel({
     const refreshProjectFiles = () => {
       const directoryPaths = Object.keys(directories);
       const pathsToRefresh = directoryPaths.length > 0 ? directoryPaths : [projectId];
-      void Promise.allSettled(pathsToRefresh.map((directoryPath) => loadDirectory(directoryPath))).then(
-        () => setRefreshRevision((revision) => revision + 1),
-      );
+      void Promise.allSettled(pathsToRefresh.map((directoryPath) => loadDirectory(directoryPath)));
     };
 
     const intervalId = window.setInterval(refreshProjectFiles, 2500);
@@ -317,17 +313,22 @@ export function ProjectFileBrowserPanel({
     return rows;
   }, [expandedPaths, projectId, sortedDirectories]);
 
-  const selectedPreviewRow = useMemo(() => {
+  const selectedPreviewPath = useMemo(() => {
     if (selectedPaths.size !== 1) return null;
     const [selectedPath] = [...selectedPaths];
-    return visibleRows.find((row) => row.entry.path === selectedPath) ?? null;
-  }, [selectedPaths, visibleRows]);
+    return selectedPath ?? null;
+  }, [selectedPaths]);
+
+  const selectedPreviewRow = useMemo(() => {
+    if (!selectedPreviewPath) return null;
+    return visibleRows.find((row) => row.entry.path === selectedPreviewPath) ?? null;
+  }, [selectedPreviewPath, visibleRows]);
 
   useEffect(() => {
     let cancelled = false;
-    setPreview(null);
 
     if (!selectedPreviewRow || selectedPreviewRow.entry.kind !== "file") {
+      setPreview(null);
       setPreviewLoading(false);
       return () => {
         cancelled = true;
@@ -349,7 +350,7 @@ export function ProjectFileBrowserPanel({
     return () => {
       cancelled = true;
     };
-  }, [projectId, refreshRevision, selectedPreviewRow]);
+  }, [projectId, selectedPreviewPath]);
 
   async function loadDirectory(directoryPath: string) {
     setDirectories((current) => ({
@@ -414,18 +415,31 @@ export function ProjectFileBrowserPanel({
   }
 
   async function copyPaths(rows: VisibleProjectFileRow[]) {
+    setContextMenu(null);
     await copyTextToClipboardQuery(rows.map((row) => row.entry.path).join("\n"));
   }
 
   async function copyNames(rows: VisibleProjectFileRow[]) {
+    setContextMenu(null);
     await copyTextToClipboardQuery(rows.map((row) => row.entry.name).join("\n"));
   }
 
   async function copyFiles(rows: VisibleProjectFileRow[]) {
+    setContextMenu(null);
     const paths = rows.map((row) => row.entry.path);
     if (!(await copyFilesToClipboardQuery(paths))) {
       await copyPaths(rows);
     }
+  }
+
+  async function openProjectPath(targetPath: string) {
+    setContextMenu(null);
+    await openPathQuery(targetPath);
+  }
+
+  async function revealProjectPath(targetPath: string) {
+    setContextMenu(null);
+    await revealPathQuery(targetPath);
   }
 
   function handleDragStart(row: VisibleProjectFileRow, event: DragEvent<HTMLElement>) {
@@ -583,10 +597,10 @@ export function ProjectFileBrowserPanel({
                 const first = contextMenu.row.entry;
                 return (
                   <>
-                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void openPathQuery(first.path)}>
+                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void openProjectPath(first.path)}>
                       <ExternalLink size={13} /> Abrir
                     </button>
-                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void revealPathQuery(first.path)}>
+                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void revealProjectPath(first.path)}>
                       <FolderOpen size={13} /> Mostrar en carpeta
                     </button>
                     <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyFiles(rows)}>

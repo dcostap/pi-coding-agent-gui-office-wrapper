@@ -840,7 +840,9 @@
       pill.innerHTML = `<span class="dot ${active ? "warn" : ""}"></span><span>${active ? `${number(active)} active` : "All systems operational"}</span>`;
       $("requestsHint").textContent = `${data.range?.label || "Selected range"} • bucket ${Math.round((data.range?.bucketMs || 60000) / 60000)} min`;
       $("footerLeft").textContent = `Generated ${new Date(data.generatedAt).toLocaleString()} • Analytics log: ${data.gateway?.analyticsEventsPath || "unknown"}`;
-      $("footerRight").textContent = `${data.gateway?.mockMode ? "Mock" : "Live"} route: assistant → ${data.gateway?.routedProvider || "unknown"}/${data.gateway?.routedModelId || "unknown"}`;
+      const routes = data.gateway?.routes || {};
+      const primaryRoute = routes["gpt-5.5"] || { provider: data.gateway?.routedProvider, modelId: data.gateway?.routedModelId };
+      $("footerRight").textContent = `${data.gateway?.mockMode ? "Mock" : "Live"} route: gpt-5.5 → ${primaryRoute.provider || "unknown"}/${primaryRoute.modelId || "unknown"}`;
     }
 
     function render(data) {

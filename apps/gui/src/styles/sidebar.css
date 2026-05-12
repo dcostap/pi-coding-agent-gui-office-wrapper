@@ -377,7 +377,7 @@
   padding: 0 0.625rem;
   color: var(--muted);
   font-size: 13px;
-  transition: background-color 150ms ease-out, color 150ms ease-out;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out, color 150ms ease-out;
 }
 
 .sidebar-search-field:hover {
@@ -385,9 +385,15 @@
   color: var(--text);
 }
 
-.sidebar-search-field:focus-within,
-.sidebar-search-field[data-active="true"] {
+.sidebar-search-field:focus-within {
   background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+.sidebar-search-field[data-active="true"] {
+  border-color: rgba(74, 222, 128, 0.72);
+  background: rgba(74, 222, 128, 0.075);
+  box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.14), 0 0 18px rgba(74, 222, 128, 0.08);
   color: var(--text);
 }
 

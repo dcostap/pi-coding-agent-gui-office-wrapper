@@ -30,8 +30,23 @@ const modelsPath =
 const analyticsDir =
   process.env.OFFICE_AGENT_GATEWAY_ANALYTICS_DIR || path.join(localAppData, "OfficeAgent", "gateway-analytics");
 const analyticsEventsPath = path.join(analyticsDir, "events.jsonl");
-const routedProvider = process.env.GATEWAY_UPSTREAM_PROVIDER || "openai-codex";
-const routedModelId = process.env.GATEWAY_UPSTREAM_MODEL || "gpt-5.3-codex-spark";
+const defaultRoutedProvider = process.env.GATEWAY_UPSTREAM_PROVIDER || "openai-codex";
+const sparkRoute = {
+  provider: process.env.GATEWAY_SPARK_UPSTREAM_PROVIDER || defaultRoutedProvider,
+  modelId: process.env.GATEWAY_SPARK_UPSTREAM_MODEL || process.env.GATEWAY_UPSTREAM_MODEL || "gpt-5.3-codex-spark",
+};
+const gpt55Route = {
+  provider:
+    process.env.GATEWAY_GPT55_UPSTREAM_PROVIDER ||
+    process.env.GATEWAY_GPT_5_5_UPSTREAM_PROVIDER ||
+    defaultRoutedProvider,
+  modelId:
+    process.env.GATEWAY_GPT55_UPSTREAM_MODEL ||
+    process.env.GATEWAY_GPT_5_5_UPSTREAM_MODEL ||
+    "gpt-5.5",
+};
+const routedProvider = sparkRoute.provider;
+const routedModelId = sparkRoute.modelId;
 
 const authStorage = AuthStorage.create(authPath);
 const modelRegistry = ModelRegistry.create(authStorage, modelsPath);
@@ -150,6 +165,10 @@ class GatewayAnalyticsStore {
         analyticsEventsPath,
         routedProvider,
         routedModelId,
+        routes: {
+          assistant: sparkRoute,
+          "gpt-5.5": gpt55Route,
+        },
       },
       totals,
       previous,
@@ -222,12 +241,17 @@ async function readJson(req) {
   return raw ? JSON.parse(raw) : {};
 }
 
-function getRoutedModel() {
+function getAbstractModelRoute(abstractModel) {
+  return abstractModel === "gpt-5.5" ? gpt55Route : sparkRoute;
+}
+
+function getRoutedModel(abstractModel = "assistant") {
+  const route = getAbstractModelRoute(abstractModel);
   authStorage.reload();
   modelRegistry.refresh();
-  const model = modelRegistry.find(routedProvider, routedModelId);
+  const model = modelRegistry.find(route.provider, route.modelId);
   if (!model) {
-    throw new Error(`Routed model not found: ${routedProvider}/${routedModelId}`);
+    throw new Error(`Routed model not found for ${abstractModel}: ${route.provider}/${route.modelId}`);
   }
   return model;
 }
@@ -482,7 +506,7 @@ function writeOpenAIChunk(res, id, modelName, delta, finishReason = null) {
 }
 
 async function streamViaPiAuth(res, body) {
-  const model = getRoutedModel();
+  const model = getRoutedModel(body.model);
   const resolvedAuth = await modelRegistry.getApiKeyAndHeaders(model);
   if (!resolvedAuth.ok) {
     throw new Error(`Auth resolution failed for ${model.provider}/${model.id}: ${resolvedAuth.error}`);
@@ -653,12 +677,13 @@ async function handleChatCompletions(req, res) {
   const body = await readJson(req);
   const client = getClientIdentity(req);
   const request = getRequestSummary(body);
+  const route = getAbstractModelRoute(body.model);
   const active = analyticsStore.startRequest({
     client,
     request,
     routing: {
-      provider: MOCK_MODE ? "mock" : routedProvider,
-      model: MOCK_MODE ? "assistant" : routedModelId,
+      provider: MOCK_MODE ? "mock" : route.provider,
+      model: MOCK_MODE ? body.model || "assistant" : route.modelId,
       api: MOCK_MODE ? "mock" : "pi-auth",
     },
   });
@@ -1243,7 +1268,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/health") {
       let routed = null;
       try {
-        const model = getRoutedModel();
+        const model = getRoutedModel(url.searchParams.get("model") || "gpt-5.5");
         const auth = await modelRegistry.getApiKeyAndHeaders(model);
         routed = {
           provider: model.provider,
@@ -1254,8 +1279,8 @@ const server = http.createServer(async (req, res) => {
         };
       } catch (error) {
         routed = {
-          provider: routedProvider,
-          model: routedModelId,
+          provider: gpt55Route.provider,
+          model: gpt55Route.modelId,
           error: String(error?.message || error),
           authOk: false,
         };
@@ -1286,6 +1311,11 @@ const server = http.createServer(async (req, res) => {
         object: "list",
         data: [
           {
+            id: "gpt-5.5",
+            object: "model",
+            owned_by: "office-agent",
+          },
+          {
             id: "assistant",
             object: "model",
             owned_by: "office-agent",
@@ -1310,7 +1340,8 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`[gateway] listening on http://${HOST}:${PORT}`);
-  console.log(`[gateway] abstract model assistant -> ${MOCK_MODE ? "mock" : `${routedProvider}/${routedModelId}`}`);
+  console.log(`[gateway] abstract model assistant -> ${MOCK_MODE ? "mock" : `${sparkRoute.provider}/${sparkRoute.modelId}`}`);
+  console.log(`[gateway] abstract model gpt-5.5 -> ${MOCK_MODE ? "mock" : `${gpt55Route.provider}/${gpt55Route.modelId}`}`);
   console.log(`[gateway] auth path: ${authPath}`);
   console.log(`[gateway] analytics dashboard: http://localhost:${PORT}/dashboard`);
   console.log(`[gateway] analytics log: ${analyticsEventsPath}`);

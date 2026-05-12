@@ -21,6 +21,10 @@ function getModelKey(model: ComposerModel) {
   return `${model.provider}/${model.id}`;
 }
 
+function getModelProviderLabel(model: ComposerModel) {
+  return model.provider === "corp" ? "Castrosua IA" : model.provider;
+}
+
 export function ComposerModelPopover({
   availableModels,
   availableThinkingLevels,
@@ -76,7 +80,7 @@ export function ComposerModelPopover({
                     {model.name}
                   </span>
                   <span className="block truncate text-[11px] leading-[1.15] text-[color:var(--muted-2)]">
-                    {model.provider}
+                    {getModelProviderLabel(model)}
                   </span>
                 </span>
                 <span className="inline-flex justify-end text-[color:var(--text)]">

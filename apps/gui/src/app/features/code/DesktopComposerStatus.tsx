@@ -19,12 +19,12 @@ const statusLineClass =
 const iconClass = "shrink-0 text-[rgba(169,178,215,0.58)]";
 
 const thinkingLevelLabels: Record<ComposerThinkingLevel, string> = {
-  off: "Off",
-  minimal: "Minimal",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  xhigh: "X-High",
+  off: "Desactivado",
+  minimal: "Mínimo",
+  low: "Bajo",
+  medium: "Medio",
+  high: "Alto",
+  xhigh: "Muy alto",
 };
 
 function formatContextPercent(contextUsage: ComposerContextUsage | null) {
@@ -33,6 +33,10 @@ function formatContextPercent(contextUsage: ComposerContextUsage | null) {
   }
 
   return `${contextUsage.percent.toFixed(0)}%`;
+}
+
+function getModelProviderLabel(model: ComposerModel | null) {
+  return model?.provider === "corp" ? "Castrosua IA" : (model?.provider ?? "No provider");
 }
 
 export function DesktopComposerStatus({
@@ -45,7 +49,7 @@ export function DesktopComposerStatus({
     { id: "context", icon: Gauge, label: formatContextPercent(contextUsage) },
     { id: "thinking", icon: Brain, label: thinkingLevelLabels[thinkingLevel] },
     { id: "model", icon: Bot, label: model?.name ?? "No model", highlight: true },
-    { id: "provider", icon: Server, label: model?.provider ?? "No provider" },
+    { id: "provider", icon: Server, label: getModelProviderLabel(model) },
   ];
 
   return (

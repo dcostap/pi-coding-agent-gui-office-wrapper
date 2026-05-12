@@ -383,16 +383,21 @@ export function createSystemHandlers(): SystemRequestHandlers {
         return { ok: false };
       }
     },
-    openPath: async ({ path }) => {
+    openPath: async ({ path: targetPath }) => {
       try {
-        return { ok: (await shell.openPath(path)) === "" };
+        const resolvedPath = path.resolve(targetPath);
+        await stat(resolvedPath);
+        const errorMessage = await shell.openPath(resolvedPath);
+        return { ok: errorMessage === "" };
       } catch {
         return { ok: false };
       }
     },
-    revealPath: async ({ path }) => {
+    revealPath: async ({ path: targetPath }) => {
       try {
-        shell.showItemInFolder(path);
+        const resolvedPath = path.resolve(targetPath);
+        await stat(resolvedPath);
+        shell.showItemInFolder(resolvedPath);
         return { ok: true };
       } catch {
         return { ok: false };

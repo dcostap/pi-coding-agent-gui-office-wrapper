@@ -5,6 +5,16 @@ function stripKnownWrappers(message: string) {
   return message.trim().replace(ELECTRON_REMOTE_ERROR_PREFIX, "").replace(LEADING_ERROR_PREFIX, "");
 }
 
+function translateKnownErrorMessage(message: string) {
+  if (message.includes("OfficeAgent Windows sandbox v2 setup is required before commands can run.")) {
+    const issueMatches = [...message.matchAll(/setup marker is missing: ([^\n;]+)/g)];
+    const issueText = issueMatches.length > 0 ? " Falta la marca de configuración del sandbox." : "";
+    return `El sandbox de Windows necesita configurarse antes de ejecutar comandos.${issueText} Ve a Ajustes → Windows sandbox v2, prepara la configuración elevada y ejecútala como administrador.`;
+  }
+
+  return message;
+}
+
 export function cleanUserErrorMessage(
   message: string | null | undefined,
   fallback = "Something went wrong.",
@@ -13,7 +23,7 @@ export function cleanUserErrorMessage(
     return fallback;
   }
 
-  const cleaned = stripKnownWrappers(message).replace(/\s+/g, " ").trim();
+  const cleaned = translateKnownErrorMessage(stripKnownWrappers(message)).replace(/\s+/g, " ").trim();
   return cleaned || fallback;
 }
 

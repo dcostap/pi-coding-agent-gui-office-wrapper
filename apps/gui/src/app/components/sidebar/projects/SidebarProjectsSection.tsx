@@ -130,12 +130,7 @@ export function SidebarProjectsSection({
         : unassignedChatThreads,
     [normalizedSearchQuery, unassignedChatThreads],
   );
-  const unassignedProjectNameMatches = UNASSIGNED_CHAT_PROJECT_NAME.toLowerCase().includes(
-    normalizedSearchQuery,
-  );
-  const hasUnassignedChats = normalizedSearchQuery
-    ? unassignedProjectNameMatches || visibleUnassignedChatThreads.length > 0
-    : true;
+  const hasUnassignedChats = visibleUnassignedChatThreads.length > 0;
 
   const { projects: visibleProjects, autoExpandedProjectIds } = useMemo(
     () =>

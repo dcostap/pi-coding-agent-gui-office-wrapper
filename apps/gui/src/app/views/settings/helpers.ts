@@ -9,8 +9,12 @@ export function getActionError(result: DesktopActionResult | null) {
   return typeof result?.result?.error === "string" ? result.result.error : null;
 }
 
+function getModelDescription(model: Pick<ComposerModel, "provider" | "id">) {
+  return model.provider === "corp" ? "Castrosua IA" : `${model.provider}/${model.id}`;
+}
+
 export function getModelSettingValue(selection: ModelSelection | null) {
-  return selection ? `${selection.provider}/${selection.id}` : "Use composer model";
+  return selection ? getModelDescription(selection) : "Use composer model";
 }
 
 export function buildModelMenuItems(
@@ -22,15 +26,13 @@ export function buildModelMenuItems(
     {
       id: "composer-default",
       label: "Use composer model",
-      description: currentModel
-        ? `${currentModel.provider}/${currentModel.id}`
-        : "No active composer model",
+      description: currentModel ? getModelDescription(currentModel) : "No active composer model",
       selected: !selectedModel,
     },
     ...availableModels.map((model) => ({
       id: `${model.provider}/${model.id}`,
       label: model.name,
-      description: `${model.provider}/${model.id}`,
+      description: getModelDescription(model),
       selected: selectedModel?.provider === model.provider && selectedModel.id === model.id,
     })),
   ];

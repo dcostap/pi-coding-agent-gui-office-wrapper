@@ -5,6 +5,10 @@ import { modalPanelClass, panelChromeClass } from "../../ui/classes";
 import { cn } from "../../utils/cn";
 import { TextButton } from "../common/TextButton";
 
+function getModelDescription(model: { provider: string; id: string }) {
+  return model.provider === "corp" ? "Castrosua IA" : `${model.provider}/${model.id}`;
+}
+
 type SettingsPanelProps = {
   appSettings: AppSettings;
   availableModels: ComposerModel[];
@@ -118,7 +122,7 @@ export function SettingsPanel({
                 </div>
                 <div className="truncate text-[12px] text-[color:var(--muted)]">
                   {currentModel
-                    ? `${currentModel.name} · ${currentModel.provider}/${currentModel.id}`
+                    ? `${currentModel.name} · ${getModelDescription(currentModel)}`
                     : "No active composer model"}
                 </div>
               </div>
@@ -153,7 +157,7 @@ export function SettingsPanel({
                         {model.name}
                       </div>
                       <div className="truncate text-[12px] text-[color:var(--muted)]">
-                        {model.provider}/{model.id}
+                        {getModelDescription(model)}
                       </div>
                     </div>
                     {isSelected ? <Check size={16} className="text-[color:var(--accent)]" /> : null}

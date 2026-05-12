@@ -32,12 +32,12 @@ import { useComposerAttachmentPicker } from "../composer/useComposerAttachmentPi
 import { useComposerDictation } from "../composer/useComposerDictation";
 
 const thinkingLevelLabels: Record<ComposerThinkingLevel, string> = {
-  off: "Off",
-  minimal: "Minimal",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  xhigh: "X-High",
+  off: "Desactivado",
+  minimal: "Mínimo",
+  low: "Bajo",
+  medium: "Medio",
+  high: "Alto",
+  xhigh: "Muy alto",
 };
 
 type InboxComposerProps = {
