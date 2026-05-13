@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { FolderGit2 } from "lucide-react";
 import type { AppShellController } from "../../app-shell/useAppShellController";
 import { defaultPiSettings } from "../../../../shared/default-pi-settings";
@@ -11,6 +11,7 @@ import { QueuedPromptsCard } from "../../components/workspace/composer/QueuedPro
 import { ProjectFileBrowserPanel } from "../../components/workspace/project-files/ProjectFileBrowserPanel";
 import type { ProjectDiffBaseline, ProjectDiffRenderMode } from "../../desktop/types";
 import type { Message } from "../../types";
+import { useAnimatedPresence } from "../../hooks/useAnimatedPresence";
 import { useDesktopDiff } from "../../hooks/useDesktopDiff";
 import { mainPanelClass } from "../../ui/classes";
 import { cn } from "../../utils/cn";
@@ -33,62 +34,14 @@ type CodeWorkspaceViewProps = {
   onSetDiffBaseline: (baseline: ProjectDiffBaseline) => void;
   onSetDiffRenderMode: (renderMode: ProjectDiffRenderMode) => void;
   sidebarCollapsed: boolean;
+  projectFilesOpen: boolean;
+  projectFilesDocked: boolean;
   onToggleSidebar: () => void;
+  onToggleProjectFiles: () => void;
+  onCloseProjectFiles: () => void;
 };
 
 const TERMINAL_DRAWER_OFFSET = "min(28rem, calc(100% - 2.5rem))";
-const PROJECT_FILES_PANEL_MIN_WIDTH_PX = 320;
-const PROJECT_FILES_DOCKED_MIN_WIDTH = 1180;
-const PROJECT_FILES_CHAT_TARGET_WIDTH_PX = 920;
-
-function useProjectFilesDockedMode() {
-  const [docked, setDocked] = useState(() =>
-    typeof window === "undefined" ? true : window.innerWidth >= PROJECT_FILES_DOCKED_MIN_WIDTH,
-  );
-
-  useEffect(() => {
-    const updateDockedMode = () => setDocked(window.innerWidth >= PROJECT_FILES_DOCKED_MIN_WIDTH);
-    updateDockedMode();
-    window.addEventListener("resize", updateDockedMode);
-    return () => window.removeEventListener("resize", updateDockedMode);
-  }, []);
-
-  return docked;
-}
-
-function getProjectFilesPanelWidth(containerWidth: number) {
-  if (containerWidth <= PROJECT_FILES_DOCKED_MIN_WIDTH) {
-    return PROJECT_FILES_PANEL_MIN_WIDTH_PX;
-  }
-
-  const splitGrowthWidth =
-    PROJECT_FILES_PANEL_MIN_WIDTH_PX +
-    (containerWidth - PROJECT_FILES_DOCKED_MIN_WIDTH) / 2;
-  const splitChatWidth = containerWidth - splitGrowthWidth;
-
-  if (splitChatWidth < PROJECT_FILES_CHAT_TARGET_WIDTH_PX) {
-    return Math.round(splitGrowthWidth);
-  }
-
-  return Math.max(
-    PROJECT_FILES_PANEL_MIN_WIDTH_PX,
-    Math.round(containerWidth - PROJECT_FILES_CHAT_TARGET_WIDTH_PX),
-  );
-}
-
-function combineRightInsets(...insets: Array<string | null | false | undefined>) {
-  const activeInsets = insets.filter((inset): inset is string => Boolean(inset));
-  if (activeInsets.length === 0) {
-    return undefined;
-  }
-
-  if (activeInsets.length === 1) {
-    return { right: activeInsets[0] };
-  }
-
-  return { right: `calc(${activeInsets.join(" + ")})` };
-}
-
 function getReplyActivityKey(messages: readonly Message[]) {
   return messages
     .filter((message) => message.role !== "user")
@@ -109,18 +62,19 @@ export function CodeWorkspaceView({
   workspaceContentClass,
   onSetDiffBaseline,
   onSetDiffRenderMode,
+  projectFilesOpen,
+  projectFilesDocked,
+  onToggleProjectFiles,
+  onCloseProjectFiles,
 }: CodeWorkspaceViewProps) {
   const [composerPromptResetKey, setComposerPromptResetKey] = useState(0);
   const [gitOpsFileTreeVisibilityByThread, setGitOpsFileTreeVisibilityByThread] = useState<
     Record<string, boolean>
   >({});
   const [composerLayoutVersion, setComposerLayoutVersion] = useState(0);
-  const [projectFilesOpen, setProjectFilesOpen] = useState(false);
-  const projectFilesDocked = useProjectFilesDockedMode();
-  const rootRef = useRef<HTMLDivElement>(null);
+  const projectFilesOverlayPresent = useAnimatedPresence(!projectFilesDocked && projectFilesOpen);
   const footerRef = useRef<HTMLElement>(null);
   const mainViewRef = useRef<HTMLElement>(null);
-  const [workspaceWidth, setWorkspaceWidth] = useState(0);
   const {
     handleAction,
     handleLoadEarlierMessages,
@@ -167,48 +121,6 @@ export function CodeWorkspaceView({
   const footerInset = showWorkspaceFooter && !centerThreadFooter ? footerHeight : 0;
 
   useEffect(() => {
-    const root = rootRef.current;
-    if (!root || typeof ResizeObserver === "undefined") {
-      setWorkspaceWidth(root?.clientWidth ?? 0);
-      return;
-    }
-
-    let animationFrame: number | null = null;
-    let lastWidth = -1;
-    const updateWidth = () => {
-      const nextWidth = Math.round(root.clientWidth);
-      if (nextWidth === lastWidth) {
-        return;
-      }
-      lastWidth = nextWidth;
-      setWorkspaceWidth(nextWidth);
-    };
-    const scheduleUpdate = () => {
-      if (animationFrame !== null) {
-        return;
-      }
-      animationFrame = window.requestAnimationFrame(() => {
-        animationFrame = null;
-        updateWidth();
-      });
-    };
-
-    updateWidth();
-    const observer = new ResizeObserver(scheduleUpdate);
-    observer.observe(root);
-    return () => {
-      if (animationFrame !== null) {
-        window.cancelAnimationFrame(animationFrame);
-      }
-      observer.disconnect();
-    };
-  }, []);
-
-  useEffect(() => {
-    setProjectFilesOpen(projectFilesDocked);
-  }, [projectFilesDocked]);
-
-  useEffect(() => {
     if (!projectFilesOpen || projectFilesDocked) {
       return;
     }
@@ -216,13 +128,13 @@ export function CodeWorkspaceView({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        setProjectFilesOpen(false);
+        onCloseProjectFiles();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [projectFilesDocked, projectFilesOpen]);
+  }, [onCloseProjectFiles, projectFilesDocked, projectFilesOpen]);
 
   useEffect(() => {
     if (!hasThreadConversation) {
@@ -268,22 +180,15 @@ export function CodeWorkspaceView({
     terminalSessionPath,
   });
 
-  const projectFilesPanelWidth = getProjectFilesPanelWidth(workspaceWidth);
-  const projectFilesPanelWidthStyle = `${projectFilesPanelWidth}px`;
-  const projectFilesDockedOffset = projectFilesOpen && projectFilesDocked ? projectFilesPanelWidthStyle : null;
-  const workspaceRightInsetStyle = combineRightInsets(
-    showDesktopTerminalDrawer ? TERMINAL_DRAWER_OFFSET : null,
-    projectFilesDockedOffset,
-  );
-  const projectFilesPanelRightStyle = {
-    right: showDesktopTerminalDrawer ? TERMINAL_DRAWER_OFFSET : "0px",
-  };
+  const terminalRightInsetStyle = showDesktopTerminalDrawer
+    ? ({ right: TERMINAL_DRAWER_OFFSET } as CSSProperties)
+    : undefined;
   const threadFooterStyle = showPromptComposer
     ? {
-        ...workspaceRightInsetStyle,
+        ...terminalRightInsetStyle,
         top: centerThreadFooter ? "50%" : `calc(100% - ${footerHeight}px)`,
       }
-    : workspaceRightInsetStyle;
+    : terminalRightInsetStyle;
   const visibleThreadData =
     state.activeView === "thread" && activeThreadData && !threadContentVisible
       ? { ...activeThreadData, messages: [] }
@@ -309,10 +214,10 @@ export function CodeWorkspaceView({
   );
 
   return (
-    <div ref={rootRef} className="relative min-h-0 flex-1 overflow-hidden">
+    <div className="relative isolate min-h-0 flex-1 overflow-hidden">
       <div
-        className="motion-terminal-drawer-offset absolute inset-x-0 top-0 overflow-hidden px-5"
-        style={{ ...workspaceRightInsetStyle, bottom: `${footerInset}px` }}
+        className="motion-terminal-drawer-offset absolute inset-x-0 top-0 z-10 overflow-hidden px-5"
+        style={{ ...terminalRightInsetStyle, bottom: `${footerInset}px` }}
       >
         <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)] gap-3 overflow-hidden">
           <main
@@ -381,7 +286,7 @@ export function CodeWorkspaceView({
                 threadData={visibleThreadData}
                 composerLayoutVersion={composerLayoutVersion}
                 projectFilesOpen={projectFilesOpen}
-                onToggleProjectFiles={() => setProjectFilesOpen((open) => !open)}
+                onToggleProjectFiles={onToggleProjectFiles}
                 onAction={handleAction}
                 onDismissInboxThread={controller.handleDismissInboxThread}
                 onListAttachmentEntries={listComposerAttachmentEntries}
@@ -398,39 +303,36 @@ export function CodeWorkspaceView({
         </div>
       </div>
 
-      {projectFilesOpen ? (
-        projectFilesDocked ? (
+      {!projectFilesDocked && projectFilesOverlayPresent ? (
+        <div
+          data-open={projectFilesOpen ? "true" : "false"}
+          className={cn(
+            "absolute inset-0 z-30 transition-opacity duration-200 ease-out",
+            projectFilesOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+          )}
+        >
+          <button
+            type="button"
+            className="absolute inset-0 h-full w-full cursor-default border-0 bg-[rgba(7,9,16,0.38)] p-0 backdrop-blur-[3px] transition-opacity duration-200 ease-out"
+            aria-label="Cerrar archivos del proyecto"
+            onClick={onCloseProjectFiles}
+          />
           <div
-            className="motion-terminal-drawer-offset absolute top-0 bottom-0 z-20 overflow-hidden transition-[right,width] duration-200 ease-out"
-            style={{ ...projectFilesPanelRightStyle, width: projectFilesPanelWidthStyle }}
+            className={cn(
+              "absolute top-0 right-0 bottom-0 w-[min(22rem,calc(100%-2rem))] overflow-hidden transition-[transform,opacity] duration-200 ease-out",
+              projectFilesOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0",
+            )}
           >
             <ProjectFileBrowserPanel
-              docked
+              docked={false}
               open={projectFilesOpen}
               projectId={composerProjectId}
               title={projectFilesPanelTitle}
               attachedFilePaths={attachedFilePaths}
+              onClose={onCloseProjectFiles}
             />
           </div>
-        ) : (
-          <div className="absolute inset-0 z-30">
-            <button
-              type="button"
-              className="absolute inset-0 h-full w-full cursor-default border-0 bg-[rgba(7,9,16,0.42)] p-0 backdrop-blur-[3px]"
-              aria-label="Cerrar archivos del proyecto"
-              onClick={() => setProjectFilesOpen(false)}
-            />
-            <div className="absolute top-0 right-0 bottom-0 w-[min(22rem,calc(100%-2rem))] overflow-hidden">
-              <ProjectFileBrowserPanel
-                docked={false}
-                open={projectFilesOpen}
-                projectId={composerProjectId}
-                title={projectFilesPanelTitle}
-                attachedFilePaths={attachedFilePaths}
-              />
-            </div>
-          </div>
-        )
+        </div>
       ) : null}
 
       {showWorkspaceFooter ? (

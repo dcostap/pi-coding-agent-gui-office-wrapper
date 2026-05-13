@@ -323,11 +323,11 @@ export function ComposerPromptSurface({
   const canStopComposer = (composerIsStreaming || extensionRunning) && !isSending && !!sessionPath;
 
   return (
-    <div className="relative left-1/2 grid w-[calc(100%-1rem)] -translate-x-1/2 grid-cols-[minmax(0,1fr)_1.75rem] items-end gap-1 overflow-visible">
+    <div className="relative left-1/2 grid w-[calc(100%-1rem)] -translate-x-1/2 grid-cols-[minmax(0,1fr)] items-end overflow-visible">
       <div
         ref={composerPanelRef}
         className={cn(
-          "composer-attachment-drop-target relative grid gap-0 overflow-visible rounded-[18px] border border-[rgba(255,255,255,0.075)] bg-[color:var(--panel)] shadow-[0_16px_48px_rgba(0,0,0,0.24)]",
+          "composer-attachment-drop-target composer-howcode-surface relative grid gap-0 overflow-visible rounded-[20px] border border-[color:var(--accent-border)] bg-[color:var(--panel)] text-[color:var(--text)] shadow-none",
           attachmentDragActive && "composer-attachment-drop-target--active",
         )}
         aria-label="Composer panel"
@@ -372,7 +372,7 @@ export function ComposerPromptSurface({
           </output>
         ) : null}
 
-        <div className="h-px bg-[rgba(255,255,255,0.055)]" />
+        <div className="h-px bg-[color:var(--border)]" />
 
         <ComposerFooter
           availableModels={availableModels}

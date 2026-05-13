@@ -1,20 +1,58 @@
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { parseComposerAttachmentBlock } from "../../../shared/composer-attachment-prompt";
 import { getPersistedSessionPath, isLocalSessionPath } from "../../../shared/session-paths";
+import { isUnassignedChatProjectId } from "../../../shared/unassigned-chats";
 import { TextSelectionContextMenu } from "../components/common/TextSelectionContextMenu";
 import { Tooltip } from "../components/common/Tooltip";
 import { Sidebar } from "../components/sidebar/Sidebar";
 import { TerminalPanel } from "../components/workspace/TerminalPanel";
+import { ProjectFileBrowserPanel } from "../components/workspace/project-files/ProjectFileBrowserPanel";
 import { defaultDiffBaseline } from "../components/workspace/composer/diff-baseline";
 import type { ProjectDiffBaseline, ProjectDiffRenderMode } from "../desktop/types";
 import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
+import { cn } from "../utils/cn";
 import { AppShellOverlays } from "./AppShellOverlays";
 import { AppShellWorkspace } from "./AppShellWorkspace";
 import { appShellRootClass } from "./layout-classes";
+import { ShellSideDock } from "./ShellSideDock";
 import type { AppShellController } from "./useAppShellController";
 import { useAppShellLayoutState } from "./useAppShellLayoutState";
 
 const TERMINAL_DRAWER_WIDTH = "min(28rem, calc(100% - 2.5rem))";
+const PROJECT_FILES_DOCK_WIDTH = 360;
+const PROJECT_FILES_DOCKED_MIN_WIDTH = 1180;
+
+function useProjectFilesDockedMode() {
+  const [docked, setDocked] = useState(() =>
+    typeof window === "undefined" ? true : window.innerWidth >= PROJECT_FILES_DOCKED_MIN_WIDTH,
+  );
+
+  useEffect(() => {
+    let animationFrame: number | null = null;
+    const updateDockedMode = () => setDocked(window.innerWidth >= PROJECT_FILES_DOCKED_MIN_WIDTH);
+    const scheduleDockedModeUpdate = () => {
+      if (animationFrame !== null) {
+        return;
+      }
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateDockedMode();
+      });
+    };
+
+    updateDockedMode();
+    window.addEventListener("resize", scheduleDockedModeUpdate);
+    return () => {
+      window.removeEventListener("resize", scheduleDockedModeUpdate);
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, []);
+
+  return docked;
+}
 
 type TakeoverTerminalKeyState = {
   key: string;
@@ -143,6 +181,9 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
   const controllerRef = useRef(controller);
   const resizeSettledTimerRef = useRef<number | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const projectFilesDocked = useProjectFilesDockedMode();
+  const [projectFilesOpen, setProjectFilesOpen] = useState(true);
+  const [projectFilesOverlayOpen, setProjectFilesOverlayOpen] = useState(false);
   const [diffBaselineState, setDiffBaselineState] = useState<{
     projectId: string;
     threadId: string | null;
@@ -169,6 +210,12 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
     renderMode: "stacked",
     source: "init",
   });
+  useEffect(() => {
+    if (projectFilesDocked) {
+      setProjectFilesOverlayOpen(false);
+    }
+  }, [projectFilesDocked]);
+
   useEffect(() => {
     const clearResizeState = () => {
       resizeSettledTimerRef.current = null;
@@ -246,6 +293,41 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
   const { mainSectionRef, takeoverPresent, workspaceContentClass } = useAppShellLayoutState({
     takeoverVisible,
   });
+  const projectFilesPanelTitle = isUnassignedChatProjectId(composerProjectId)
+    ? "Archivos del chat"
+    : "Archivos del proyecto";
+  const attachedFilePaths = useMemo(
+    () =>
+      new Set(
+        (activeThreadData?.messages ?? []).flatMap((message) => {
+          if (message.role !== "user") {
+            return [];
+          }
+
+          return message.content.flatMap(
+            (paragraph: string) => parseComposerAttachmentBlock(paragraph).attachmentPaths,
+          );
+        }),
+      ),
+    [activeThreadData?.messages],
+  );
+  const projectFilesAvailable =
+    state.activeView !== "chat" && state.activeView !== "claw" && state.activeView !== "work";
+  const effectiveProjectFilesOpen = projectFilesDocked ? projectFilesOpen : projectFilesOverlayOpen;
+  const handleToggleProjectFiles = useCallback(() => {
+    if (projectFilesDocked) {
+      setProjectFilesOpen((open) => !open);
+      return;
+    }
+    setProjectFilesOverlayOpen((open) => !open);
+  }, [projectFilesDocked]);
+  const handleCloseProjectFiles = useCallback(() => {
+    if (projectFilesDocked) {
+      setProjectFilesOpen(false);
+      return;
+    }
+    setProjectFilesOverlayOpen(false);
+  }, [projectFilesDocked]);
   const takeoverTerminalKeyRef = useRef<TakeoverTerminalKeyState | null>(null);
   const nextTakeoverTerminalKey = `${composerProjectId}:${
     state.selectedThreadId ?? terminalSessionPath ?? "none"
@@ -442,11 +524,7 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
           onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
         />
         <div className="flex min-h-0 flex-1 overflow-hidden bg-[color:var(--sidebar)] backdrop-blur-[34px] backdrop-saturate-[160%]">
-          <div
-            className="relative min-w-0 shrink-0 overflow-hidden transition-[width,opacity] duration-200 ease-out"
-            style={{ width: sidebarCollapsed ? 0 : 300, opacity: sidebarCollapsed ? 0 : 1 }}
-          >
-          {sidebarCollapsed ? null : (
+          <ShellSideDock side="left" collapsed={sidebarCollapsed} width={300}>
             <Sidebar
               projects={projects}
               inboxThreads={controller.inboxThreads}
@@ -523,12 +601,14 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
               onThreadOpen={handleThreadOpen}
               onToggleProjectCollapse={handleToggleProjectCollapse}
             />
-          )}
-        </div>
+          </ShellSideDock>
 
           <section
             ref={mainSectionRef}
-            className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-tl-xl border border-r-0 border-b-0 border-[color:var(--border)] bg-[color:var(--workspace)]"
+            className={cn(
+              "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-tl-xl border-l border-[color:var(--border)] bg-[color:var(--workspace)] transition-[border-color,border-radius] duration-200 ease-out",
+              projectFilesOpen && projectFilesAvailable && "rounded-tr-xl border-r border-[color:var(--border)]",
+            )}
           >
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
             <div
@@ -549,7 +629,11 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
                 onSetDiffBaseline={handleSetDiffBaseline}
                 onSetDiffRenderMode={handleSetDiffRenderMode}
                 sidebarCollapsed={sidebarCollapsed}
+                projectFilesOpen={effectiveProjectFilesOpen}
+                projectFilesDocked={projectFilesDocked}
                 onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                onToggleProjectFiles={handleToggleProjectFiles}
+                onCloseProjectFiles={handleCloseProjectFiles}
               />
             </div>
 
@@ -588,6 +672,24 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
             ) : null}
           </div>
           </section>
+
+          <ShellSideDock
+            side="right"
+            collapsed={!projectFilesOpen || !projectFilesAvailable}
+            width={PROJECT_FILES_DOCK_WIDTH}
+            className="bg-[#1e1e1e]"
+            contentClassName="w-[360px]"
+            keepMounted
+          >
+            <ProjectFileBrowserPanel
+              docked
+              open={projectFilesOpen && projectFilesAvailable}
+              projectId={composerProjectId}
+              title={projectFilesPanelTitle}
+              attachedFilePaths={attachedFilePaths}
+              onClose={() => setProjectFilesOpen(false)}
+            />
+          </ShellSideDock>
         </div>
       </div>
       {controller.toast ? (

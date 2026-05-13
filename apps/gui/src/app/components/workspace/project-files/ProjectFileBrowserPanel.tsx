@@ -1,9 +1,10 @@
-import { ChevronDown, ChevronRight, Copy, ExternalLink, FolderOpen } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, ExternalLink, FolderOpen, PanelRightClose } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import type { ProjectFileEntry, ProjectFilePreviewResult } from "../../../../../shared/desktop-contracts";
 import { cn } from "../../../utils/cn";
 import { FileTypeIcon } from "../../common/FileTypeIcon";
+import { Tooltip } from "../../common/Tooltip";
 import {
   copyFilesToClipboardQuery,
   copyTextToClipboardQuery,
@@ -40,6 +41,7 @@ type ProjectFileBrowserPanelProps = {
   projectId: string;
   title?: string;
   attachedFilePaths?: Set<string>;
+  onClose?: () => void;
 };
 
 function formatModifiedTime(modifiedMs: number) {
@@ -231,6 +233,7 @@ export function ProjectFileBrowserPanel({
   projectId,
   title = "Archivos del proyecto",
   attachedFilePaths = new Set(),
+  onClose,
 }: ProjectFileBrowserPanelProps) {
   const [directories, setDirectories] = useState<Record<string, LoadedDirectory>>({});
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
@@ -475,23 +478,37 @@ export function ProjectFileBrowserPanel({
     <aside
       ref={panelRef}
       className={cn(
-        "flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-white/10 bg-[color:var(--sidebar)] shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-[28px]",
-        docked ? "rounded-none" : "rounded-l-2xl",
+        "project-files-shell",
+        docked ? "project-files-shell--docked" : "project-files-shell--floating",
       )}
       aria-label="Archivos del proyecto"
       data-block-composer-attachment-drop="true"
+      data-docked={docked ? "true" : "false"}
+      data-open={open ? "true" : "false"}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <header className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
-        <div className="min-w-0">
+      <header className="project-files-header">
+        <div className="min-w-0 flex-1">
           <h2 className="m-0 truncate text-[13px] font-medium text-[color:var(--text)]">
             {title}
           </h2>
           <p className="m-0 truncate text-[11px] text-[color:var(--muted-2)]">{projectId}</p>
         </div>
+        {onClose ? (
+          <Tooltip content="Contraer archivos del proyecto" placement="right">
+            <button
+              type="button"
+              className="project-files-header-button"
+              onClick={onClose}
+              aria-label="Contraer archivos del proyecto"
+            >
+              <PanelRightClose size={15} strokeWidth={2} />
+            </button>
+          </Tooltip>
+        ) : null}
       </header>
 
-      <div className="grid h-8 shrink-0 grid-cols-[minmax(0,1fr)_6.8rem] items-center border-b border-white/[0.06] px-2 text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--muted-2)]">
+      <div className="project-files-column-header grid h-8 shrink-0 grid-cols-[minmax(0,1fr)_6.8rem] items-center px-2 text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--muted-2)]">
         <button type="button" className="flex min-w-0 items-center gap-1 px-1 text-left" onClick={() => toggleSort("name")}>
           <span>Nombre</span>{renderSortIndicator("name")}
         </button>
@@ -501,7 +518,7 @@ export function ProjectFileBrowserPanel({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-auto px-1 py-1.5">
+        <div className="project-files-list min-h-0 flex-1 overflow-auto px-1 py-1.5">
         {visibleRows.map((row) => {
           const selected = selectedPaths.has(row.entry.path);
           const attached = attachedFilePaths.has(row.entry.path);
@@ -513,8 +530,8 @@ export function ProjectFileBrowserPanel({
                 className={cn(
                   "grid h-8 cursor-default grid-cols-[minmax(0,1fr)_6.8rem] items-center rounded-lg px-1 text-[12px] text-[color:var(--text)] transition-colors",
                   selected
-                    ? "bg-[#313239] shadow-[inset_0_0_0_1px_rgba(183,186,245,0.04)]"
-                    : "hover:bg-white/[0.055]",
+                    ? "bg-[color:var(--accent-bg)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]"
+                    : "hover:bg-[color:var(--surface-hover)]",
                 )}
                 onClick={(event) => handleSelect(row, event)}
                 onDoubleClick={() => {
@@ -544,7 +561,7 @@ export function ProjectFileBrowserPanel({
                   {row.entry.kind === "directory" ? (
                     <button
                       type="button"
-                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[color:var(--muted)] hover:bg-white/10 hover:text-[color:var(--text)]"
+                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[color:var(--muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
                       onClick={(event) => {
                         event.stopPropagation();
                         void toggleDirectory(row.entry);
@@ -559,7 +576,7 @@ export function ProjectFileBrowserPanel({
                   <span className="shrink-0"><FileTypeIcon kind={row.entry.kind} name={row.entry.name} size={16} /></span>
                   <span className="min-w-0 truncate">{row.entry.name}</span>
                   {attached ? (
-                    <span className="shrink-0 rounded-full bg-[#313239] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(183,186,245,0.04)]">
+                    <span className="shrink-0 rounded-full bg-[color:var(--accent-bg)] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]">
                       adjunto
                     </span>
                   ) : null}
@@ -575,7 +592,7 @@ export function ProjectFileBrowserPanel({
           );
         })}
         </div>
-        <div className="h-1/2 min-h-[190px] shrink-0 border-t border-white/10 bg-black/[0.08]">
+        <div className="project-files-preview-pane h-1/2 min-h-[190px] shrink-0">
           <ProjectFilePreviewPane
             row={selectedPreviewRow}
             preview={preview}

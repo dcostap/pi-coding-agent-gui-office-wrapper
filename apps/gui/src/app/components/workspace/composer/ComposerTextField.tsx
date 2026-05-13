@@ -230,7 +230,7 @@ export function ComposerTextField({
             "composer-prompt-textarea m-0 w-full min-h-6 resize-none overflow-hidden bg-transparent p-0 text-[color:var(--text)] outline-none transition-opacity duration-150",
             readOnly && "cursor-wait opacity-45",
             placeholderTone === "error"
-              ? "placeholder:text-[#f2a7a7]"
+              ? "placeholder:text-[color:var(--danger)]"
               : "placeholder:text-[color:var(--muted-2)]",
           )}
           value={value}

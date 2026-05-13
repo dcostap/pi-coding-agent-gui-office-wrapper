@@ -15,7 +15,7 @@ export function ComposerAttachmentShelf({ attachments, onRemove }: ComposerAttac
 
   return (
     <div
-      className="border-t border-white/[0.055] px-4 pt-2 pb-3"
+      className="border-t border-[color:var(--border)] px-4 pt-2 pb-3"
       aria-label="Files attached to this prompt"
     >
       <div className="flex flex-wrap gap-2">
@@ -23,7 +23,7 @@ export function ComposerAttachmentShelf({ attachments, onRemove }: ComposerAttac
           <div
             key={attachment.path}
             className={cn(
-              "attachment-shelf-item inline-flex max-w-[17rem] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] py-1.5 pr-1.5 pl-2.5 text-[12px] text-[color:var(--text)] shadow-[0_8px_22px_rgba(0,0,0,0.14)] transition-colors hover:border-white/16 hover:bg-white/[0.065]",
+              "attachment-shelf-item inline-flex max-w-[17rem] items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--panel-2)] py-1.5 pr-1.5 pl-2.5 text-[12px] text-[color:var(--text)] shadow-none transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--panel-3)]",
             )}
             title={attachment.path}
           >
@@ -37,7 +37,7 @@ export function ComposerAttachmentShelf({ attachments, onRemove }: ComposerAttac
             <span className="min-w-0 truncate pr-1">{attachment.name}</span>
             <button
               type="button"
-              className="ml-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.035] text-[color:var(--muted)] opacity-75 transition hover:border-white/18 hover:bg-white/[0.09] hover:text-[color:var(--text)] hover:opacity-100"
+              className="ml-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[color:var(--border)] bg-[color:var(--panel)] text-[color:var(--muted)] opacity-75 transition hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)] hover:opacity-100"
               onClick={() => onRemove(attachment.path)}
               aria-label={`Remove ${attachment.name}`}
               data-tooltip="Remove attachment"

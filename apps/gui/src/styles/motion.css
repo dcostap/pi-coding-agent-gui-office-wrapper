@@ -119,8 +119,11 @@
 }
 
 .motion-terminal-drawer-offset {
-  transition: padding-right 180ms var(--motion-ease-standard), right 180ms
-    var(--motion-ease-standard);
+  transition:
+    padding-right 180ms var(--motion-ease-standard),
+    right 180ms var(--motion-ease-standard),
+    border-radius 200ms var(--motion-ease-standard),
+    border-color 160ms ease-out;
 }
 
 body[data-app-resizing="true"] .motion-terminal-drawer-offset,
@@ -177,6 +180,7 @@ body[data-app-resizing="true"] .reasoning-submenu {
   .motion-overlay-panel,
   .motion-terminal-drawer-offset,
   .motion-terminal-drawer,
+  .shell-side-dock,
   .motion-desktop-workspace,
   .motion-takeover-panel {
     transition: none;

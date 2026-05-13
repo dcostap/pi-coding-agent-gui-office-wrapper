@@ -19,7 +19,11 @@ type AppShellWorkspaceProps = {
   onSetDiffBaseline: (baseline: ProjectDiffBaseline) => void;
   onSetDiffRenderMode: (renderMode: ProjectDiffRenderMode) => void;
   sidebarCollapsed: boolean;
+  projectFilesOpen: boolean;
+  projectFilesDocked: boolean;
   onToggleSidebar: () => void;
+  onToggleProjectFiles: () => void;
+  onCloseProjectFiles: () => void;
 };
 
 export function AppShellWorkspace({
@@ -36,7 +40,11 @@ export function AppShellWorkspace({
   onSetDiffBaseline,
   onSetDiffRenderMode,
   sidebarCollapsed,
+  projectFilesOpen,
+  projectFilesDocked,
   onToggleSidebar,
+  onToggleProjectFiles,
+  onCloseProjectFiles,
 }: AppShellWorkspaceProps) {
   const { state } = controller;
 
@@ -83,7 +91,11 @@ export function AppShellWorkspace({
       onSetDiffBaseline={onSetDiffBaseline}
       onSetDiffRenderMode={onSetDiffRenderMode}
       sidebarCollapsed={sidebarCollapsed}
+      projectFilesOpen={projectFilesOpen}
+      projectFilesDocked={projectFilesDocked}
       onToggleSidebar={onToggleSidebar}
+      onToggleProjectFiles={onToggleProjectFiles}
+      onCloseProjectFiles={onCloseProjectFiles}
     />
   );
 }

@@ -82,7 +82,7 @@ export function ComposerContextMeter({
       <button
         ref={buttonRef}
         type="button"
-        className="relative inline-flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)]"
+        className="relative inline-flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--muted)] transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
         onClick={() => setPinned((current) => !current)}
         aria-label={label}
         aria-expanded={open}
@@ -93,14 +93,14 @@ export function ComposerContextMeter({
             background: `conic-gradient(${tone} ${meterPercent * 3.6}deg, rgba(255,255,255,0.08) 0deg)`,
           }}
         />
-        <span className="absolute inset-[11px] rounded-full bg-[rgba(24,24,24,0.96)]" />
+        <span className="absolute inset-[11px] rounded-full bg-[color:var(--panel)]" />
       </button>
 
       {popoverDisclosure.present ? (
         <div
           ref={popoverRef}
           data-open={popoverDisclosure.visible ? "true" : "false"}
-          className="motion-popover absolute bottom-full left-0 z-[130] grid w-48 gap-1.5 rounded-lg border border-white/10 bg-[rgba(38,38,38,0.96)] px-3 py-2 text-center text-[12px] text-[color:var(--muted)] shadow-[0_18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl"
+          className="motion-popover absolute bottom-full left-0 z-[130] grid w-48 gap-1.5 rounded-lg border border-[color:var(--border-strong)] bg-[color:var(--panel)] px-3 py-2 text-center text-[12px] text-[color:var(--muted)] shadow-[var(--shadow)]"
           onMouseDown={(event) => event.preventDefault()}
         >
           <div className="font-medium text-[color:var(--muted)]">Ventana de contexto:</div>
@@ -118,7 +118,7 @@ export function ComposerContextMeter({
             </div>
           ) : null}
           {isCompacting ? (
-            <div className="rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 text-[11px] text-[color:var(--text)]">
+            <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--panel-2)] px-2 py-1.5 text-[11px] text-[color:var(--text)]">
               Compactando contexto de la sesión…
             </div>
           ) : null}

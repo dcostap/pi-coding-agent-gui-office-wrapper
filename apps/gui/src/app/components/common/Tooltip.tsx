@@ -54,6 +54,10 @@ export function Tooltip({
 
       const tooltipRect = tooltipRef.current?.getBoundingClientRect();
       const viewportPadding = 12;
+      // Keep tooltips out of the custom/native titlebar strip. On Windows/Electron,
+      // content placed into the draggable/titlebar area can be visually obscured by
+      // the window controls even when portalled with a high z-index.
+      const viewportTopPadding = 44;
       const tooltipWidth = tooltipRect?.width ?? 0;
       const tooltipHeight = tooltipRect?.height ?? 0;
 
@@ -69,7 +73,7 @@ export function Tooltip({
         if (tooltipHeight > 0) {
           top = Math.min(
             window.innerHeight - viewportPadding - tooltipHeight / 2,
-            Math.max(viewportPadding + tooltipHeight / 2, top),
+            Math.max(viewportTopPadding + tooltipHeight / 2, top),
           );
         }
 
@@ -90,7 +94,7 @@ export function Tooltip({
 
       let top = rect.top - 8;
       let y = -100;
-      if (tooltipHeight > 0 && top - tooltipHeight < viewportPadding) {
+      if (tooltipHeight > 0 && top - tooltipHeight < viewportTopPadding) {
         top = rect.bottom + 8;
         y = 0;
       }

@@ -67,6 +67,27 @@
   }
 }
 
+.composer-howcode-surface {
+  --panel: #202020;
+  --panel-2: #1c1c1c;
+  --panel-3: #262626;
+  --border: rgba(91, 112, 122, 0.16);
+  --border-strong: rgba(91, 112, 122, 0.32);
+  --text: #d8d8dc;
+  --muted: #8f929b;
+  --muted-2: #6f7480;
+  --accent: #9aa8b2;
+  --accent-bg-subtle: rgba(113, 136, 148, 0.07);
+  --accent-bg: rgba(113, 136, 148, 0.12);
+  --accent-bg-strong: rgba(113, 136, 148, 0.18);
+  --accent-border: rgba(88, 112, 123, 0.58);
+  --danger: #f2a7a7;
+  --danger-bg: rgba(255, 94, 94, 0.14);
+  --danger-border: rgba(255, 110, 110, 0.3);
+  --surface-hover: rgba(255, 255, 255, 0.045);
+  --shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
+}
+
 .composer-attachment-drop-target {
   isolation: isolate;
   transition:
@@ -77,11 +98,9 @@
 }
 
 .composer-attachment-drop-target--active {
-  border-color: #313239;
-  background-color: #313239;
-  box-shadow:
-    0 18px 54px rgba(0, 0, 0, 0.28),
-    inset 0 0 0 1px rgba(183, 186, 245, 0.04);
+  border-color: var(--accent-border);
+  background-color: var(--panel-2);
+  box-shadow: inset 0 0 0 1px rgba(185, 191, 243, 0.08);
   transform: translateY(-1px);
 }
 
@@ -199,7 +218,7 @@ button[data-tooltip][aria-disabled="true"]::after {
 .tooltip-content {
   pointer-events: none;
   position: fixed;
-  z-index: 120;
+  z-index: 10000;
   width: max-content;
   max-width: 360px;
   border: 1px solid rgba(255, 255, 255, 0.09);
@@ -218,7 +237,7 @@ button[data-tooltip][aria-disabled="true"]::after {
   transition: opacity 150ms ease-out, transform 150ms ease-out;
 }
 
-body[data-app-resizing="true"] * {
+body[data-app-resizing="true"] *:not(.shell-side-dock):not(.shell-side-dock *) {
   transition-duration: 0ms !important;
 }
 
@@ -259,13 +278,17 @@ body[data-app-resizing="true"] * {
 }
 
 .composer-prompt-textarea {
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
 .composer-footer-text {
   font-size: 12px;
   line-height: 1;
+}
+
+.composer-footer-row {
+  container-type: inline-size;
 }
 
 .artifact-markdown-editor .mdxeditor {

@@ -65,7 +65,7 @@ export function ComposerPromptInputPanel({
 }: ComposerPromptInputPanelProps) {
   return (
     <>
-      <div className="grid content-end pr-4 pl-[1.1rem] pt-4 pb-2">
+      <div className="grid content-end pr-4 pl-[1.1rem] pt-4 pb-1">
         <div className="flex items-end justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-end gap-2">
             <div className="min-w-0 flex-1">
@@ -77,7 +77,7 @@ export function ComposerPromptInputPanel({
                   role="listbox"
                   tabIndex={-1}
                   aria-label="Composer slash commands"
-                  className="absolute right-0 bottom-full left-0 z-20 max-h-64 scroll-py-1.5 overflow-auto rounded-xl border border-white/10 bg-[rgba(24,24,24,0.94)] p-1.5 shadow-[0_16px_48px_rgba(0,0,0,0.38)] backdrop-blur-xl"
+                  className="absolute right-0 bottom-full left-0 z-20 max-h-64 scroll-py-1.5 overflow-auto rounded-xl border border-[color:var(--border-strong)] bg-[color:var(--panel)] p-1.5 shadow-[var(--shadow)]"
                 >
                   {slashCommands.commands.length > 0 ? (
                     slashCommands.commands.map((command, index) => {
@@ -104,8 +104,8 @@ export function ComposerPromptInputPanel({
                             className={cn(
                               "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left",
                               selected
-                                ? "bg-white/[0.09] text-[color:var(--text)]"
-                                : "text-[color:var(--muted)] hover:bg-white/[0.055] hover:text-[color:var(--text)]",
+                                ? "bg-[color:var(--accent-bg)] text-[color:var(--text)]"
+                                : "text-[color:var(--muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]",
                             )}
                             onPointerEnter={() => slashCommands.setSelectedIndex(index)}
                             onMouseDown={(event) => event.preventDefault()}
@@ -201,7 +201,7 @@ export function ComposerPromptInputPanel({
 
           <div className="inline-flex h-8 items-center justify-end gap-2">
             {extensionRunning ? (
-              <div className="inline-flex h-6 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.045] px-2.5 text-[12px] text-[color:var(--muted)]">
+              <div className="inline-flex h-6 items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[color:var(--panel-2)] px-2.5 text-[12px] text-[color:var(--muted)]">
                 <Loader2 size={12} className="animate-spin" />
                 <span>Pi extension running</span>
               </div>
@@ -211,8 +211,8 @@ export function ComposerPromptInputPanel({
               className={cn(
                 "group relative inline-flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border shadow-[0_0_0_rgba(255,255,255,0)] transition-[background-color,border-color,color,opacity,transform] duration-200 ease-out active:scale-95 disabled:pointer-events-none",
                 canStop
-                  ? "border-[rgba(229,111,111,0.22)] bg-[rgba(229,111,111,0.14)] text-[#ffb4b4] hover:bg-[rgba(229,111,111,0.2)] hover:text-[#ffd1d1] disabled:opacity-55"
-                  : "border-white/15 bg-white/[0.06] text-[color:var(--text)] hover:border-white/25 hover:bg-white/[0.12] hover:text-white disabled:border-white/10 disabled:bg-white/[0.035] disabled:text-[color:var(--muted-2)] disabled:opacity-55",
+                  ? "border-[color:var(--danger-border)] bg-[color:var(--danger-bg)] text-[color:var(--danger)] hover:bg-[rgba(255,94,94,0.2)] disabled:opacity-55"
+                  : "border-[color:var(--accent-border)] bg-[color:var(--accent-bg)] text-[color:var(--text)] hover:border-[color:var(--accent)] hover:bg-[color:var(--accent-bg-strong)] disabled:border-[color:var(--border)] disabled:bg-[color:var(--panel-2)] disabled:text-[color:var(--muted-2)] disabled:opacity-55",
               )}
               onClick={canStop ? onStop : onSubmit}
               disabled={canStop ? false : !canSubmit || inputLocked}
@@ -223,18 +223,20 @@ export function ComposerPromptInputPanel({
               <ArrowRight
                 size={15}
                 className={cn(
-                  "absolute transition-all duration-300 ease-out",
+                  "absolute top-1/2 left-1/2 transition-all duration-300 ease-out",
                   canStop
-                    ? "translate-x-2 scale-75 opacity-0 rotate-45"
-                    : "translate-x-0 scale-100 opacity-100 rotate-0",
+                    ? "translate-x-1/2 -translate-y-1/2 scale-75 opacity-0 rotate-45"
+                    : "-translate-x-1/2 -translate-y-1/2 scale-100 opacity-100 rotate-0",
                 )}
               />
               <Square
                 size={11}
                 fill="currentColor"
                 className={cn(
-                  "absolute transition-all duration-300 ease-out",
-                  canStop ? "scale-100 opacity-100 rotate-0" : "scale-50 opacity-0 -rotate-45",
+                  "absolute top-1/2 left-1/2 transition-all duration-300 ease-out",
+                  canStop
+                    ? "-translate-x-1/2 -translate-y-1/2 scale-100 opacity-100 rotate-0"
+                    : "-translate-x-1/2 -translate-y-1/2 scale-50 opacity-0 -rotate-45",
                 )}
               />
             </button>
