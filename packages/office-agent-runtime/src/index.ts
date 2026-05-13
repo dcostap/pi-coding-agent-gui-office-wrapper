@@ -5,7 +5,11 @@ import path from "node:path";
 export const OFFICE_AGENT_APP_NAME = "OfficeAgent";
 export const OFFICE_AGENT_PROVIDER_ID = "corp";
 export const OFFICE_AGENT_SPARK_MODEL_ID = "assistant";
+// Keep the gateway-facing model id as gpt-5.5 for compatibility with the current
+// gateway route, but present it to users as GPT-5.4 until the deployed gateway
+// dependency supports gpt-5.5.
 export const OFFICE_AGENT_MODEL_ID = "gpt-5.5";
+export const OFFICE_AGENT_MODEL_LABEL = "gpt-5.4";
 export const OFFICE_AGENT_GATEWAY_URL_ENV_NAME = "OFFICE_AGENT_GATEWAY_URL";
 export const OFFICE_AGENT_GATEWAY_TOKEN_ENV_NAME = "OFFICE_AGENT_GATEWAY_TOKEN";
 export const OFFICE_AGENT_CLIENT_KIND_ENV_NAME = "OFFICE_AGENT_CLIENT_KIND";
@@ -99,10 +103,7 @@ export interface OfficeAgentManagedProjectStatePaths {
 export const OFFICE_AGENT_MANAGED_SETTINGS = {
   defaultProvider: OFFICE_AGENT_PROVIDER_ID,
   defaultModel: OFFICE_AGENT_MODEL_ID,
-  enabledModels: [
-    `${OFFICE_AGENT_PROVIDER_ID}/${OFFICE_AGENT_MODEL_ID}`,
-    `${OFFICE_AGENT_PROVIDER_ID}/${OFFICE_AGENT_SPARK_MODEL_ID}`,
-  ],
+  enabledModels: [`${OFFICE_AGENT_PROVIDER_ID}/${OFFICE_AGENT_MODEL_ID}`],
 } as const;
 
 const OFFICE_AGENT_PROVIDER_EXTENSION_SOURCE = `import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -131,16 +132,7 @@ export default function (pi: ExtensionAPI) {
     models: [
       {
         id: "${OFFICE_AGENT_MODEL_ID}",
-        name: "gpt-5.5",
-        reasoning: true,
-        input: ["text", "image"],
-        contextWindow: 200000,
-        maxTokens: 16384,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      },
-      {
-        id: "${OFFICE_AGENT_SPARK_MODEL_ID}",
-        name: "GPT Codex Spark",
+        name: "${OFFICE_AGENT_MODEL_LABEL}",
         reasoning: true,
         input: ["text", "image"],
         contextWindow: 200000,

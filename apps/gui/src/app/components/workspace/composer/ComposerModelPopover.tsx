@@ -38,7 +38,7 @@ export function ComposerModelPopover({
 }: ComposerModelPopoverProps) {
   const sortedModels = useMemo(
     () =>
-      [...availableModels].sort((left, right) => {
+      availableModels.filter((model) => model.id !== "assistant").sort((left, right) => {
         const leftSelected =
           currentModel?.provider === left.provider && currentModel.id === left.id ? -1 : 0;
         const rightSelected =
