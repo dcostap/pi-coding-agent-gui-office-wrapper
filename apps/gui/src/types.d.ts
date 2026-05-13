@@ -71,6 +71,7 @@ declare global {
       restartAppUpdate?: () => Promise<AppUpdateState>;
       getWindowsSandboxSetupStatus?: () => Promise<WindowsSandboxSetupStatus>;
       prepareWindowsSandboxSetup?: (action?: "setup" | "reset") => Promise<WindowsSandboxSetupHandoff>;
+      runWindowsSandboxSetup?: (action?: "setup" | "reset") => Promise<WindowsSandboxSetupHandoff>;
       clearClipboardImages?: () => Promise<{ clearedCount: number; clearFailedCount: number }>;
       getShellState: () => Promise<ShellState>;
       getProjectGitState?: (projectId: string) => Promise<ProjectGitState | null>;

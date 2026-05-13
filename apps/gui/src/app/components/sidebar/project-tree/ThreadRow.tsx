@@ -1,6 +1,8 @@
 import { Archive, SquareTerminal, Star } from "lucide-react";
+import { useRef, useState } from "react";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
+import { useDismissibleLayer } from "../../../hooks/useDismissibleLayer";
 import { ActivitySpinner } from "../../common/ActivitySpinner";
 import { Tooltip } from "../../common/Tooltip";
 
@@ -29,6 +31,15 @@ export function ThreadRow({
   onOpen,
   onPin,
 }: ThreadRowProps) {
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const archiveActionRef = useRef<HTMLButtonElement>(null);
+
+  useDismissibleLayer({
+    open: confirmArchive,
+    onDismiss: () => setConfirmArchive(false),
+    refs: [archiveActionRef],
+  });
+
   return (
     <div
       className="sidebar-row-surface sidebar-thread-row"
@@ -37,7 +48,10 @@ export function ThreadRow({
       <button
         type="button"
         className="sidebar-row-hitbox"
-        onClick={onOpen}
+        onClick={() => {
+          setConfirmArchive(false);
+          onOpen();
+        }}
         aria-label={title}
         aria-current={isSelected ? "page" : undefined}
       />
@@ -58,6 +72,7 @@ export function ThreadRow({
             className="sidebar-thread-pin"
             onClick={(event) => {
               event.stopPropagation();
+              setConfirmArchive(false);
               onPin();
             }}
             data-pinned={pinned ? "true" : "false"}
@@ -74,7 +89,10 @@ export function ThreadRow({
         <span className="truncate">{title}</span>
       </span>
 
-      <span className="sidebar-thread-meta-slot">
+      <span
+        className="sidebar-thread-meta-slot"
+        data-confirming={confirmArchive ? "true" : "false"}
+      >
         {terminalRunning ? (
           <span className="sidebar-thread-meta-value">
             <SquareTerminal size={12} />
@@ -84,19 +102,39 @@ export function ThreadRow({
             {age}
           </span>
         )}
-        <Tooltip content="Archivar chat" placement="right" className="sidebar-thread-meta-action">
+        {confirmArchive ? (
           <button
+            ref={archiveActionRef}
             type="button"
-            className={cn(compactIconButtonClass, "text-white hover:text-white")}
+            className="sidebar-thread-confirm-action"
             onClick={(event) => {
               event.stopPropagation();
+              setConfirmArchive(false);
               onArchive();
             }}
-            aria-label="Archivar chat"
+            aria-label="Confirmar archivar chat"
           >
-            <Archive size={12} />
+            <span className="sidebar-thread-confirm-action__icon" aria-hidden="true">
+              !
+            </span>
+            <span className="truncate">Confirmar</span>
           </button>
-        </Tooltip>
+        ) : (
+          <Tooltip content="Archivar chat" placement="right" className="sidebar-thread-meta-action">
+            <button
+              ref={archiveActionRef}
+              type="button"
+              className={cn(compactIconButtonClass, "text-white hover:text-white")}
+              onClick={(event) => {
+                event.stopPropagation();
+                setConfirmArchive(true);
+              }}
+              aria-label="Archivar chat"
+            >
+              <Archive size={12} />
+            </button>
+          </Tooltip>
+        )}
       </span>
     </div>
   );

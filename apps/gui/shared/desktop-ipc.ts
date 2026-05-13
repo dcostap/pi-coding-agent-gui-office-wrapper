@@ -94,6 +94,10 @@ export type DesktopRequestMap = {
     params: { action?: "setup" | "reset" };
     response: WindowsSandboxSetupHandoff;
   };
+  runWindowsSandboxSetup: {
+    params: { action?: "setup" | "reset" };
+    response: WindowsSandboxSetupHandoff;
+  };
   checkAppUpdate: { params: Record<string, never>; response: AppUpdateState };
   installAppUpdate: { params: Record<string, never>; response: AppUpdateState };
   restartAppUpdate: { params: Record<string, never>; response: AppUpdateState };

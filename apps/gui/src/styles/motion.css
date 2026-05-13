@@ -42,6 +42,41 @@
   transform: translateY(0) scale(1);
 }
 
+.composer-context-popover {
+  transform: translateY(6px);
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+  will-change: opacity;
+}
+
+.composer-context-popover[data-open="true"] {
+  transform: none;
+}
+
+.global-toast-slot {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 260ms var(--motion-ease-standard);
+}
+
+.global-toast-slot[data-open="true"] {
+  max-height: calc(var(--toast-height, 4rem) + 1px);
+}
+
+.global-toast {
+  opacity: 0;
+  transform: translateY(-14px) scale(0.985);
+  transition:
+    opacity 180ms ease-out,
+    transform 260ms var(--motion-ease-standard);
+}
+
+.global-toast[data-open="true"] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
 .group\/reasoning::after {
   content: "";
   position: absolute;
@@ -175,7 +210,7 @@ body[data-app-resizing="true"] .reasoning-submenu {
 
 @media (prefers-reduced-motion: reduce) {
   .motion-collapse-panel,
-  .motion-popover,
+  .motion-popover:not(.composer-context-popover),
   .reasoning-submenu,
   .motion-overlay-panel,
   .motion-terminal-drawer-offset,

@@ -47,6 +47,12 @@ function MarkdownLink(props: AnchorHTMLAttributes<HTMLAnchorElement>) {
           return;
         }
 
+        if (href === "office-agent://windows-sandbox/setup") {
+          event.preventDefault();
+          void window.piDesktop?.runWindowsSandboxSetup?.("setup");
+          return;
+        }
+
         if (href.startsWith("http://") || href.startsWith("https://")) {
           event.preventDefault();
           void window.piDesktop?.openExternal?.(href);

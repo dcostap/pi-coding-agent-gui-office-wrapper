@@ -48,7 +48,7 @@ export function useAppShellController() {
   const [chatSidebarState, setChatSidebarState] =
     useState<Awaited<ReturnType<typeof getChatSidebarStateQuery>>>(null);
   const [localDraftProjects, setLocalDraftProjects] = useState<Project[]>([]);
-  const { toast, showToast } = useToast();
+  const { toast, toasts, showToast, dismissToast } = useToast();
   const {
     shellState,
     loadArchivedThreads,
@@ -483,6 +483,8 @@ export function useAppShellController() {
     terminalRunningProjectIds,
     terminalRunningSessionPaths,
     toast,
+    toasts,
+    dismissToast,
     chatSidebarState,
     selectedChatGroupId,
     handleCreateChatGroup,

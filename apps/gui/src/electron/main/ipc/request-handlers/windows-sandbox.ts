@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import {
   checkOfficeAgentWindowsSandboxSetup,
   prepareOfficeAgentWindowsSandboxReset,
@@ -12,7 +13,7 @@ import type {
 
 type WindowsSandboxHandlers = Pick<
   DesktopRequestHandlerMap,
-  "getWindowsSandboxSetupStatus" | "prepareWindowsSandboxSetup"
+  "getWindowsSandboxSetupStatus" | "prepareWindowsSandboxSetup" | "runWindowsSandboxSetup"
 >;
 
 function resultString(result: Readonly<Record<string, unknown>> | undefined, key: string): string | undefined {
@@ -28,6 +29,11 @@ function resultBoolean(result: Readonly<Record<string, unknown>> | undefined, ke
 function resultIssues(result: Readonly<Record<string, unknown>> | undefined): readonly string[] {
   const value = result?.issues;
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function resultStringArray(result: Readonly<Record<string, unknown>> | undefined, key: string): readonly string[] | undefined {
+  const value = result?.[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : undefined;
 }
 
 function mapStatusResponse(response: Awaited<ReturnType<typeof checkOfficeAgentWindowsSandboxSetup>>): WindowsSandboxSetupStatus {
@@ -77,11 +83,38 @@ function mapHandoffResponse(
     requiresElevation: resultBoolean(result, "requiresElevation"),
     setupCommand: resultString(result, "setupCommand"),
     setupExePath: resultString(result, "setupExePath"),
+    setupArgs: resultStringArray(result, "setupArgs"),
     payloadPath: resultString(result, "payloadPath"),
     username: resultString(result, "username"),
     groupName: resultString(result, "groupName"),
     intendedRealUserSid: resultString(result, "intendedRealUserSid"),
   };
+}
+
+function quotePowerShellSingleQuotedString(value: string) {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function launchElevatedSandboxSetup(handoff: WindowsSandboxSetupHandoff): WindowsSandboxSetupHandoff {
+  if (!handoff.ok) return handoff;
+  if (!handoff.setupExePath || !handoff.setupArgs?.length) {
+    return {
+      ...handoff,
+      ok: false,
+      error: "Windows sandbox setup command was not prepared correctly.",
+    };
+  }
+
+  const quotedExe = quotePowerShellSingleQuotedString(handoff.setupExePath);
+  const quotedArgs = handoff.setupArgs.map((arg) => quotePowerShellSingleQuotedString(arg)).join(", ");
+  const script = `Start-Process -FilePath ${quotedExe} -ArgumentList @(${quotedArgs}) -Verb RunAs`;
+  const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  });
+  child.unref();
+  return handoff;
 }
 
 export function createWindowsSandboxHandlers(): WindowsSandboxHandlers {
@@ -112,6 +145,21 @@ export function createWindowsSandboxHandlers(): WindowsSandboxHandlers {
         ? await prepareOfficeAgentWindowsSandboxReset(managedRootDir)
         : await prepareOfficeAgentWindowsSandboxSetup({ managedRoot: managedRootDir });
       return mapHandoffResponse(requestedAction, response);
+    },
+    runWindowsSandboxSetup: async ({ action }) => {
+      const requestedAction = action === "reset" ? "reset" : "setup";
+      if (process.platform !== "win32") {
+        return {
+          ok: false,
+          action: requestedAction,
+          error: "Windows sandbox setup is only available on Windows.",
+        };
+      }
+      const managedRootDir = getOfficeAgentManagedRootDir();
+      const response = requestedAction === "reset"
+        ? await prepareOfficeAgentWindowsSandboxReset(managedRootDir)
+        : await prepareOfficeAgentWindowsSandboxSetup({ managedRoot: managedRootDir });
+      return launchElevatedSandboxSetup(mapHandoffResponse(requestedAction, response));
     },
   };
 }

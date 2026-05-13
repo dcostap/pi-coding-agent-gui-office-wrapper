@@ -25,6 +25,7 @@ export interface WindowsSandboxSetupHandoff {
   readonly requiresElevation?: boolean;
   readonly setupCommand?: string;
   readonly setupExePath?: string;
+  readonly setupArgs?: readonly string[];
   readonly payloadPath?: string;
   readonly username?: string;
   readonly groupName?: string;

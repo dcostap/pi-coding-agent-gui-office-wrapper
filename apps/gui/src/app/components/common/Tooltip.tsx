@@ -30,6 +30,8 @@ export function Tooltip({
   const tooltipId = useId();
   const anchorRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
+  const revealFrameRef = useRef<number | null>(null);
+  const secondRevealFrameRef = useRef<number | null>(null);
   const [position, setPosition] = useState<{ left: number; top: number; x: number; y: number }>({
     left: 0,
     top: 0,
@@ -46,7 +48,32 @@ export function Tooltip({
 
     let animationFrame: number | null = null;
 
-    const updatePosition = () => {
+    const clearRevealFrames = () => {
+      if (revealFrameRef.current !== null) {
+        window.cancelAnimationFrame(revealFrameRef.current);
+        revealFrameRef.current = null;
+      }
+      if (secondRevealFrameRef.current !== null) {
+        window.cancelAnimationFrame(secondRevealFrameRef.current);
+        secondRevealFrameRef.current = null;
+      }
+    };
+
+    const revealAfterPositionPaint = () => {
+      clearRevealFrames();
+      // Let the measured left/top/translate values paint while hidden before enabling the
+      // opacity/transform transition. Otherwise a near-edge tooltip can visibly animate from
+      // the default translate to its clamped/flipped translate on first appearance.
+      revealFrameRef.current = window.requestAnimationFrame(() => {
+        revealFrameRef.current = null;
+        secondRevealFrameRef.current = window.requestAnimationFrame(() => {
+          secondRevealFrameRef.current = null;
+          setPositionReady(true);
+        });
+      });
+    };
+
+    const updatePosition = (reveal = false) => {
       const rect = anchorRef.current?.getBoundingClientRect();
       if (!rect) {
         return;
@@ -78,7 +105,7 @@ export function Tooltip({
         }
 
         setPosition({ left, top, x, y: -50 });
-        setPositionReady(true);
+        if (reveal) revealAfterPositionPaint();
         return;
       }
 
@@ -100,7 +127,7 @@ export function Tooltip({
       }
 
       setPosition({ left, top, x: -50, y });
-      setPositionReady(true);
+      if (reveal) revealAfterPositionPaint();
     };
 
     const scheduleUpdate = () => {
@@ -113,7 +140,8 @@ export function Tooltip({
       });
     };
 
-    updatePosition();
+    setPositionReady(false);
+    updatePosition(true);
     scheduleUpdate();
     window.addEventListener("scroll", scheduleUpdate, true);
     window.addEventListener("resize", scheduleUpdate);
@@ -122,6 +150,7 @@ export function Tooltip({
       if (animationFrame !== null) {
         window.cancelAnimationFrame(animationFrame);
       }
+      clearRevealFrames();
       window.removeEventListener("scroll", scheduleUpdate, true);
       window.removeEventListener("resize", scheduleUpdate);
     };

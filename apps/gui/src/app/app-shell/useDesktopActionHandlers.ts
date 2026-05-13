@@ -44,7 +44,7 @@ type UseDesktopActionHandlersArgs = {
   setComposerState: Dispatch<SetStateAction<ComposerState | null>>;
   setLiveThreadData: Dispatch<SetStateAction<ThreadData | null>>;
   setProjectGitState: Dispatch<SetStateAction<ProjectGitState | null>>;
-  showToast: (message: string) => void;
+  showToast: (message: string | { message: string; tone?: "info" | "success" | "warning" | "error" }) => void;
   workspaceState: WorkspaceState;
 };
 
@@ -64,8 +64,6 @@ function getActionErrorMessage(actionResult: DesktopActionResult | null) {
 
 function shouldShowGlobalActionError(action: DesktopAction) {
   return !(
-    action === "composer.send" ||
-    action === "composer.stop" ||
     action === "workspace.commit" ||
     action === "workspace.commit-options" ||
     action === "workspace.diff-preferences"
@@ -130,7 +128,7 @@ export function useDesktopActionHandlers({
 
       const actionErrorMessage = getActionErrorMessage(actionResult);
       if (actionErrorMessage && shouldShowGlobalActionError(action)) {
-        showToast(actionErrorMessage);
+        showToast({ message: actionErrorMessage, tone: "error" });
       }
 
       return actionResult;

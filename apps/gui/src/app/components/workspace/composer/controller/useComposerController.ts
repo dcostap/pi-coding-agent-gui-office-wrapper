@@ -9,6 +9,7 @@ import type {
 } from "../../../../desktop/types";
 import type { View } from "../../../../types";
 import { useDismissibleLayer } from "../../../../hooks/useDismissibleLayer";
+import { showGlobalToast } from "../../../../hooks/useToast";
 import { useComposerClipboardHandlers } from "../useComposerClipboardHandlers";
 import { useComposerDictation } from "../useComposerDictation";
 import { useComposerSubmission } from "../useComposerSubmission";
@@ -198,7 +199,7 @@ export function useComposerController({
         setOpenMenu(null);
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, "Could not update the composer."));
+      showGlobalToast({ message: getErrorMessage(error, "Could not update the composer."), tone: "error" });
     }
   };
 

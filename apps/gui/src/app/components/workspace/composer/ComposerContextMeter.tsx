@@ -60,7 +60,7 @@ export function ComposerContextMeter({
   const meterPercent = percent === null ? 0 : Math.max(0, Math.min(100, percent));
   const tone = getMeterTone(percent);
   const open = hovered || pinned;
-  const popoverDisclosure = useAnimatedDisclosure(open);
+  const popoverDisclosure = useAnimatedDisclosure(open, 180);
   const label = isCompacting
     ? "Compacting context"
     : percent === null || percent === undefined
@@ -100,7 +100,7 @@ export function ComposerContextMeter({
         <div
           ref={popoverRef}
           data-open={popoverDisclosure.visible ? "true" : "false"}
-          className="motion-popover absolute bottom-full left-0 z-[130] grid w-48 gap-1.5 rounded-lg border border-[color:var(--border-strong)] bg-[color:var(--panel)] px-3 py-2 text-center text-[12px] text-[color:var(--muted)] shadow-[var(--shadow)]"
+          className="motion-popover composer-context-popover absolute bottom-full left-0 z-[130] grid w-48 gap-1.5 rounded-lg border border-[color:var(--border-strong)] bg-[color:var(--panel)] px-3 py-2 text-center text-[12px] text-[color:var(--muted)] shadow-[var(--shadow)]"
           onMouseDown={(event) => event.preventDefault()}
         >
           <div className="font-medium text-[color:var(--muted)]">Ventana de contexto:</div>

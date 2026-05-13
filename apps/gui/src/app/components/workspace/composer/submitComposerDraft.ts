@@ -11,7 +11,7 @@ type SubmitComposerDraftResult =
   | { status: "skipped" }
   | { status: "sent"; text: string }
   | { status: "stopped"; text: string }
-  | { status: "error"; errorMessage: string; text: string };
+  | { status: "error"; errorMessage: string; text: string; globallyReported?: boolean };
 
 type SubmitComposerDraftOptions = {
   draft: string;
@@ -56,6 +56,7 @@ export async function submitComposerDraft({
         status: "error",
         errorMessage: actionErrorMessage,
         text,
+        globallyReported: true,
       };
     }
 

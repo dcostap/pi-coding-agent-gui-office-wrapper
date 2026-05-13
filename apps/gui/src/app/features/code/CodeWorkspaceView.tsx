@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { FolderGit2 } from "lucide-react";
+import { FolderGit2, PanelRightOpen } from "lucide-react";
 import type { AppShellController } from "../../app-shell/useAppShellController";
 import { defaultPiSettings } from "../../../../shared/default-pi-settings";
 import { parseComposerAttachmentBlock } from "../../../../shared/composer-attachment-prompt";
@@ -8,12 +8,13 @@ import { Composer } from "../../components/workspace/Composer";
 import { DiffPanel } from "../../components/workspace/DiffPanel";
 import { GitOpsComposerPanel } from "../../components/workspace/GitOpsComposerPanel";
 import { QueuedPromptsCard } from "../../components/workspace/composer/QueuedPromptsCard";
+import { Tooltip } from "../../components/common/Tooltip";
 import { ProjectFileBrowserPanel } from "../../components/workspace/project-files/ProjectFileBrowserPanel";
 import type { ProjectDiffBaseline, ProjectDiffRenderMode } from "../../desktop/types";
 import type { Message } from "../../types";
 import { useAnimatedPresence } from "../../hooks/useAnimatedPresence";
 import { useDesktopDiff } from "../../hooks/useDesktopDiff";
-import { mainPanelClass } from "../../ui/classes";
+import { compactIconButtonClass, mainPanelClass } from "../../ui/classes";
 import { cn } from "../../utils/cn";
 import { CodeWorkspaceMainView } from "./CodeWorkspaceMainView";
 import { useDiffCommentController } from "./useDiffCommentController";
@@ -42,6 +43,9 @@ type CodeWorkspaceViewProps = {
 };
 
 const TERMINAL_DRAWER_OFFSET = "min(28rem, calc(100% - 2.5rem))";
+const projectFilesExpandButtonClass =
+  "pointer-events-auto h-6 w-6 shrink-0 rounded-full bg-[rgba(146,153,184,0.22)] hover:bg-[rgba(146,153,184,0.32)]";
+
 function getReplyActivityKey(messages: readonly Message[]) {
   return messages
     .filter((message) => message.role !== "user")
@@ -183,6 +187,9 @@ export function CodeWorkspaceView({
   const terminalRightInsetStyle = showDesktopTerminalDrawer
     ? ({ right: TERMINAL_DRAWER_OFFSET } as CSSProperties)
     : undefined;
+  const projectFilesExpandButtonStyle = {
+    right: showDesktopTerminalDrawer ? `calc(${TERMINAL_DRAWER_OFFSET} + 0.5rem)` : "0.5rem",
+  } as CSSProperties;
   const threadFooterStyle = showPromptComposer
     ? {
         ...terminalRightInsetStyle,
@@ -196,6 +203,8 @@ export function CodeWorkspaceView({
   const projectFilesPanelTitle = isUnassignedChatProjectId(composerProjectId)
     ? "Archivos del chat"
     : "Archivos del proyecto";
+  const showProjectFilesExpandButton =
+    !projectFilesOpen && (state.activeView === "code" || state.activeView === "thread");
   const attachedFilePaths = useMemo(
     () =>
       new Set(
@@ -285,8 +294,6 @@ export function CodeWorkspaceView({
                 workspaceContentClass={workspaceContentClass}
                 threadData={visibleThreadData}
                 composerLayoutVersion={composerLayoutVersion}
-                projectFilesOpen={projectFilesOpen}
-                onToggleProjectFiles={onToggleProjectFiles}
                 onAction={handleAction}
                 onDismissInboxThread={controller.handleDismissInboxThread}
                 onListAttachmentEntries={listComposerAttachmentEntries}
@@ -302,6 +309,28 @@ export function CodeWorkspaceView({
           </main>
         </div>
       </div>
+
+      {showProjectFilesExpandButton ? (
+        <div
+          className="pointer-events-none absolute top-4 z-20 flex w-7 items-center justify-center"
+          style={projectFilesExpandButtonStyle}
+        >
+          <Tooltip
+            content="Abrir archivos del proyecto"
+            placement="top"
+            className="pointer-events-auto"
+          >
+            <button
+              type="button"
+              className={cn(compactIconButtonClass, projectFilesExpandButtonClass)}
+              onClick={onToggleProjectFiles}
+              aria-label="Abrir archivos del proyecto"
+            >
+              <PanelRightOpen size={13} strokeWidth={2} />
+            </button>
+          </Tooltip>
+        </div>
+      ) : null}
 
       {!projectFilesDocked && projectFilesOverlayPresent ? (
         <div

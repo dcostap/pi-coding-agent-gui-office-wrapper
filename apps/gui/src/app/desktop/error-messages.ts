@@ -9,7 +9,7 @@ function translateKnownErrorMessage(message: string) {
   if (message.includes("OfficeAgent Windows sandbox v2 setup is required before commands can run.")) {
     const issueMatches = [...message.matchAll(/setup marker is missing: ([^\n;]+)/g)];
     const issueText = issueMatches.length > 0 ? " Falta la marca de configuración del sandbox." : "";
-    return `El sandbox de Windows necesita configurarse antes de ejecutar comandos.${issueText} Ve a Ajustes → Windows sandbox v2, prepara la configuración elevada y ejecútala como administrador.`;
+    return `El sandbox de Windows necesita configurarse antes de ejecutar comandos.${issueText} [Configurar sandbox](office-agent://windows-sandbox/setup).`;
   }
 
   return message;

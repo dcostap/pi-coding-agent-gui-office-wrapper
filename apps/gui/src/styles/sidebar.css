@@ -854,12 +854,17 @@ body[data-app-resizing="true"] .shell-side-dock {
   height: 1.5rem;
   width: 1.75rem;
   flex-shrink: 0;
+  justify-self: end;
   align-items: center;
   justify-content: flex-end;
   color: var(--muted-2);
   overflow: visible;
   opacity: 1;
-  transition: opacity 150ms ease-out;
+  transition: opacity 150ms ease-out, width 150ms ease-out;
+}
+
+.sidebar-thread-meta-slot[data-confirming="true"] {
+  width: 5.5rem;
 }
 
 .sidebar-thread-meta-value {
@@ -893,6 +898,33 @@ body[data-app-resizing="true"] .shell-side-dock {
 
 .sidebar-thread-row:hover .sidebar-thread-meta-action {
   opacity: 1;
+}
+
+.sidebar-thread-confirm-action {
+  position: absolute;
+  z-index: 2;
+  inset-block: 0;
+  right: 0;
+  display: inline-flex;
+  height: 1.5rem;
+  max-width: 5.5rem;
+  align-items: center;
+  gap: 0.25rem;
+  justify-content: flex-end;
+  border-radius: 0.375rem;
+  padding-inline: 0.375rem;
+  color: #ffd1d1;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background-color 150ms ease-out;
+}
+
+.sidebar-thread-confirm-action:hover {
+  background: rgba(255, 120, 120, 0.14);
+}
+
+.sidebar-thread-confirm-action__icon {
+  color: #f2a7a7;
 }
 
 .sidebar-inbox-row {

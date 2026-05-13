@@ -103,6 +103,12 @@ export async function prepareWindowsSandboxSetupQuery(
   return (await window.piDesktop?.prepareWindowsSandboxSetup?.(action)) ?? null;
 }
 
+export async function runWindowsSandboxSetupQuery(
+  action: "setup" | "reset" = "setup",
+): Promise<WindowsSandboxSetupHandoff | null> {
+  return (await window.piDesktop?.runWindowsSandboxSetup?.(action)) ?? null;
+}
+
 export async function getProjectThreadsQuery(projectId: string, chat = false): Promise<Thread[]> {
   return (await window.piDesktop?.getProjectThreads?.(projectId, { chat })) ?? [];
 }

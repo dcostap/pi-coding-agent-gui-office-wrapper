@@ -7,6 +7,7 @@ import {
 } from "react";
 import { getDesktopActionErrorMessage } from "../../../desktop/action-results";
 import { getErrorMessage } from "../../../desktop/error-messages";
+import { showGlobalToast } from "../../../hooks/useToast";
 import type {
   ComposerAttachment,
   ComposerStreamingBehavior,
@@ -129,14 +130,16 @@ export function useComposerSubmission({
         if (activeComposerScopeKeyRef.current === submittedScopeKey) {
           if (result.status === "error") {
             setDraftValue(result.text);
-            setErrorMessage(result.errorMessage);
+            if (!result.globallyReported) {
+              showGlobalToast({ message: result.errorMessage, tone: "error" });
+            }
           } else if (result.status === "stopped") {
             setDraftValue(result.text);
           }
         }
       } catch (error) {
         if (activeComposerScopeKeyRef.current === submittedScopeKey) {
-          setErrorMessage(getErrorMessage(error, "Could not send prompt."));
+          showGlobalToast({ message: getErrorMessage(error, "Could not send prompt."), tone: "error" });
         }
       } finally {
         if (extensionCommandRunIdRef.current === runId) {
@@ -262,7 +265,9 @@ export function useComposerSubmission({
             setDraftValue(result.text);
             setAttachments(submittedAttachments);
           }
-          setErrorMessage(result.errorMessage);
+          if (!result.globallyReported) {
+            showGlobalToast({ message: result.errorMessage, tone: "error" });
+          }
         }
 
         if (
@@ -284,7 +289,7 @@ export function useComposerSubmission({
           setPendingSubmittedDraft(null);
           pendingSubmittedReplyActivityKeyRef.current = null;
         }
-        setErrorMessage(getErrorMessage(error, "Could not send prompt."));
+        showGlobalToast({ message: getErrorMessage(error, "Could not send prompt."), tone: "error" });
       } finally {
         setIsSending(false);
       }
@@ -333,10 +338,10 @@ export function useComposerSubmission({
 
       const actionErrorMessage = getDesktopActionErrorMessage(result, "Could not stop Pi.");
       if (actionErrorMessage) {
-        setErrorMessage(actionErrorMessage);
+        showGlobalToast({ message: actionErrorMessage, tone: "error" });
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, "Could not stop Pi."));
+      showGlobalToast({ message: getErrorMessage(error, "Could not stop Pi."), tone: "error" });
     } finally {
       setIsSending(false);
     }
@@ -374,8 +379,8 @@ export function useComposerSubmission({
           onAction,
         });
 
-        if (result.status === "error") {
-          setErrorMessage(result.errorMessage);
+        if (result.status === "error" && !result.globallyReported) {
+          showGlobalToast({ message: result.errorMessage, tone: "error" });
         }
       } finally {
         setIsSending(false);

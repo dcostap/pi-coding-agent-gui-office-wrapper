@@ -49,6 +49,8 @@ export function createDesktopApi() {
     getWindowsSandboxSetupStatus: () => invokeRequest("getWindowsSandboxSetupStatus", {}),
     prepareWindowsSandboxSetup: (action: "setup" | "reset" = "setup") =>
       invokeRequest("prepareWindowsSandboxSetup", { action }),
+    runWindowsSandboxSetup: (action: "setup" | "reset" = "setup") =>
+      invokeRequest("runWindowsSandboxSetup", { action }),
     checkAppUpdate: () => invokeRequest("checkAppUpdate", {}),
     installAppUpdate: () => invokeRequest("installAppUpdate", {}),
     restartAppUpdate: () => invokeRequest("restartAppUpdate", {}),

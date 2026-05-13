@@ -246,6 +246,10 @@ body[data-app-resizing="true"] *:not(.shell-side-dock):not(.shell-side-dock *) {
   transform: translate(var(--tooltip-x, -50%), var(--tooltip-y, -100%));
 }
 
+.tooltip-content[data-ready="false"] {
+  transition: none;
+}
+
 .tooltip-content[data-placement="top"][data-open="true"][data-ready="true"],
 .tooltip-content[data-placement="right"][data-open="true"][data-ready="true"] {
   opacity: 1;

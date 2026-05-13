@@ -7,8 +7,6 @@ type ThreadViewProps = {
   isStreaming: boolean;
   isCompacting: boolean;
   composerLayoutVersion: number;
-  projectFilesOpen?: boolean;
-  onToggleProjectFiles?: () => void;
   onLoadEarlierMessages: () => void;
 };
 
@@ -18,8 +16,6 @@ export function ThreadView({
   isStreaming,
   isCompacting,
   composerLayoutVersion,
-  projectFilesOpen = false,
-  onToggleProjectFiles,
   onLoadEarlierMessages,
 }: ThreadViewProps) {
   if (messages.length === 0) {
@@ -33,8 +29,6 @@ export function ThreadView({
       isStreaming={isStreaming}
       isCompacting={isCompacting}
       composerLayoutVersion={composerLayoutVersion}
-      projectFilesOpen={projectFilesOpen}
-      onToggleProjectFiles={onToggleProjectFiles}
       onLoadEarlierMessages={() => {
         if (previousMessageCount === 0) {
           return;
