@@ -9,6 +9,7 @@ files:
   - build/desktop/**
   - package.json
 asar: false
+npmRebuild: false
 extraResources:
   - from: desktop/resources
     to: resources
@@ -16,6 +17,11 @@ extraResources:
     to: windows-sandbox-helper
     filter:
       - "*.exe"
+extraFiles:
+  - from: desktop/deployment/windows/setup-sandbox.ps1
+    to: setup-sandbox.ps1
+  - from: desktop/deployment/windows/start-castrosua-ia.bat
+    to: start-castrosua-ia.bat
 mac:
   category: public.app-category.developer-tools
   extendInfo:
@@ -27,6 +33,7 @@ linux:
     - dir
     - AppImage
 win:
+  signAndEditExecutable: false
   target:
     - dir
     - nsis

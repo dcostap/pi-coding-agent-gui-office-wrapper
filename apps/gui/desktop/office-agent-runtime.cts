@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { access, readFile } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import type { CreateAgentSessionOptions } from "@mariozechner/pi-coding-agent";
 import type { PiModule } from "./pi-module.cts";
 import {
@@ -228,6 +228,8 @@ function setSandboxHelperEnvIfPresent(): void {
   }
 
   const fileName = "officeagent-windows-sandbox-helper.exe";
+  const resourcesPathValue = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  const resourcesPath = typeof resourcesPathValue === "string" ? resourcesPathValue : undefined;
   const bundledHelperPath = [
     "apps",
     "gui",
@@ -240,6 +242,8 @@ function setSandboxHelperEnvIfPresent(): void {
   const nativeReleaseHelperPath = ["native", "windows-sandbox-helper", "target", "release", fileName];
   const nativeDebugHelperPath = ["native", "windows-sandbox-helper", "target", "debug", fileName];
   const candidates = [
+    ...(resourcesPath ? [join(resourcesPath, "windows-sandbox-helper", fileName)] : []),
+    resolve(process.cwd(), "resources", "windows-sandbox-helper", fileName),
     resolve(process.cwd(), ...bundledHelperPath),
     resolve(process.cwd(), "..", "..", ...bundledHelperPath),
     resolve(process.cwd(), ...nativeReleaseHelperPath),

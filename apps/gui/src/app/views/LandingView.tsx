@@ -25,7 +25,7 @@ export function LandingView({ className }: LandingViewProps) {
     >
       <div className="grid w-full max-w-[560px] justify-items-center gap-1 text-center">
         <img
-          src="/office-agent-logo-white.png"
+          src="./office-agent-logo-white.png"
           alt="Castrosua"
           className="h-auto w-[min(390px,58vw)] select-none"
           draggable={false}
