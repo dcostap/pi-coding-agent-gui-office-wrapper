@@ -5,6 +5,7 @@ import type {
 } from "../../shared/desktop-contracts.ts";
 import { isCompactSlashCommand } from "../../shared/composer-slash-commands.ts";
 import {
+  getComposerAllowSlashCommand,
   getComposerAttachments,
   getComposerModelSelection,
   getComposerQueueId,
@@ -50,9 +51,14 @@ export async function handleComposerDesktopAction(
 
     case "composer.send": {
       const text = getComposerText(payload);
+      const allowSlashCommand = getComposerAllowSlashCommand(payload);
       let attachments: ComposerAttachment[] = [];
 
-      if (!isCompactSlashCommand(text)) {
+      if (text.startsWith("/") && !allowSlashCommand) {
+        return handledAction({ error: "Slash commands are disabled." });
+      }
+
+      if (!(allowSlashCommand && isCompactSlashCommand(text))) {
         const composerRequest = getComposerRequest(payload);
         const rawAttachments = getComposerAttachments(payload);
         const normalizedAttachmentPayload = await normalizeComposerSendAttachments(rawAttachments, {
@@ -76,6 +82,7 @@ export async function handleComposerDesktopAction(
         text,
         attachments,
         streamingBehavior: getComposerStreamingBehavior(payload),
+        allowSlashCommand,
       });
       return handledAction({ composerSendOutcome });
     }

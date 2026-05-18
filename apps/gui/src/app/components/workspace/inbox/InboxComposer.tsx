@@ -355,6 +355,7 @@ export function InboxComposer({
         text: "/compact",
         attachments: [],
         streamingBehavior: appSettings.composerStreamingBehavior,
+        allowSlashCommand: true,
         composerMode: thread.isChat ? "chat" : "code",
       });
 

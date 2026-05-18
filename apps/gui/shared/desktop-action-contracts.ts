@@ -18,6 +18,7 @@ import type {
 type EmptyActionPayload = Record<string, never>;
 
 export type DesktopActionPayloadFields = {
+  allowSlashCommand?: boolean;
   attachments?: ComposerAttachment[];
   composerMode?: "chat" | "code" | null;
   chatGroupId?: string | null;
@@ -161,6 +162,7 @@ export type DesktopActionPayloadMap = {
     text: string;
     attachments?: ComposerAttachment[];
     streamingBehavior?: ComposerStreamingBehavior;
+    allowSlashCommand?: boolean;
   };
   "composer.stop": { projectId?: string | null; sessionPath?: string | null };
   "composer.dequeue": {

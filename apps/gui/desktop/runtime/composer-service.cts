@@ -282,10 +282,11 @@ export async function sendComposerPrompt(
     text: string;
     attachments?: ComposerAttachment[];
     streamingBehavior?: ComposerStreamingBehavior | null;
+    allowSlashCommand?: boolean;
   },
 ): Promise<"sent" | "stopped"> {
   const persistedSessionPath = getPersistedSessionPath(request.sessionPath);
-  const compactInstructions = parseCompactSlashCommand(request.text);
+  const compactInstructions = request.allowSlashCommand ? parseCompactSlashCommand(request.text) : null;
 
   const runSend = async (runtime: Awaited<ReturnType<typeof getOrCreateRuntimeForSessionPath>>) => {
     if (compactInstructions !== null) {
@@ -333,7 +334,7 @@ export async function sendComposerPrompt(
 
       if (runtime.session.isStreaming) {
         if (streamingBehavior === "stop") {
-          if (!isExtensionCommandPrompt(runtime, request.text)) {
+          if (!(request.allowSlashCommand && isExtensionCommandPrompt(runtime, request.text))) {
             await runtime.session.abort();
             await emitComposerUpdate({ ...request, sessionPath: persistedSessionPath });
             return "stopped";

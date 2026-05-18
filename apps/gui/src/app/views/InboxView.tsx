@@ -4,7 +4,6 @@ import { getErrorMessage } from "../desktop/error-messages";
 import { EmptyStateCard } from "../components/common/EmptyStateCard";
 import { MarkdownContent } from "../components/common/MarkdownContent";
 import { InboxComposer } from "../components/workspace/inbox/InboxComposer";
-import { isCompactSlashCommand } from "../../../shared/composer-slash-commands";
 import type {
   AppSettings,
   ComposerAttachment,
@@ -67,7 +66,6 @@ export function InboxView({
     const draftToSend = input?.draft ?? draft;
     const attachmentsToSend = input?.attachments ?? attachments;
     const nextDraft = draftToSend.trim();
-    const isCompactCommand = isCompactSlashCommand(nextDraft);
     if (
       !thread ||
       (nextDraft.length === 0 && attachmentsToSend.length === 0) ||
@@ -87,7 +85,7 @@ export function InboxView({
         projectId: thread.projectId,
         sessionPath: thread.sessionPath,
         text: nextDraft,
-        attachments: isCompactCommand ? [] : attachmentsToSend,
+        attachments: attachmentsToSend,
         streamingBehavior: appSettings.composerStreamingBehavior,
         composerMode: thread.isChat ? "chat" : "code",
       });
@@ -101,11 +99,6 @@ export function InboxView({
     const actionErrorMessage = getDesktopActionErrorMessage(result, "Could not send follow-up.");
     if (actionErrorMessage) {
       setErrorMessage(actionErrorMessage);
-      return;
-    }
-
-    if (result?.result?.composerSendOutcome !== "stopped" && isCompactCommand) {
-      setDraft("");
       return;
     }
 

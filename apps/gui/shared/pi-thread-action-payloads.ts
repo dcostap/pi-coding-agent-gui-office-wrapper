@@ -94,6 +94,10 @@ export function getComposerAttachments(payload: DesktopActionPayloadInput): Comp
     : [];
 }
 
+export function getComposerAllowSlashCommand(payload: DesktopActionPayloadInput) {
+  return payload.allowSlashCommand === true;
+}
+
 export function getComposerStreamingBehavior(
   payload: DesktopActionPayloadInput,
 ): ComposerStreamingBehavior | null {

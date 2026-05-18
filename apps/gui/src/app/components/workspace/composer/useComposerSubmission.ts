@@ -15,7 +15,6 @@ import type {
 } from "../../../desktop/types";
 import { composerDraftStore } from "./composerDraftStore";
 import { withComposerSendLock } from "./composerSendLock";
-import { isCompactSlashCommand } from "../../../../../shared/composer-slash-commands";
 import { submitComposerDraft } from "./submitComposerDraft";
 
 import {
@@ -196,7 +195,7 @@ export function useComposerSubmission({
         }
 
         const submittedDraft = textToSend;
-        const preserveAttachments = isCompactSlashCommand(submittedDraft);
+        const preserveAttachments = false;
 
         setErrorMessage(null);
         setOpenMenu(null);
@@ -376,6 +375,7 @@ export function useComposerSubmission({
           chatGroupId,
           sessionPath,
           streamingBehaviorPreference,
+          allowSlashCommand: true,
           onAction,
         });
 

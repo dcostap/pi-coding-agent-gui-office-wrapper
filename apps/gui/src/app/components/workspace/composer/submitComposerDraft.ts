@@ -21,6 +21,7 @@ type SubmitComposerDraftOptions = {
   chatGroupId?: string | null;
   sessionPath: string | null;
   streamingBehaviorPreference: ComposerStreamingBehavior;
+  allowSlashCommand?: boolean;
   onAction: DesktopActionInvoker;
 };
 
@@ -32,6 +33,7 @@ export async function submitComposerDraft({
   chatGroupId = null,
   sessionPath,
   streamingBehaviorPreference,
+  allowSlashCommand = false,
   onAction,
 }: SubmitComposerDraftOptions): Promise<SubmitComposerDraftResult> {
   const text = draft.trim();
@@ -40,7 +42,15 @@ export async function submitComposerDraft({
   }
 
   try {
-    const sendAttachments = isCompactSlashCommand(text) ? [] : attachments;
+    if (text.startsWith("/") && !allowSlashCommand) {
+      return {
+        status: "error",
+        errorMessage: "Slash commands are disabled.",
+        text,
+      };
+    }
+
+    const sendAttachments = allowSlashCommand && isCompactSlashCommand(text) ? [] : attachments;
     const actionResult = await onAction("composer.send", {
       text,
       attachments: sendAttachments,
@@ -48,6 +58,7 @@ export async function submitComposerDraft({
       chatGroupId,
       sessionPath,
       streamingBehavior: streamingBehaviorPreference,
+      allowSlashCommand,
     });
 
     const actionErrorMessage = getDesktopActionErrorMessage(actionResult, "Could not send prompt.");
