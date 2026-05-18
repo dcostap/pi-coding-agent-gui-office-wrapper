@@ -9,6 +9,7 @@ import {
   getOfficeAgentPythonRuntimeDir,
   getOfficeAgentPythonRuntimeRootDir,
   getOfficeAgentPythonRuntimeShimsDir,
+  getOfficeAgentRealUserFolders,
   getOfficeAgentStagedGitBashCandidatePaths,
   getOfficeAgentStagedGitBashDir,
   getOfficeAgentUvRuntimeCurrentManifestPath,
@@ -519,8 +520,8 @@ export function getOfficeAgentSandboxShellPromptContext(shellConfig: OfficeAgent
     `The tool named \`bash\` is currently OfficeAgent Windows shell exec, not necessarily GNU Bash. Actual backend: ${shellDisplay}.`,
     `Commands are launched as: ${invocation}.`,
     syntax,
-    "Commands run as real Windows processes with OfficeAgent write containment. They can modify only the OfficeAgent AgentData/managed project tree. Reads outside the root may succeed or fail according to normal Windows permissions.",
-    "USERPROFILE/HOME/APPDATA/LOCALAPPDATA are sandbox-private per-session locations. For user-facing folders, prefer OFFICE_AGENT_REAL_DESKTOP, OFFICE_AGENT_REAL_DOWNLOADS, OFFICE_AGENT_REAL_DOCUMENTS, OFFICE_AGENT_REAL_PICTURES, and OFFICE_AGENT_REAL_VIDEOS.",
+    "Commands run as real Windows processes with OfficeAgent write containment. They can modify only the OfficeAgent AgentData/managed project tree. Standard user folders (Desktop, Documents, Downloads, Pictures, Videos, Music) are intended to be readable after sandbox setup; other outside reads may fail according to Windows permissions.",
+    "USERPROFILE/HOME/APPDATA/LOCALAPPDATA are sandbox-private per-session locations. For user-facing folders, prefer OFFICE_AGENT_REAL_DESKTOP, OFFICE_AGENT_REAL_DOWNLOADS, OFFICE_AGENT_REAL_DOCUMENTS, OFFICE_AGENT_REAL_PICTURES, OFFICE_AGENT_REAL_VIDEOS, and OFFICE_AGENT_REAL_MUSIC.",
   ].join("\n");
 }
 
@@ -616,6 +617,7 @@ export async function ensureOfficeAgentWindowsSandboxV2Ready(options: {
   readonly projectRoot?: string;
   readonly projectStateDir?: string;
   readonly sessionDir?: string;
+  readonly readRoots?: readonly string[];
   readonly writeRoots?: readonly string[];
 }): Promise<void> {
   if (!isOfficeAgentWindowsSandboxV2Enabled()) {
@@ -625,11 +627,13 @@ export async function ensureOfficeAgentWindowsSandboxV2Ready(options: {
   if (check.ok && check.result?.ready === true) {
     return;
   }
+  const setupReadRoots = options.readRoots ?? getOfficeAgentStandardReadableRoots();
   const setup = await prepareOfficeAgentWindowsSandboxSetup({
     managedRoot: options.managedRootDir,
     ...(options.projectRoot ? { projectRoot: options.projectRoot } : {}),
     ...(options.projectStateDir ? { projectStateDir: options.projectStateDir } : {}),
     ...(options.sessionDir ? { sessionDir: options.sessionDir } : {}),
+    ...(setupReadRoots.length > 0 ? { readRoots: setupReadRoots } : {}),
     ...(options.writeRoots ? { writeRoots: options.writeRoots } : {}),
   });
   const issues = Array.isArray(check.result?.issues) ? check.result.issues.join("; ") : check.error?.message;
@@ -643,6 +647,42 @@ export async function ensureOfficeAgentWindowsSandboxV2Ready(options: {
 
 function isOfficeAgentWindowsSandboxV2Enabled(): boolean {
   return process.env.OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND?.trim().toLowerCase() === "codex-v2";
+}
+
+export function getOfficeAgentStandardReadableRoots(env: NodeJS.ProcessEnv = process.env): string[] {
+  if (process.platform !== "win32") {
+    return [];
+  }
+  const folders = getOfficeAgentRealUserFolders(env);
+  return uniqueExistingDirectories([
+    folders.desktop,
+    folders.documents,
+    folders.downloads,
+    folders.pictures,
+    folders.videos,
+    folders.music,
+  ]);
+}
+
+function uniqueExistingDirectories(paths: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const pathValue of paths) {
+    const resolved = resolve(pathValue);
+    const key = normalize(resolved).toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    try {
+      if (statSync(resolved).isDirectory()) {
+        result.push(resolved);
+      }
+    } catch {
+      // Missing redirected/disabled known folders are simply not granted.
+    }
+  }
+  return result;
 }
 
 export async function resolveWindowsSandboxHelperPath(): Promise<string> {

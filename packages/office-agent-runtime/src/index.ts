@@ -55,6 +55,7 @@ export const OFFICE_AGENT_REAL_DOCUMENTS_ENV_NAME = "OFFICE_AGENT_REAL_DOCUMENTS
 export const OFFICE_AGENT_REAL_DOWNLOADS_ENV_NAME = "OFFICE_AGENT_REAL_DOWNLOADS";
 export const OFFICE_AGENT_REAL_PICTURES_ENV_NAME = "OFFICE_AGENT_REAL_PICTURES";
 export const OFFICE_AGENT_REAL_VIDEOS_ENV_NAME = "OFFICE_AGENT_REAL_VIDEOS";
+export const OFFICE_AGENT_REAL_MUSIC_ENV_NAME = "OFFICE_AGENT_REAL_MUSIC";
 export const OFFICE_AGENT_SANDBOX_PROFILE_ENV_NAME = "OFFICE_AGENT_SANDBOX_PROFILE";
 export const OFFICE_AGENT_MANAGED_ROOT_ENV_NAME = "OFFICE_AGENT_MANAGED_ROOT";
 export const OFFICE_AGENT_ACTIVE_PROJECT_ENV_NAME = "OFFICE_AGENT_ACTIVE_PROJECT";
@@ -477,6 +478,7 @@ export function getOfficeAgentManagedSessionEnv(
     [OFFICE_AGENT_REAL_DOWNLOADS_ENV_NAME]: realUserFolders.downloads,
     [OFFICE_AGENT_REAL_PICTURES_ENV_NAME]: realUserFolders.pictures,
     [OFFICE_AGENT_REAL_VIDEOS_ENV_NAME]: realUserFolders.videos,
+    [OFFICE_AGENT_REAL_MUSIC_ENV_NAME]: realUserFolders.music,
     [OFFICE_AGENT_SANDBOX_PROFILE_ENV_NAME]: paths.profileDir,
     [OFFICE_AGENT_MANAGED_ROOT_ENV_NAME]: managedRootDir,
     ...(options.activeProjectDir ? { [OFFICE_AGENT_ACTIVE_PROJECT_ENV_NAME]: options.activeProjectDir } : {}),
@@ -520,6 +522,7 @@ export interface OfficeAgentRealUserFolders {
   readonly downloads: string;
   readonly pictures: string;
   readonly videos: string;
+  readonly music: string;
 }
 
 export function getOfficeAgentRealUserFolders(env: NodeJS.ProcessEnv = process.env): OfficeAgentRealUserFolders {
@@ -536,6 +539,7 @@ export function getOfficeAgentRealUserFolders(env: NodeJS.ProcessEnv = process.e
     downloads: env[OFFICE_AGENT_REAL_DOWNLOADS_ENV_NAME] ?? path.join(userProfile, "Downloads"),
     pictures: env[OFFICE_AGENT_REAL_PICTURES_ENV_NAME] ?? path.join(userProfile, "Pictures"),
     videos: env[OFFICE_AGENT_REAL_VIDEOS_ENV_NAME] ?? path.join(userProfile, "Videos"),
+    music: env[OFFICE_AGENT_REAL_MUSIC_ENV_NAME] ?? path.join(userProfile, "Music"),
   };
 }
 

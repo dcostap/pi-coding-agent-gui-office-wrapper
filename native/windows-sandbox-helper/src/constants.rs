@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-pub const SETUP_VERSION: u32 = 1;
+pub const SETUP_VERSION: u32 = 2;
 pub const SANDBOX_USERNAME: &str = "OfficeAgentSandbox";
 pub const SANDBOX_USERS_GROUP: &str = "OfficeAgentSandboxUsers";
 pub const SANDBOX_USERS_GROUP_COMMENT: &str = "OfficeAgent sandbox internal group (managed)";

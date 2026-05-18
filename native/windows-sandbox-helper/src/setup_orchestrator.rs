@@ -10,6 +10,11 @@ pub fn prepare_setup_handoff(
 ) -> Result<PrepareSandboxSetupResult, String> {
     let managed_root = v2_paths::canonicalize_existing_or_parent(&request.managed_root)?;
     let identity = current_user_identity()?;
+    let read_roots = if request.action == SetupAction::Setup && request.read_roots.is_empty() {
+        v2_paths::standard_user_read_roots()?
+    } else {
+        request.read_roots
+    };
     let payload = SetupPayload {
         version: constants::SETUP_VERSION,
         real_user_name: identity.name,
@@ -18,7 +23,7 @@ pub fn prepare_setup_handoff(
         project_root: request.project_root,
         project_state_dir: request.project_state_dir,
         session_dir: request.session_dir,
-        read_roots: request.read_roots,
+        read_roots,
         write_roots: request.write_roots,
         helper_version: Some(constants::HELPER_VERSION.to_string()),
     };

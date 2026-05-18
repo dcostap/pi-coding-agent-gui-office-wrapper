@@ -128,6 +128,7 @@ fn run_setup(payload: &SetupPayload) -> SetupResult<()> {
         .map_err(|error| SetupFailure::new(SetupErrorCode::HelperSandboxLockFailed, error))?;
     windows_accounts::ensure_sandbox_group()
         .map_err(|error| SetupFailure::new(SetupErrorCode::HelperUsersGroupCreateFailed, error))?;
+    grant_read_roots(payload)?;
     officeagent_windows_sandbox_helper::windows_services::ensure_secondary_logon_running()
         .map_err(|error| {
             SetupFailure::new(SetupErrorCode::HelperSecondaryLogonServiceFailed, error)
@@ -196,6 +197,18 @@ fn load_existing_password(managed_root: &Path) -> Option<String> {
     let blob = BASE64.decode(users.user.password).ok()?;
     let plaintext = dpapi::unprotect_machine(&blob).ok()?;
     String::from_utf8(plaintext).ok()
+}
+
+#[cfg(windows)]
+fn grant_read_roots(payload: &SetupPayload) -> SetupResult<()> {
+    for root in &payload.read_roots {
+        if !root.exists() {
+            continue;
+        }
+        officeagent_windows_sandbox_helper::windows_acl::grant_sandbox_group_read_execute(root)
+            .map_err(|error| SetupFailure::new(SetupErrorCode::HelperSandboxLockFailed, error))?;
+    }
+    Ok(())
 }
 
 fn create_setup_dirs(managed_root: &Path) -> SetupResult<()> {

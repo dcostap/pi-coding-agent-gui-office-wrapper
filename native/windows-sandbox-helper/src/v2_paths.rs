@@ -88,6 +88,19 @@ pub fn expected_agent_data_root() -> Result<PathBuf, String> {
         .join("AgentData"))
 }
 
+fn user_profile_dir() -> Result<PathBuf, String> {
+    if let Some(value) = std::env::var_os("USERPROFILE") {
+        return Ok(PathBuf::from(value));
+    }
+    match (std::env::var_os("HOMEDRIVE"), std::env::var_os("HOMEPATH")) {
+        (Some(mut drive), Some(path)) => {
+            drive.push(path);
+            Ok(PathBuf::from(drive))
+        }
+        _ => Err("USERPROFILE is required to validate standard read roots".to_string()),
+    }
+}
+
 pub fn validate_setup_payload(payload: &SetupPayload) -> Result<(), String> {
     if !payload.expected_version() {
         return Err(format!(
@@ -136,7 +149,7 @@ pub fn validate_setup_payload(payload: &SetupPayload) -> Result<(), String> {
         validate_inside_root("sessionDir", session_dir, &sessions_root)?;
     }
     for path in &payload.read_roots {
-        validate_inside_managed("readRoot", path, managed_root.canonical())?;
+        validate_read_root(path, managed_root.canonical())?;
     }
     for path in &payload.write_roots {
         validate_writable_root(path, managed_root.canonical())?;
@@ -147,6 +160,42 @@ pub fn validate_setup_payload(payload: &SetupPayload) -> Result<(), String> {
 pub fn validate_writable_root(path: &Path, managed_root: &Path) -> Result<(), String> {
     reject_remote_or_mapped_root(path)?;
     validate_inside_managed("writeRoot", path, managed_root)
+}
+
+pub fn validate_read_root(path: &Path, managed_root: &Path) -> Result<(), String> {
+    if validate_inside_managed("readRoot", path, managed_root).is_ok() {
+        return Ok(());
+    }
+
+    let candidate = canonicalize_existing_or_parent(path)?;
+    let standard_roots = standard_user_read_roots()?;
+    for root in standard_roots {
+        if let Ok(root) = canonicalize_existing_or_parent(&root) {
+            if is_same_or_child(candidate.canonical(), root.canonical()) {
+                return Ok(());
+            }
+        }
+    }
+
+    Err(format!(
+        "readRoot must be inside managedRoot or a standard user folder (Desktop, Documents, Downloads, Pictures, Videos, Music): {}",
+        candidate.canonical().display()
+    ))
+}
+
+pub fn standard_user_read_roots() -> Result<Vec<PathBuf>, String> {
+    let user_profile = user_profile_dir()?;
+    Ok([
+        "Desktop",
+        "Documents",
+        "Downloads",
+        "Pictures",
+        "Videos",
+        "Music",
+    ]
+    .iter()
+    .map(|name| user_profile.join(name))
+    .collect())
 }
 
 pub fn validate_inside_managed(
