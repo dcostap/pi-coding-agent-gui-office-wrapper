@@ -11,6 +11,7 @@ import {
   getComposerSlashCommands,
   generateGitCommitMessage,
   getComposerState,
+  getEnabledModels,
   getPiSessionStorage,
   invalidateRuntimeSettings,
   installPiPackage,
@@ -47,6 +48,11 @@ async function handleRequest<TName extends RuntimeHostRequestName>(
       const payload =
         message.payload as unknown as RuntimeHostRequestMessage<"getComposerState">["payload"];
       return (await getComposerState(payload.request)) as RuntimeHostResponseMap[TName];
+    }
+    case "getEnabledModels": {
+      const payload =
+        message.payload as unknown as RuntimeHostRequestMessage<"getEnabledModels">["payload"];
+      return (await getEnabledModels(payload.request)) as RuntimeHostResponseMap[TName];
     }
     case "getComposerSlashCommands": {
       const payload =

@@ -125,6 +125,7 @@ export function createDesktopApi() {
     getProjectFilePreview: (request: { projectId: string; filePath: string }) =>
       invokeRequest("getProjectFilePreview", request),
     getComposerState: (request = {}) => invokeRequest("getComposerState", request),
+    getEnabledModels: (request = {}) => invokeRequest("getEnabledModels", request),
     getComposerSlashCommands: (request = {}) => invokeRequest("getComposerSlashCommands", request),
     getDictationState: () => invokeRequest("getDictationState", {}),
     listDictationModels: () => invokeRequest("listDictationModels", {}),

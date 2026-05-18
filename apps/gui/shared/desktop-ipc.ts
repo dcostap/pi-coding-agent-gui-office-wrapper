@@ -6,6 +6,7 @@ import type {
   ArtifactVersion,
   ArchivedThread,
   ComposerAttachment,
+  ComposerModelCatalog,
   DesktopClipboardFilePaths,
   DesktopClipboardImage,
   DesktopClipboardSnapshot,
@@ -206,6 +207,7 @@ export type DesktopRequestMap = {
     response: ProjectFilePreviewResult | null;
   };
   getComposerState: { params: ComposerStateRequest; response: ComposerState };
+  getEnabledModels: { params: ComposerStateRequest; response: ComposerModelCatalog };
   getComposerSlashCommands: { params: ComposerStateRequest; response: ComposerSlashCommand[] };
   getDictationState: { params: Record<string, never>; response: DictationState };
   listDictationModels: { params: Record<string, never>; response: DictationModelSummary[] };

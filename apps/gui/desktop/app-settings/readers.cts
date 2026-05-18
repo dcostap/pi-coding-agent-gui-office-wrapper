@@ -1,6 +1,8 @@
 import type { AppSettings } from "../../shared/desktop-contracts.ts";
 import {
   getOfficeAgentDefaultProjectLocation,
+  getOfficeAgentEnabledModel,
+  normalizeOfficeAgentModelSelection,
   officeAgentModelSelection,
 } from "../office-agent-runtime.cts";
 import {
@@ -259,15 +261,26 @@ export function loadAppSettings(): AppSettings {
     )
     .get(showDictationButtonKey) as PreferenceRow | undefined;
 
+  const sanitizeModelSelection = (selection: AppSettings["chatModel"]) => {
+    if (!selection) return null;
+    const normalized = normalizeOfficeAgentModelSelection(selection);
+    const catalogModel = getOfficeAgentEnabledModel(normalized.provider, normalized.id);
+    return catalogModel ? { ...normalized, catalogId: catalogModel.catalogId } : null;
+  };
+  const chatModel = sanitizeModelSelection(parseModelSelection(chatModelRow?.valueJson)) ?? officeAgentModelSelection;
+  const codeModel = sanitizeModelSelection(parseModelSelection(codeModelRow?.valueJson)) ?? officeAgentModelSelection;
+  const gitCommitMessageModel = sanitizeModelSelection(parseModelSelection(modelRow?.valueJson));
+  const skillCreatorModel = sanitizeModelSelection(parseModelSelection(skillCreatorModelRow?.valueJson));
+
   return {
-    chatModel: parseModelSelection(chatModelRow?.valueJson) ?? officeAgentModelSelection,
+    chatModel,
     chatThinkingLevel: parseThinkingLevelPreference(chatThinkingLevelRow?.valueJson),
-    codeModel: parseModelSelection(codeModelRow?.valueJson) ?? officeAgentModelSelection,
+    codeModel,
     codeThinkingLevel: parseThinkingLevelPreference(codeThinkingLevelRow?.valueJson),
-    gitCommitMessageModel: parseModelSelection(modelRow?.valueJson),
+    gitCommitMessageModel,
     gitCommitMessageThinkingLevel:
       parseThinkingLevelPreference(gitCommitThinkingLevelRow?.valueJson) ?? "off",
-    skillCreatorModel: parseModelSelection(skillCreatorModelRow?.valueJson),
+    skillCreatorModel,
     skillCreatorThinkingLevel:
       parseThinkingLevelPreference(skillCreatorThinkingLevelRow?.valueJson) ?? "off",
     composerStreamingBehavior:

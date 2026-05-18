@@ -28,6 +28,7 @@ import { createRuntimeDependencies } from "./runtime-deps.js";
 import { createSettingsManagerWithoutNpmPackages, isGlobalNpmLookupError } from "./npm-package-fallback.js";
 import { skillSlashCommand } from "./runtime-command-utils.js";
 import type { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
+import { OFFICE_AGENT_PROVIDER_ID, OFFICE_AGENT_PROVIDER_LABEL } from "@office-agent/runtime";
 
 interface ModelSettingsSnapshot {
   readonly defaultProvider?: string;
@@ -433,7 +434,10 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
         const hasAuth = this.authStorage.hasAuth(providerId);
         return {
           id: providerId,
-          name: oauthProvider?.name ?? providerId,
+          name:
+            providerId === OFFICE_AGENT_PROVIDER_ID
+              ? OFFICE_AGENT_PROVIDER_LABEL
+              : (oauthProvider?.name ?? providerId),
           hasAuth,
           authType: auth?.type ?? "none",
           authSource: inferProviderAuthSource(

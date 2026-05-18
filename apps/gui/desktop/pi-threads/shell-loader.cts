@@ -1,4 +1,5 @@
 import type {
+  ComposerModelCatalog,
   ComposerState,
   ComposerStateRequest,
   DictationModelInstallResult,
@@ -18,6 +19,7 @@ import {
 } from "../dictation/sherpa-onnx.cts";
 import {
   getComposerState,
+  getEnabledModels,
   getComposerSlashCommands,
   subscribeDesktopEvents as subscribeRuntimeEvents,
 } from "../pi-desktop-runtime.cts";
@@ -38,6 +40,12 @@ export async function loadComposerState(
   request: ComposerStateRequest = {},
 ): Promise<ComposerState> {
   return getComposerState(request);
+}
+
+export async function loadEnabledModels(
+  request: ComposerStateRequest = {},
+): Promise<ComposerModelCatalog> {
+  return getEnabledModels(request);
 }
 
 export async function loadComposerSlashCommands(request: ComposerStateRequest = {}) {

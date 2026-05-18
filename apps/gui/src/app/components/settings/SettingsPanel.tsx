@@ -5,8 +5,8 @@ import { modalPanelClass, panelChromeClass } from "../../ui/classes";
 import { cn } from "../../utils/cn";
 import { TextButton } from "../common/TextButton";
 
-function getModelDescription(model: { provider: string; id: string }) {
-  return model.provider === "corp" ? "Castrosua IA" : `${model.provider}/${model.id}`;
+function getModelDescription(model: { provider: string; id: string; providerLabel?: string }) {
+  return model.providerLabel ?? `${model.provider}/${model.id}`;
 }
 
 type SettingsPanelProps = {

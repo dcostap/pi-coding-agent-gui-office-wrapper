@@ -31,17 +31,11 @@ export function buildModelSettingsDescriptors({
   onAction: DesktopActionInvoker;
 }): SettingDescriptor[] {
   const modelProviders = [...new Set(availableModels.map((model) => model.provider))].sort();
-  const getProviderLabel = (provider: string) => (provider === "corp" ? "Castrosua IA" : provider);
+  const getProviderLabel = (provider: string) =>
+    availableModels.find((model) => model.provider === provider)?.providerLabel ?? provider;
   const getModelDescription = (model: Pick<ComposerModel, "provider" | "id">) =>
-    model.provider === "corp" ? "Castrosua IA" : `${model.provider}/${model.id}`;
-  const allThinkingLevels: ComposerThinkingLevel[] = [
-    "off",
-    "minimal",
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-  ];
+    availableModels.find((candidate) => candidate.provider === model.provider && candidate.id === model.id)
+      ?.providerLabel ?? `${model.provider}/${model.id}`;
   const getSelectedWorkflowModel = (selection: ModelSettingsSelection) =>
     selection
       ? (availableModels.find(
@@ -54,7 +48,7 @@ export function buildModelSettingsDescriptors({
       return availableThinkingLevels;
     }
 
-    return selectedModel?.reasoning ? allThinkingLevels : (["off"] as ComposerThinkingLevel[]);
+    return selectedModel?.availableThinkingLevels ?? (["off"] as ComposerThinkingLevel[]);
   };
   const selectFirstProviderModel = (
     provider: string | null,
@@ -151,7 +145,7 @@ export function buildModelSettingsDescriptors({
       }
       open={openSelectId === id}
       options={[
-        ...(allowDefault ? [{ value: "composer-default", label: "Composer default" }] : []),
+        ...(allowDefault ? [{ value: "composer-default", label: "Model default" }] : []),
         ...levels.map((level) => ({
           value: level,
           label: thinkingLevelLabels[level],

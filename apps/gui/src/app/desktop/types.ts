@@ -17,6 +17,8 @@ export type {
   ComposerFilePickerEntry,
   ComposerFilePickerState,
   ComposerModel,
+  ComposerModelCatalog,
+  ComposerModelWorkflow,
   ComposerQueuedPrompt,
   ComposerSlashCommand,
   ComposerSlashCommandSource,

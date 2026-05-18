@@ -7,6 +7,7 @@ import type {
   ArchivedThread,
   ChatSidebarState,
   ComposerAttachment,
+  ComposerModelCatalog,
   DesktopClipboardFilePaths,
   DesktopClipboardImage,
   DesktopClipboardSnapshot,
@@ -164,6 +165,7 @@ declare global {
         filePath: string;
       }) => Promise<ProjectFilePreviewResult | null>;
       getComposerState?: (request?: ComposerStateRequest) => Promise<ComposerState>;
+      getEnabledModels?: (request?: ComposerStateRequest) => Promise<ComposerModelCatalog>;
       getComposerSlashCommands?: (
         request?: ComposerStateRequest,
       ) => Promise<ComposerSlashCommand[]>;

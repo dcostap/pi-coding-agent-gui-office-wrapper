@@ -9,8 +9,8 @@ export function getActionError(result: DesktopActionResult | null) {
   return typeof result?.result?.error === "string" ? result.result.error : null;
 }
 
-function getModelDescription(model: Pick<ComposerModel, "provider" | "id">) {
-  return model.provider === "corp" ? "Castrosua IA" : `${model.provider}/${model.id}`;
+function getModelDescription(model: Pick<ComposerModel, "provider" | "id"> & { providerLabel?: string }) {
+  return model.providerLabel ?? `${model.provider}/${model.id}`;
 }
 
 export function getModelSettingValue(selection: ModelSelection | null) {

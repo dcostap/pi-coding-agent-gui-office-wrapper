@@ -36,7 +36,7 @@ function formatContextPercent(contextUsage: ComposerContextUsage | null) {
 }
 
 function getModelProviderLabel(model: ComposerModel | null) {
-  return model?.provider === "corp" ? "Castrosua IA" : (model?.provider ?? "No provider");
+  return model?.providerLabel ?? model?.provider ?? "No provider";
 }
 
 export function DesktopComposerStatus({

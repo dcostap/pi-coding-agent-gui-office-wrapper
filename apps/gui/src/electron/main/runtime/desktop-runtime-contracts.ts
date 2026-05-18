@@ -5,6 +5,7 @@ import type {
   ArtifactVersion,
   ArchivedThread,
   ChatSidebarState,
+  ComposerModelCatalog,
   ComposerState,
   ComposerStateRequest,
   ComposerSlashCommand,
@@ -51,6 +52,7 @@ export type PiThreadsModule = {
   loadArchivedThreadList: () => Promise<ArchivedThread[]>;
   loadInboxThreadList: () => Promise<InboxThread[]>;
   loadComposerState: (request: ComposerStateRequest) => Promise<ComposerState>;
+  loadEnabledModels: (request: ComposerStateRequest) => Promise<ComposerModelCatalog>;
   loadComposerSlashCommands: (request: ComposerStateRequest) => Promise<ComposerSlashCommand[]>;
   getDictationState: () => Promise<DictationState>;
   listDictationModels: () => Promise<DictationModelSummary[]>;

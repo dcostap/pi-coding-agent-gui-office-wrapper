@@ -11,17 +11,28 @@ export type ComposerQueuedPrompt = {
 };
 
 export type ComposerModel = {
+  catalogId: string;
   provider: string;
+  providerLabel: string;
   id: string;
   name: string;
   reasoning: boolean;
   input: Array<"text" | "image">;
+  defaultThinkingLevel: ComposerThinkingLevel;
+  availableThinkingLevels: ComposerThinkingLevel[];
 };
 
 export type ComposerContextUsage = {
   tokens: number | null;
   contextWindow: number;
   percent: number | null;
+};
+
+export type ComposerModelWorkflow = "chat" | "code" | "gitCommit" | "skillCreator";
+
+export type ComposerModelCatalog = {
+  models: ComposerModel[];
+  defaults: Partial<Record<ComposerModelWorkflow, string>>;
 };
 
 export type ComposerState = {

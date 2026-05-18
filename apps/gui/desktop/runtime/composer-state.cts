@@ -4,6 +4,7 @@ import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import type {
   ComposerContextUsage,
   ComposerModel,
+  ComposerModelCatalog,
   ComposerQueuedPrompt,
   ComposerState,
   ComposerStateRequest,
@@ -11,7 +12,12 @@ import type {
 } from "../../shared/desktop-contracts.ts";
 import { getDesktopWorkingDirectory } from "../../shared/desktop-working-directory.ts";
 import { getPersistedSessionPath } from "../../shared/session-paths.ts";
-import { officeAgentModelSelection } from "../office-agent-runtime.cts";
+import {
+  OFFICE_AGENT_PROVIDER_LABEL,
+  getDefaultOfficeAgentEnabledModel,
+  getOfficeAgentEnabledModel,
+  officeAgentModelSelection,
+} from "../office-agent-runtime.cts";
 import { getPiModule } from "../pi-module.cts";
 import {
   createIsolatedRuntimeResourceLoader,
@@ -30,30 +36,39 @@ type BuildComposerStateOptions = {
 
 const contextUsageCache = new WeakMap<AgentSession, ComposerContextUsage | null>();
 
-function isOfficeAgentProviderModel(model: Pick<ComposerModel, "provider">) {
-  return model.provider === officeAgentModelSelection.provider;
+function getCatalogModel(model: Pick<ComposerModel, "provider" | "id">) {
+  return getOfficeAgentEnabledModel(model.provider, model.id);
 }
 
 function isDefaultOfficeAgentModel(model: Pick<ComposerModel, "provider" | "id">) {
   return model.provider === officeAgentModelSelection.provider && model.id === officeAgentModelSelection.id;
 }
 
+function getComposerModelCatalogId(model: Pick<ComposerModel, "provider" | "id">) {
+  return getCatalogModel(model)?.catalogId ?? `${model.provider}/${model.id}`;
+}
+
 function getComposerModelDisplayName(model: Pick<ComposerModel, "provider" | "id" | "name">) {
-  if (!isOfficeAgentProviderModel(model)) {
-    return model.name;
-  }
-  return model.id === "assistant" ? "GPT Codex Spark" : model.name;
+  return getCatalogModel(model)?.label ?? model.name;
+}
+
+function getComposerModelProviderLabel(model: Pick<ComposerModel, "provider" | "id">) {
+  return (
+    getCatalogModel(model)?.providerLabel ??
+    (model.provider === officeAgentModelSelection.provider ? OFFICE_AGENT_PROVIDER_LABEL : model.provider)
+  );
 }
 
 function filterComposerModels(models: ComposerSourceModel[]) {
-  const managedModels = models.filter(isOfficeAgentProviderModel);
-  return managedModels.length > 0
-    ? [...managedModels].sort((left, right) => {
-        const leftDefault = isDefaultOfficeAgentModel(left) ? -1 : 0;
-        const rightDefault = isDefaultOfficeAgentModel(right) ? -1 : 0;
-        return leftDefault - rightDefault || left.name.localeCompare(right.name);
-      })
-    : models;
+  const enabledModels = models.filter((model) => getCatalogModel(model));
+  return [...enabledModels].sort((left, right) => {
+    const leftDefault = isDefaultOfficeAgentModel(left) ? -1 : 0;
+    const rightDefault = isDefaultOfficeAgentModel(right) ? -1 : 0;
+    return (
+      leftDefault - rightDefault ||
+      getComposerModelDisplayName(left).localeCompare(getComposerModelDisplayName(right))
+    );
+  });
 }
 
 function mapComposerModel(
@@ -65,11 +80,15 @@ function mapComposerModel(
 
   const name = model.name ?? model.id;
   return {
+    catalogId: getComposerModelCatalogId({ provider: model.provider, id: model.id }),
     provider: model.provider,
+    providerLabel: getComposerModelProviderLabel({ provider: model.provider, id: model.id }),
     id: model.id,
     name: getComposerModelDisplayName({ provider: model.provider, id: model.id, name }),
     reasoning: Boolean(model.reasoning),
     input: (model.input ?? ["text"]) as Array<"text" | "image">,
+    defaultThinkingLevel: getDefaultThinkingLevelForModel(model as ComposerSourceModel),
+    availableThinkingLevels: getAvailableThinkingLevelsForModel(model as ComposerSourceModel),
   };
 }
 
@@ -120,6 +139,15 @@ export function getAvailableThinkingLevelsForModel(
   }
 
   return getSupportedThinkingLevels(model) as ComposerThinkingLevel[];
+}
+
+export function getDefaultThinkingLevelForModel(
+  model: ComposerSourceModel | null,
+): ComposerThinkingLevel {
+  const availableLevels = getAvailableThinkingLevelsForModel(model);
+  const catalogDefault = model ? getCatalogModel(model)?.defaultThinkingLevel : undefined;
+  const fallback = model?.reasoning ? DEFAULT_COMPOSER_THINKING_LEVEL : "off";
+  return clampThinkingLevel((catalogDefault ?? fallback) as ComposerThinkingLevel, availableLevels);
 }
 
 export function clampThinkingLevel(
@@ -195,7 +223,10 @@ async function resolveComposerStateSnapshot(request: ComposerStateRequest = {}) 
     const availableThinkingLevels = modeModelSelection
       ? getAvailableThinkingLevelsForModel(currentModel)
       : mapThinkingLevels(session.getAvailableThinkingLevels());
-    const currentThinkingLevel = getModeThinkingLevel(request) ?? session.thinkingLevel;
+    const requestedThinkingLevel = getModeThinkingLevel(request);
+    const currentThinkingLevel =
+      requestedThinkingLevel ??
+      (modeModelSelection ? getDefaultThinkingLevelForModel(currentModel) : session.thinkingLevel);
 
     return {
       cwd,
@@ -273,24 +304,57 @@ export async function resolveComposerModel(request: ComposerStateRequest = {}) {
   }
 }
 
+function mapComposerSourceModel(model: ComposerSourceModel): ComposerModel {
+  return {
+    catalogId: getComposerModelCatalogId({ provider: model.provider, id: model.id }),
+    provider: model.provider,
+    providerLabel: getComposerModelProviderLabel({ provider: model.provider, id: model.id }),
+    id: model.id,
+    name: getComposerModelDisplayName({
+      provider: model.provider,
+      id: model.id,
+      name: model.name ?? model.id,
+    }),
+    reasoning: Boolean(model.reasoning),
+    input: (model.input ?? ["text"]) as Array<"text" | "image">,
+    defaultThinkingLevel: getDefaultThinkingLevelForModel(model),
+    availableThinkingLevels: getAvailableThinkingLevelsForModel(model),
+  };
+}
+
+function buildCatalogDefaults(models: ComposerModel[]): ComposerModelCatalog["defaults"] {
+  const modelIds = new Set(models.map((model) => model.catalogId));
+  const workflows = ["chat", "code", "gitCommit", "skillCreator"] as const;
+  const defaults: ComposerModelCatalog["defaults"] = {};
+  for (const workflow of workflows) {
+    const defaultModel = getDefaultOfficeAgentEnabledModel(workflow);
+    if (defaultModel && modelIds.has(defaultModel.catalogId)) {
+      defaults[workflow] = defaultModel.catalogId;
+    }
+  }
+  return defaults;
+}
+
+export async function buildComposerModelCatalog(
+  request: ComposerStateRequest = {},
+): Promise<ComposerModelCatalog> {
+  const snapshot = await resolveComposerStateSnapshot(request);
+  const models = snapshot.availableModels.map(mapComposerSourceModel);
+  return {
+    models,
+    defaults: buildCatalogDefaults(models),
+  };
+}
+
 export async function buildComposerStateSnapshot(
   request: ComposerStateRequest = {},
 ): Promise<ComposerState> {
   const snapshot = await resolveComposerStateSnapshot(request);
+  const availableModels = snapshot.availableModels.map(mapComposerSourceModel);
 
   return {
     currentModel: mapComposerModel(snapshot.currentModel),
-    availableModels: snapshot.availableModels.map((model) => ({
-      provider: model.provider,
-      id: model.id,
-      name: getComposerModelDisplayName({
-        provider: model.provider,
-        id: model.id,
-        name: model.name ?? model.id,
-      }),
-      reasoning: Boolean(model.reasoning),
-      input: (model.input ?? ["text"]) as Array<"text" | "image">,
-    })),
+    availableModels,
     currentThinkingLevel: snapshot.currentThinkingLevel,
     availableThinkingLevels: snapshot.availableThinkingLevels,
     queuedPrompts: [],
@@ -307,30 +371,24 @@ export async function buildComposerState(
   const sourceAvailableModels = filterComposerModels(
     (await runtime.session.modelRegistry.getAvailable()) as ComposerSourceModel[],
   );
-  const availableModels = sourceAvailableModels.map((model) => ({
-    provider: model.provider,
-    id: model.id,
-    name: getComposerModelDisplayName({
-      provider: model.provider,
-      id: model.id,
-      name: model.name ?? model.id,
-    }),
-    reasoning: Boolean(model.reasoning),
-    input: (model.input ?? ["text"]) as Array<"text" | "image">,
-  }));
+  const availableModels = sourceAvailableModels.map(mapComposerSourceModel);
+
+  const currentSourceModel = resolveCurrentModel(
+    sourceAvailableModels,
+    runtime.session.model
+      ? { provider: runtime.session.model.provider, id: runtime.session.model.id }
+      : null,
+  );
+  const availableThinkingLevels = getAvailableThinkingLevelsForModel(currentSourceModel);
 
   return {
-    currentModel: mapComposerModel(
-      resolveCurrentModel(
-        sourceAvailableModels,
-        runtime.session.model
-          ? { provider: runtime.session.model.provider, id: runtime.session.model.id }
-          : null,
-      ),
-    ),
+    currentModel: mapComposerModel(currentSourceModel),
     availableModels,
-    currentThinkingLevel: runtime.session.thinkingLevel as ComposerThinkingLevel,
-    availableThinkingLevels: mapThinkingLevels(runtime.session.getAvailableThinkingLevels()),
+    currentThinkingLevel: clampThinkingLevel(
+      runtime.session.thinkingLevel as ComposerThinkingLevel,
+      availableThinkingLevels,
+    ),
+    availableThinkingLevels,
     queuedPrompts: buildSessionQueuedPrompts(runtime.session),
     contextUsage: getContextUsageForComposerState(runtime.session, options),
     isCompacting: runtime.session.isCompacting,

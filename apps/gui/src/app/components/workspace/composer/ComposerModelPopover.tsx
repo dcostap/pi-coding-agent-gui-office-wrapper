@@ -22,7 +22,7 @@ function getModelKey(model: ComposerModel) {
 }
 
 function getModelProviderLabel(model: ComposerModel) {
-  return model.provider === "corp" ? "Castrosua IA" : model.provider;
+  return model.providerLabel ?? model.provider;
 }
 
 export function ComposerModelPopover({
@@ -38,7 +38,7 @@ export function ComposerModelPopover({
 }: ComposerModelPopoverProps) {
   const sortedModels = useMemo(
     () =>
-      availableModels.filter((model) => model.id !== "assistant").sort((left, right) => {
+      [...availableModels].sort((left, right) => {
         const leftSelected =
           currentModel?.provider === left.provider && currentModel.id === left.id ? -1 : 0;
         const rightSelected =

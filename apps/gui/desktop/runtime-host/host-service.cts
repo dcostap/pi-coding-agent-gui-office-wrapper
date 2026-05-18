@@ -2,6 +2,7 @@ export {
   dequeueComposerPrompt,
   getComposerSlashCommands,
   getComposerState,
+  getEnabledModels,
   openThreadRuntime,
   selectProjectRuntime,
   sendComposerPrompt,

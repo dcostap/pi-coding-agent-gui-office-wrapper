@@ -16,7 +16,20 @@ import {
   getOfficeAgentProjectsDir,
   OFFICE_AGENT_MODEL_ID,
   OFFICE_AGENT_PROVIDER_ID,
+  OFFICE_AGENT_PROVIDER_LABEL,
+  getDefaultOfficeAgentEnabledModel,
+  getOfficeAgentEnabledModel,
+  normalizeOfficeAgentModelSelection,
+  resolveOfficeAgentEnabledModelSelection,
 } from "../../../packages/office-agent-runtime/src/index.ts";
+export {
+  OFFICE_AGENT_PROVIDER_ID,
+  OFFICE_AGENT_PROVIDER_LABEL,
+  getDefaultOfficeAgentEnabledModel,
+  getOfficeAgentEnabledModel,
+  normalizeOfficeAgentModelSelection,
+  resolveOfficeAgentEnabledModelSelection,
+};
 import {
   createOfficeAgentSandboxBashOperations,
   ensureOfficeAgentSandboxShellConfig,
@@ -26,7 +39,10 @@ import {
   writeFileWithOfficeAgentSandbox,
 } from "../../../packages/pi-sdk-driver/src/windows-sandbox-helper-client.ts";
 
+const defaultOfficeAgentModel = getDefaultOfficeAgentEnabledModel();
+
 export const officeAgentModelSelection = {
+  ...(defaultOfficeAgentModel ? { catalogId: defaultOfficeAgentModel.catalogId } : {}),
   provider: OFFICE_AGENT_PROVIDER_ID,
   id: OFFICE_AGENT_MODEL_ID,
 } as const;

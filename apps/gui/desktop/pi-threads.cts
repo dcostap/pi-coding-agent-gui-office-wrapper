@@ -32,6 +32,7 @@ export {
   listDictationModels,
   loadComposerState,
   loadComposerSlashCommands,
+  loadEnabledModels,
   listProjectCommits,
   loadProjectDiff,
   loadProjectDiffStats,

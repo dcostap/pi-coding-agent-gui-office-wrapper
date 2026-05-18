@@ -1,15 +1,17 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 export const OFFICE_AGENT_APP_NAME = "OfficeAgent";
-export const OFFICE_AGENT_PROVIDER_ID = "corp";
+export const OFFICE_AGENT_PROVIDER_ID = "CastrosuaIA";
+export const OFFICE_AGENT_PROVIDER_LABEL = "Castrosua IA";
+export const OFFICE_AGENT_LEGACY_PROVIDER_IDS = ["corp"] as const;
 export const OFFICE_AGENT_SPARK_MODEL_ID = "assistant";
 // Keep the gateway-facing model id as gpt-5.5 for compatibility with the current
 // gateway route, but present it to users as GPT-5.4 until the deployed gateway
 // dependency supports gpt-5.5.
 export const OFFICE_AGENT_MODEL_ID = "gpt-5.5";
-export const OFFICE_AGENT_MODEL_LABEL = "gpt-5.4";
+export const OFFICE_AGENT_MODEL_LABEL = "GPT-5.4";
 export const OFFICE_AGENT_GATEWAY_URL_ENV_NAME = "OFFICE_AGENT_GATEWAY_URL";
 export const OFFICE_AGENT_GATEWAY_TOKEN_ENV_NAME = "OFFICE_AGENT_GATEWAY_TOKEN";
 export const OFFICE_AGENT_CLIENT_KIND_ENV_NAME = "OFFICE_AGENT_CLIENT_KIND";
@@ -64,6 +66,124 @@ export const OFFICE_AGENT_PROJECT_CACHE_ENV_NAME = "OFFICE_AGENT_PROJECT_CACHE";
 export const OFFICE_AGENT_PROJECT_TOOLS_ENV_NAME = "OFFICE_AGENT_PROJECT_TOOLS";
 
 export type OfficeAgentClientKind = "gui" | "tui" | "unknown";
+export type OfficeAgentThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+export type OfficeAgentModelWorkflow = "chat" | "code" | "gitCommit" | "skillCreator";
+
+export interface OfficeAgentEnabledModel {
+  readonly catalogId: string;
+  readonly provider: string;
+  readonly providerLabel: string;
+  readonly modelId: string;
+  readonly label: string;
+  readonly reasoning: boolean;
+  readonly input: readonly ("text" | "image")[];
+  readonly contextWindow: number;
+  readonly maxTokens: number;
+  readonly defaultThinkingLevel: OfficeAgentThinkingLevel;
+  readonly enabledFor: readonly OfficeAgentModelWorkflow[];
+}
+
+export interface OfficeAgentModelSelection {
+  readonly catalogId: string;
+  readonly provider: string;
+  readonly modelId: string;
+}
+
+export const OFFICE_AGENT_ENABLED_MODELS = [
+  {
+    catalogId: "castrosua/gpt-5.4",
+    provider: OFFICE_AGENT_PROVIDER_ID,
+    providerLabel: OFFICE_AGENT_PROVIDER_LABEL,
+    modelId: OFFICE_AGENT_MODEL_ID,
+    label: OFFICE_AGENT_MODEL_LABEL,
+    reasoning: true,
+    input: ["text", "image"],
+    contextWindow: 200000,
+    maxTokens: 16384,
+    defaultThinkingLevel: "medium",
+    enabledFor: ["chat", "code", "gitCommit", "skillCreator"],
+  },
+] as const satisfies readonly OfficeAgentEnabledModel[];
+
+export function getOfficeAgentEnabledModelByCatalogId(catalogId: string): OfficeAgentEnabledModel | null {
+  return OFFICE_AGENT_ENABLED_MODELS.find((model) => model.catalogId === catalogId) ?? null;
+}
+
+export function getOfficeAgentEnabledModel(provider: string, modelId: string): OfficeAgentEnabledModel | null {
+  return (
+    OFFICE_AGENT_ENABLED_MODELS.find((model) => model.provider === provider && model.modelId === modelId) ??
+    OFFICE_AGENT_ENABLED_MODELS.find(
+      (model) =>
+        model.modelId === modelId &&
+        (OFFICE_AGENT_LEGACY_PROVIDER_IDS as readonly string[]).includes(provider),
+    ) ??
+    null
+  );
+}
+
+export function isOfficeAgentEnabledModel(provider: string, modelId: string): boolean {
+  const model = getOfficeAgentEnabledModel(provider, modelId);
+  return Boolean(model && model.provider === provider);
+}
+
+export function toOfficeAgentModelSelection(model: OfficeAgentEnabledModel): OfficeAgentModelSelection {
+  return {
+    catalogId: model.catalogId,
+    provider: model.provider,
+    modelId: model.modelId,
+  };
+}
+
+export function resolveOfficeAgentEnabledModelSelection(
+  provider: string,
+  modelId: string,
+): OfficeAgentModelSelection | null {
+  const normalized = normalizeOfficeAgentModelSelection({ provider, modelId });
+  const model = getOfficeAgentEnabledModel(normalized.provider, normalized.modelId);
+  return model ? toOfficeAgentModelSelection(model) : null;
+}
+
+export function getDefaultOfficeAgentEnabledModel(
+  workflow?: OfficeAgentModelWorkflow,
+): OfficeAgentEnabledModel | null {
+  if (workflow) {
+    return OFFICE_AGENT_ENABLED_MODELS.find((model) => model.enabledFor.includes(workflow)) ?? null;
+  }
+  return OFFICE_AGENT_ENABLED_MODELS[0] ?? null;
+}
+
+export function normalizeOfficeAgentModelSelection<T extends { provider: string; id?: string; modelId?: string }>(
+  selection: T,
+): T {
+  const selectedModelId = selection.modelId ?? selection.id;
+  const enabledModel = selectedModelId
+    ? getOfficeAgentEnabledModel(selection.provider, selectedModelId)
+    : null;
+  if (!enabledModel || selection.provider === enabledModel.provider) {
+    return selection;
+  }
+
+  return {
+    ...selection,
+    provider: enabledModel.provider,
+  };
+}
+
+function toOfficeAgentModelPattern(model: OfficeAgentEnabledModel) {
+  return `${model.provider}/${model.modelId}`;
+}
+
+function toProviderModelDefinition(model: OfficeAgentEnabledModel) {
+  return {
+    id: model.modelId,
+    name: model.label,
+    reasoning: model.reasoning,
+    input: model.input,
+    contextWindow: model.contextWindow,
+    maxTokens: model.maxTokens,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  };
+}
 
 export interface OfficeAgentManagedSessionPaths {
   readonly sessionDir: string;
@@ -104,7 +224,7 @@ export interface OfficeAgentManagedProjectStatePaths {
 export const OFFICE_AGENT_MANAGED_SETTINGS = {
   defaultProvider: OFFICE_AGENT_PROVIDER_ID,
   defaultModel: OFFICE_AGENT_MODEL_ID,
-  enabledModels: [`${OFFICE_AGENT_PROVIDER_ID}/${OFFICE_AGENT_MODEL_ID}`],
+  enabledModels: OFFICE_AGENT_ENABLED_MODELS.map(toOfficeAgentModelPattern),
 } as const;
 
 const OFFICE_AGENT_PROVIDER_EXTENSION_SOURCE = `import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -130,17 +250,7 @@ export default function (pi: ExtensionAPI) {
       "X-OfficeAgent-Host": windowsHost,
       "X-OfficeAgent-Identity": identity,
     },
-    models: [
-      {
-        id: "${OFFICE_AGENT_MODEL_ID}",
-        name: "${OFFICE_AGENT_MODEL_LABEL}",
-        reasoning: true,
-        input: ["text", "image"],
-        contextWindow: 200000,
-        maxTokens: 16384,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      },
-    ],
+    models: ${JSON.stringify(OFFICE_AGENT_ENABLED_MODELS.map(toProviderModelDefinition), null, 6)},
   });
 }
 `;
@@ -336,7 +446,7 @@ export function getOfficeAgentManagedSessionPaths(
 }
 
 export function getOfficeAgentProviderExtensionPath(agentDir: string = getOfficeAgentAgentDir()): string {
-  return path.join(agentDir, "extensions", "corp-provider.ts");
+  return path.join(agentDir, "extensions", "castrosua-ia-provider.ts");
 }
 
 export function getOfficeAgentManagedEnv(
@@ -377,10 +487,12 @@ export function getOfficeAgentManagedEnv(
 export async function ensureOfficeAgentManagedAgentDir(agentDir: string = getOfficeAgentAgentDir()): Promise<string> {
   const extensionsDir = path.join(agentDir, "extensions");
   const settingsPath = path.join(agentDir, "settings.json");
-  const extensionPath = path.join(extensionsDir, "corp-provider.ts");
+  const extensionPath = path.join(extensionsDir, "castrosua-ia-provider.ts");
+  const legacyExtensionPath = path.join(extensionsDir, "corp-provider.ts");
 
   await mkdir(extensionsDir, { recursive: true });
   await writeFileIfChanged(extensionPath, OFFICE_AGENT_PROVIDER_EXTENSION_SOURCE);
+  await rm(legacyExtensionPath, { force: true });
   await writeFileIfChanged(settingsPath, `${JSON.stringify(OFFICE_AGENT_MANAGED_SETTINGS, null, 2)}\n`);
 
   return agentDir;

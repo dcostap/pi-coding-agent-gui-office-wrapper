@@ -44,10 +44,30 @@ import {
   setSkillCreatorThinkingLevel,
   setUseAgentsSkillsPaths,
 } from "../app-settings/writers.cts";
+import {
+  getOfficeAgentEnabledModel,
+  resolveOfficeAgentEnabledModelSelection,
+} from "../office-agent-runtime.cts";
 import type { ActionHandlerResult } from "./action-router-result.cts";
 import { handledAction, unhandledAction } from "./action-router-result.cts";
 
 const clipboardImageTempDir = path.join(tmpdir(), "howcode-clipboard-images");
+
+function normalizeEnabledSettingsModelSelection(selection: { provider: string; id: string }) {
+  const resolvedSelection = resolveOfficeAgentEnabledModelSelection(selection.provider, selection.id);
+  return resolvedSelection
+    ? {
+        catalogId: resolvedSelection.catalogId,
+        provider: resolvedSelection.provider,
+        id: resolvedSelection.modelId,
+      }
+    : null;
+}
+
+function getDefaultThinkingLevelForSettingsSelection(selection: { provider: string; id: string }) {
+  const catalogModel = getOfficeAgentEnabledModel(selection.provider, selection.id);
+  return catalogModel?.defaultThinkingLevel ?? "off";
+}
 
 async function clearClipboardImageTempFiles() {
   let entries: Array<{ isFile(): boolean; name: string }>;
@@ -198,7 +218,10 @@ export async function handleSettingsDesktopAction(
 
     const selection = getSettingsModelSelection(payload);
     if (selection) {
-      setChatModelSelection(selection);
+      const enabledSelection = normalizeEnabledSettingsModelSelection(selection);
+      if (!enabledSelection) return handledAction({ error: "Model is not enabled." });
+      setChatModelSelection(enabledSelection);
+      setChatThinkingLevel(null);
     }
     return handledAction();
   }
@@ -211,7 +234,10 @@ export async function handleSettingsDesktopAction(
 
     const selection = getSettingsModelSelection(payload);
     if (selection) {
-      setCodeModelSelection(selection);
+      const enabledSelection = normalizeEnabledSettingsModelSelection(selection);
+      if (!enabledSelection) return handledAction({ error: "Model is not enabled." });
+      setCodeModelSelection(enabledSelection);
+      setCodeThinkingLevel(null);
     }
     return handledAction();
   }
@@ -250,7 +276,10 @@ export async function handleSettingsDesktopAction(
 
     const selection = getSettingsModelSelection(payload);
     if (selection) {
-      setSkillCreatorModelSelection(selection);
+      const enabledSelection = normalizeEnabledSettingsModelSelection(selection);
+      if (!enabledSelection) return handledAction({ error: "Model is not enabled." });
+      setSkillCreatorModelSelection(enabledSelection);
+      setSkillCreatorThinkingLevel(getDefaultThinkingLevelForSettingsSelection(enabledSelection));
     }
     return handledAction();
   }
@@ -278,7 +307,10 @@ export async function handleSettingsDesktopAction(
 
   const selection = getSettingsModelSelection(payload);
   if (selection) {
-    setGitCommitMessageModelSelection(selection);
+    const enabledSelection = normalizeEnabledSettingsModelSelection(selection);
+    if (!enabledSelection) return handledAction({ error: "Model is not enabled." });
+    setGitCommitMessageModelSelection(enabledSelection);
+    setGitCommitMessageThinkingLevel(getDefaultThinkingLevelForSettingsSelection(enabledSelection));
   }
 
   return handledAction();

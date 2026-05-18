@@ -6,6 +6,7 @@ import type {
   ChatSidebarState,
   ComposerAttachment,
   ComposerFilePickerState,
+  ComposerModelCatalog,
   ComposerSlashCommand,
   ComposerState,
   ComposerStateRequest,
@@ -178,6 +179,12 @@ export async function getComposerStateQuery(
   request: ComposerStateRequest = {},
 ): Promise<ComposerState | null> {
   return (await window.piDesktop?.getComposerState?.(request)) ?? null;
+}
+
+export async function getEnabledModelsQuery(
+  request: ComposerStateRequest = {},
+): Promise<ComposerModelCatalog | null> {
+  return (await window.piDesktop?.getEnabledModels?.(request)) ?? null;
 }
 
 export async function getComposerSlashCommandsQuery(

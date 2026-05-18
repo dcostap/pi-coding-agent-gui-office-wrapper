@@ -1,6 +1,7 @@
 import type { CommitMessageContext } from "../project-git.cts";
 import type { Artifact, ArtifactKind } from "../../shared/desktop-contracts.ts";
 import type {
+  ComposerModelCatalog,
   ComposerSlashCommand,
   ComposerState,
   ComposerStateRequest,
@@ -19,6 +20,7 @@ import type {
 
 export type RuntimeHostRequestMap = {
   getComposerState: { request: ComposerStateRequest };
+  getEnabledModels: { request: ComposerStateRequest };
   getComposerSlashCommands: { request: ComposerStateRequest };
   startNewThread: { request: ComposerStateRequest };
   selectProjectRuntime: { request: ComposerStateRequest };
@@ -75,6 +77,7 @@ export type RuntimeHostRequestMap = {
 
 export type RuntimeHostResponseMap = {
   getComposerState: ComposerState;
+  getEnabledModels: ComposerModelCatalog;
   getComposerSlashCommands: ComposerSlashCommand[];
   startNewThread: {
     composer: ComposerState;

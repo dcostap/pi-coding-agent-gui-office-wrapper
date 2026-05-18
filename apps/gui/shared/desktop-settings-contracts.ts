@@ -11,6 +11,7 @@ import type {
 import type { Project } from "./desktop-thread-contracts";
 
 export type ModelSelection = {
+  catalogId?: string;
   provider: string;
   id: string;
 };

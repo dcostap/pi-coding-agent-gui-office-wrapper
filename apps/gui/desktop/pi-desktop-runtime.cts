@@ -200,6 +200,10 @@ export function getComposerState(request = {}) {
   return invokeRuntimeHost("getComposerState", { request: withComposerModeSettings(request) });
 }
 
+export function getEnabledModels(request = {}) {
+  return invokeRuntimeHost("getEnabledModels", { request: withComposerModeSettings(request) });
+}
+
 export function setComposerModel(request: ComposerStateRequest, provider: string, modelId: string) {
   return invokeRuntimeHost("setComposerModel", { request, provider, modelId });
 }

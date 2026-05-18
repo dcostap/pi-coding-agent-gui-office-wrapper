@@ -7,6 +7,10 @@ import type {
 import { parseCompactSlashCommand } from "../../shared/composer-slash-commands.ts";
 import { getDesktopWorkingDirectory } from "../../shared/desktop-working-directory.ts";
 import { createLocalThreadDraft, getPersistedSessionPath } from "../../shared/session-paths.ts";
+import {
+  getOfficeAgentEnabledModel,
+  resolveOfficeAgentEnabledModelSelection,
+} from "../office-agent-runtime.cts";
 import { getPiModule } from "../pi-module.cts";
 import { discoverHeadlessAgentSessionResources } from "../runtime/agent-session-extensions.cts";
 import { buildComposerAttachmentPrompt } from "../runtime/attachments.cts";
@@ -17,11 +21,13 @@ import {
   replayComposerQueue,
 } from "../runtime/composer-queue";
 import {
+  buildComposerModelCatalog,
   buildComposerState,
   buildComposerStateSnapshot,
   createComposerSnapshotSession,
   clampThinkingLevel,
   getAvailableThinkingLevelsForModel,
+  getDefaultThinkingLevelForModel,
 } from "../runtime/composer-state.cts";
 import type { PiRuntime } from "../runtime/types.cts";
 import { publishComposerUpdate, publishThreadUpdate } from "./live-thread-publisher.cts";
@@ -38,6 +44,14 @@ import {
   isRuntimeExtensionCommandRunning,
 } from "./live-runtime-registry.cts";
 import { mapSessionCommands } from "./slash-command-service.cts";
+
+function normalizeEnabledModelSelection(provider: string, modelId: string) {
+  const selection = resolveOfficeAgentEnabledModelSelection(provider, modelId);
+  if (!selection) {
+    throw new Error(`Model is not enabled: ${provider}/${modelId}`);
+  }
+  return selection;
+}
 
 async function emitComposerUpdate(request: ComposerStateRequest = {}) {
   const persistedSessionPath = getPersistedSessionPath(request.sessionPath);
@@ -67,12 +81,15 @@ async function applyComposerModeSettings(runtime: PiRuntime, request: ComposerSt
   let selectedModel = runtime.session.model;
 
   if (selection) {
-    const model = runtime.session.modelRegistry.find(selection.provider, selection.id);
+    const enabledSelection = normalizeEnabledModelSelection(selection.provider, selection.id);
+    const model = runtime.session.modelRegistry.find(enabledSelection.provider, enabledSelection.modelId);
     if (model) {
       await runtime.session.setModel(model);
       selectedModel = model;
     } else {
-      const [fallbackModel] = await runtime.session.modelRegistry.getAvailable();
+      const fallbackModel = (await runtime.session.modelRegistry.getAvailable()).find((availableModel) =>
+        getOfficeAgentEnabledModel(availableModel.provider, availableModel.id),
+      );
       if (fallbackModel) {
         await runtime.session.setModel(fallbackModel);
         selectedModel = fallbackModel;
@@ -100,16 +117,7 @@ async function applyComposerModeSettings(runtime: PiRuntime, request: ComposerSt
       clampThinkingLevel(thinkingLevel, getAvailableThinkingLevelsForModel(selectedModel ?? null)),
     );
   } else if (Object.hasOwn(request, "composerThinkingLevel")) {
-    const defaultComposer = await buildComposerStateSnapshot({
-      projectId: runtime.cwd,
-      composerSessionDir: request.composerSessionDir,
-    });
-    runtime.session.setThinkingLevel(
-      clampThinkingLevel(
-        defaultComposer.currentThinkingLevel,
-        getAvailableThinkingLevelsForModel(selectedModel ?? null),
-      ),
-    );
+    runtime.session.setThinkingLevel(getDefaultThinkingLevelForModel(selectedModel ?? null));
   }
 }
 
@@ -203,6 +211,10 @@ export async function getComposerState(request: ComposerStateRequest = {}) {
   return await buildComposerStateSnapshot({ ...request, sessionPath: null });
 }
 
+export async function getEnabledModels(request: ComposerStateRequest = {}) {
+  return await buildComposerModelCatalog({ ...request, sessionPath: null });
+}
+
 export async function setComposerModel(
   request: ComposerStateRequest,
   provider: string,
@@ -215,17 +227,12 @@ export async function setComposerModel(
     const agentDir = getAgentDir();
     const authStorage = AuthStorage.create();
     const modelRegistry = ModelRegistry.create(authStorage, `${agentDir}/models.json`);
-    const model = modelRegistry.find(provider, modelId);
-    if (!model) throw new Error(`Unknown Pi model: ${provider}/${modelId}`);
-    const currentComposer = await buildComposerStateSnapshot({ projectId: cwd, sessionPath: null });
+    const enabledSelection = normalizeEnabledModelSelection(provider, modelId);
+    const model = modelRegistry.find(enabledSelection.provider, enabledSelection.modelId);
+    if (!model) throw new Error(`Unknown Pi model: ${enabledSelection.provider}/${enabledSelection.modelId}`);
     const settingsManager = SettingsManager.create(cwd, agentDir);
-    settingsManager.setDefaultModelAndProvider(provider, modelId);
-    settingsManager.setDefaultThinkingLevel(
-      clampThinkingLevel(
-        currentComposer.currentThinkingLevel,
-        getAvailableThinkingLevelsForModel(model),
-      ),
-    );
+    settingsManager.setDefaultModelAndProvider(enabledSelection.provider, enabledSelection.modelId);
+    settingsManager.setDefaultThinkingLevel(getDefaultThinkingLevelForModel(model));
     await emitComposerUpdate({ ...request, sessionPath: null });
     return { ok: true as const };
   }
@@ -236,9 +243,11 @@ export async function setComposerModel(
       settingsCwd: request.composerSessionDir ?? null,
       chatGroupId: request.chatGroupId ?? null,
     });
-    const model = runtime.session.modelRegistry.find(provider, modelId);
-    if (!model) throw new Error(`Unknown Pi model: ${provider}/${modelId}`);
+    const enabledSelection = normalizeEnabledModelSelection(provider, modelId);
+    const model = runtime.session.modelRegistry.find(enabledSelection.provider, enabledSelection.modelId);
+    if (!model) throw new Error(`Unknown Pi model: ${enabledSelection.provider}/${enabledSelection.modelId}`);
     await runtime.session.setModel(model);
+    runtime.session.setThinkingLevel(getDefaultThinkingLevelForModel(model));
     scheduleRuntimeDisposal(persistedSessionPath);
     await emitComposerUpdate({ ...request, sessionPath: persistedSessionPath });
   });

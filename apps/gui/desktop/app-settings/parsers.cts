@@ -19,9 +19,13 @@ export function parseModelSelection(valueJson: string | null | undefined): Model
   }
 
   try {
-    const parsed = JSON.parse(valueJson) as { id?: unknown; provider?: unknown };
+    const parsed = JSON.parse(valueJson) as { catalogId?: unknown; id?: unknown; provider?: unknown };
     return typeof parsed.provider === "string" && typeof parsed.id === "string"
-      ? { provider: parsed.provider, id: parsed.id }
+      ? {
+          ...(typeof parsed.catalogId === "string" ? { catalogId: parsed.catalogId } : {}),
+          provider: parsed.provider,
+          id: parsed.id,
+        }
       : null;
   } catch {
     return null;
