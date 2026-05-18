@@ -160,6 +160,10 @@ async function clearClipboardImageTempFiles() {
   };
 }
 
+function isNodeErrorWithCode(error: unknown, code: string) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === code;
+}
+
 function isPathWithinRoot(candidatePath: string, rootPath: string) {
   const relativePath = path.relative(rootPath, candidatePath);
   return (
@@ -176,8 +180,17 @@ async function listProjectFileEntriesForDirectory(request: {
   const directoryPath = isPathWithinRoot(requestedDirectoryPath, rootPath)
     ? requestedDirectoryPath
     : rootPath;
-  const directoryEntries = await readdir(directoryPath, { withFileTypes: true });
-  const entries = await Promise.all(
+  let directoryEntries: Awaited<ReturnType<typeof readdir>>;
+  try {
+    directoryEntries = await readdir(directoryPath, { withFileTypes: true });
+  } catch (error) {
+    if (isNodeErrorWithCode(error, "ENOENT")) {
+      return { rootPath, directoryPath, entries: [] };
+    }
+    throw error;
+  }
+
+  const entryResults = await Promise.allSettled(
     directoryEntries
       .filter((entry) => !hiddenProjectFileNames.has(entry.name))
       .map(async (entry) => {
@@ -191,6 +204,9 @@ async function listProjectFileEntriesForDirectory(request: {
           size: entry.isDirectory() ? null : stats.size,
         };
       }),
+  );
+  const entries = entryResults.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
   );
 
   return { rootPath, directoryPath, entries };
