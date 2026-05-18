@@ -9,7 +9,13 @@ use officeagent_windows_sandbox_helper::setup_error::{
 };
 use officeagent_windows_sandbox_helper::v2_paths;
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+
+fn log_step(message: impl AsRef<str>) {
+    println!("{}", message.as_ref());
+    let _ = io::stdout().flush();
+}
 
 fn main() {
     let exit_code = match run() {
@@ -23,7 +29,10 @@ fn main() {
 }
 
 fn run() -> SetupResult<()> {
+    log_step("OfficeAgent Windows sandbox setup helper starting...");
     let invocation = parse_args(std::env::args().skip(1).collect())?;
+    log_step(format!("Action: {:?}", invocation.action));
+    log_step(format!("Managed root: {}", invocation.payload.managed_root.display()));
     v2_paths::validate_setup_payload(&invocation.payload).map_err(|message| {
         SetupFailure::new(SetupErrorCode::HelperPayloadValidationFailed, message)
     })?;
@@ -36,6 +45,7 @@ fn run() -> SetupResult<()> {
     match result {
         Ok(()) => {
             let _ = setup_error::clear_setup_error_report(&invocation.payload.managed_root);
+            log_step("OfficeAgent Windows sandbox setup helper finished successfully.");
             Ok(())
         }
         Err(error) => {
@@ -121,33 +131,45 @@ fn run_setup(payload: &SetupPayload) -> SetupResult<()> {
     use officeagent_windows_sandbox_helper::windows_acl;
     use officeagent_windows_sandbox_helper::windows_hide_users;
 
+    log_step("Preparing sandbox directories...");
     create_setup_dirs(&payload.managed_root)?;
+    log_step("Loading capability SIDs...");
     officeagent_windows_sandbox_helper::cap::load_or_create_cap_sids(&payload.managed_root)
         .map_err(|error| SetupFailure::new(SetupErrorCode::HelperCapabilitySidFailed, error))?;
+    log_step("Locking down sandbox directories...");
     windows_acl::lock_down_setup_dirs(&payload.managed_root, &payload.real_user_sid)
         .map_err(|error| SetupFailure::new(SetupErrorCode::HelperSandboxLockFailed, error))?;
+    log_step("Ensuring sandbox user group exists...");
     windows_accounts::ensure_sandbox_group()
         .map_err(|error| SetupFailure::new(SetupErrorCode::HelperUsersGroupCreateFailed, error))?;
+    log_step("Granting sandbox read roots...");
     grant_read_roots(payload)?;
+    log_step("Checking Secondary Logon service...");
     officeagent_windows_sandbox_helper::windows_services::ensure_secondary_logon_running()
         .map_err(|error| {
             SetupFailure::new(SetupErrorCode::HelperSecondaryLogonServiceFailed, error)
         })?;
+    log_step("Granting runner directory read/execute permission...");
     grant_runner_directory_read_execute()?;
 
+    log_step("Creating or updating sandbox account...");
     let password = load_existing_password(&payload.managed_root)
         .unwrap_or_else(|| windows_accounts::random_password());
     windows_accounts::ensure_sandbox_user(&password).map_err(|error| {
         SetupFailure::new(SetupErrorCode::HelperUserCreateOrUpdateFailed, error)
     })?;
+    log_step("Re-applying sandbox directory ACLs...");
     windows_acl::lock_down_setup_dirs(&payload.managed_root, &payload.real_user_sid)
         .map_err(|error| SetupFailure::new(SetupErrorCode::HelperSandboxLockFailed, error))?;
 
+    log_step("Protecting sandbox credentials with DPAPI...");
     let protected = dpapi::protect_machine(password.as_bytes())
         .map_err(|error| SetupFailure::new(SetupErrorCode::HelperDpapiProtectFailed, error))?;
+    log_step("Writing sandbox secrets and setup marker...");
     write_secrets(&payload.managed_root, BASE64.encode(protected))?;
     write_marker(&payload.managed_root, payload)?;
 
+    log_step("Hiding sandbox account from Windows sign-in UI...");
     windows_hide_users::hide_user_in_winlogon(constants::SANDBOX_USERNAME)
         .map_err(|error| SetupFailure::new(SetupErrorCode::HelperHideUserFailed, error))?;
 
@@ -167,8 +189,11 @@ fn run_reset(payload: &SetupPayload) -> SetupResult<()> {
     use officeagent_windows_sandbox_helper::windows_accounts;
     use officeagent_windows_sandbox_helper::windows_hide_users;
 
+    log_step("Removing sandbox account from Windows sign-in UI hide list...");
     let hidden_result = windows_hide_users::remove_hidden_user_value(constants::SANDBOX_USERNAME);
+    log_step("Resetting sandbox Windows accounts...");
     let account_result = windows_accounts::reset_sandbox_accounts();
+    log_step("Removing sandbox setup files...");
     remove_setup_files(&payload.managed_root)?;
 
     hidden_result

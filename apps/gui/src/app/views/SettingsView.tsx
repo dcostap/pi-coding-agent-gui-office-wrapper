@@ -16,6 +16,7 @@ import {
   copyTextToClipboardQuery,
   getWindowsSandboxSetupStatusQuery,
   prepareWindowsSandboxSetupQuery,
+  runWindowsSandboxSetupQuery,
 } from "../query/desktop-query";
 import { settingsSectionClass } from "../ui/classes";
 import { cn } from "../utils/cn";
@@ -339,6 +340,27 @@ function WindowsSandboxSetupSection() {
     }
   }, []);
 
+  const runElevated = useCallback(async (action: "setup" | "reset") => {
+    setBusy(true);
+    setMessage("Requesting administrator permission…");
+    try {
+      const next = await runWindowsSandboxSetupQuery(action);
+      setHandoff(next);
+      if (next?.readyAfterRun) {
+        setMessage("Sandbox setup finished successfully.");
+      } else if (next?.ok === false) {
+        setMessage(next.error ?? "Sandbox setup failed.");
+      } else {
+        setMessage("Sandbox setup launched. Accept UAC and wait for it to finish.");
+      }
+      setStatus(await getWindowsSandboxSetupStatusQuery());
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const setupCommand = handoff?.setupCommand;
   const issues = status?.issues ?? [];
 
@@ -406,10 +428,26 @@ function WindowsSandboxSetupSection() {
         <button
           type="button"
           disabled={busy}
+          className="inline-flex h-8 items-center rounded-lg border border-emerald-400/35 px-3 text-[12px] text-emerald-100 disabled:opacity-50 hover:bg-emerald-400/10"
+          onClick={() => void runElevated("setup")}
+        >
+          Run setup as administrator
+        </button>
+        <button
+          type="button"
+          disabled={busy}
           className="inline-flex h-8 items-center rounded-lg border border-[color:var(--border)] px-3 text-[12px] text-[color:var(--text)] disabled:opacity-50 hover:bg-[rgba(255,255,255,0.07)]"
           onClick={() => void prepare("setup")}
         >
-          Prepare elevated setup
+          Copy setup command
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          className="inline-flex h-8 items-center rounded-lg border border-rose-400/35 px-3 text-[12px] text-rose-100 disabled:opacity-50 hover:bg-rose-400/10"
+          onClick={() => void runElevated("reset")}
+        >
+          Run reset as administrator
         </button>
         <button
           type="button"
@@ -417,7 +455,7 @@ function WindowsSandboxSetupSection() {
           className="inline-flex h-8 items-center rounded-lg border border-rose-400/35 px-3 text-[12px] text-rose-100 disabled:opacity-50 hover:bg-rose-400/10"
           onClick={() => void prepare("reset")}
         >
-          Prepare elevated reset
+          Copy reset command
         </button>
       </div>
     </section>

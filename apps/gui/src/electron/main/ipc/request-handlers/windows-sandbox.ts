@@ -95,34 +95,8 @@ function quotePowerShellSingleQuotedString(value: string) {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
-function quoteWindowsCommandLineArg(value: string) {
-  if (value.length > 0 && !/[\s"]/.test(value)) {
-    return value;
-  }
-
-  let result = '"';
-  let backslashes = 0;
-  for (const char of value) {
-    if (char === "\\") {
-      backslashes += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      result += "\\".repeat(backslashes * 2 + 1);
-      result += '"';
-      backslashes = 0;
-      continue;
-    }
-
-    result += "\\".repeat(backslashes);
-    backslashes = 0;
-    result += char;
-  }
-
-  result += "\\".repeat(backslashes * 2);
-  result += '"';
-  return result;
+function encodePowerShellCommand(script: string) {
+  return Buffer.from(script, "utf16le").toString("base64");
 }
 
 async function launchElevatedSandboxSetup(
@@ -139,9 +113,33 @@ async function launchElevatedSandboxSetup(
   }
 
   const quotedExe = quotePowerShellSingleQuotedString(handoff.setupExePath);
-  const argumentList = handoff.setupArgs.map((arg) => quoteWindowsCommandLineArg(arg)).join(" ");
-  const quotedArgumentList = quotePowerShellSingleQuotedString(argumentList);
-  const script = `$p = Start-Process -FilePath ${quotedExe} -ArgumentList ${quotedArgumentList} -Verb RunAs -Wait -PassThru; exit $p.ExitCode`;
+  const quotedArgs = handoff.setupArgs.map(quotePowerShellSingleQuotedString).join(", ");
+  const elevatedScript = `
+$ErrorActionPreference = 'Stop'
+Write-Host ''
+Write-Host 'OfficeAgent Windows sandbox ${handoff.action} is running with administrator permissions...' -ForegroundColor Cyan
+Write-Host 'Please wait. This window will close automatically when setup succeeds.' -ForegroundColor Gray
+Write-Host ''
+$setupExe = ${quotedExe}
+$setupArgs = @(${quotedArgs})
+& $setupExe @setupArgs
+$exitCode = if ($null -ne $LASTEXITCODE) { $LASTEXITCODE } else { 0 }
+Write-Host ''
+if ($exitCode -eq 0) {
+  Write-Host 'OfficeAgent Windows sandbox ${handoff.action} completed successfully.' -ForegroundColor Green
+  Write-Host 'You can now return to Castrosua IA and retry.' -ForegroundColor Gray
+  Start-Sleep -Seconds 3
+} else {
+  Write-Host "OfficeAgent Windows sandbox ${handoff.action} failed with exit code $exitCode." -ForegroundColor Red
+  Write-Host 'Leave this window open if you need to copy the error above.' -ForegroundColor Yellow
+  Start-Sleep -Seconds 20
+}
+exit $exitCode
+`;
+  const encodedElevatedScript = encodePowerShellCommand(elevatedScript);
+  const elevatedPowerShell = `${process.env.SystemRoot ?? "C:\\Windows"}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
+  const argumentList = `-NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encodedElevatedScript}`;
+  const script = `$p = Start-Process -FilePath ${quotePowerShellSingleQuotedString(elevatedPowerShell)} -ArgumentList ${quotePowerShellSingleQuotedString(argumentList)} -Verb RunAs -Wait -PassThru; exit $p.ExitCode`;
   const exitCode = await new Promise<number>((resolve, reject) => {
     const child = spawn(
       "powershell.exe",

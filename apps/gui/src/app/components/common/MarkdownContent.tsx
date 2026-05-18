@@ -57,7 +57,7 @@ function MarkdownLink(props: AnchorHTMLAttributes<HTMLAnchorElement>) {
 
         if (href === "office-agent://windows-sandbox/setup") {
           event.preventDefault();
-          showGlobalToast({ message: "Solicitando permisos de administrador para configurar el sandbox…", tone: "info" });
+          showGlobalToast({ message: "Solicitando permisos de administrador para configurar el sandbox… Se abrirá una ventana de PowerShell con el progreso.", tone: "info" });
           void window.piDesktop?.runWindowsSandboxSetup?.("setup")
             .then((result) => {
               if (result?.readyAfterRun) {
@@ -68,7 +68,7 @@ function MarkdownLink(props: AnchorHTMLAttributes<HTMLAnchorElement>) {
                 showGlobalToast({ message: result.error ?? "No se pudo configurar el sandbox.", tone: "error" });
                 return;
               }
-              showGlobalToast({ message: "Configuración lanzada. Acepta UAC y reintenta cuando termine.", tone: "info" });
+              showGlobalToast({ message: "Configuración lanzada. Acepta UAC y espera a que la ventana indique que ha terminado.", tone: "info" });
             })
             .catch((error) => {
               showGlobalToast({
