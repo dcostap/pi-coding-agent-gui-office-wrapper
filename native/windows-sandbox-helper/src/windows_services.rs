@@ -3,10 +3,13 @@
 use crate::windows_accounts::wide_null;
 use std::thread;
 use std::time::Duration;
-use windows_sys::Win32::Foundation::{GetLastError, ERROR_SERVICE_ALREADY_RUNNING};
+use windows_sys::Win32::Foundation::{
+    GetLastError, ERROR_SERVICE_ALREADY_RUNNING, ERROR_SERVICE_DISABLED,
+};
 use windows_sys::Win32::System::Services::{
-    CloseServiceHandle, OpenSCManagerW, OpenServiceW, QueryServiceStatus, StartServiceW,
-    SC_MANAGER_CONNECT, SERVICE_QUERY_STATUS, SERVICE_RUNNING, SERVICE_START,
+    ChangeServiceConfigW, CloseServiceHandle, OpenSCManagerW, OpenServiceW, QueryServiceStatus,
+    StartServiceW, SC_MANAGER_CONNECT, SERVICE_CHANGE_CONFIG, SERVICE_DEMAND_START,
+    SERVICE_ERROR_NORMAL, SERVICE_NO_CHANGE, SERVICE_QUERY_STATUS, SERVICE_RUNNING, SERVICE_START,
     SERVICE_START_PENDING, SERVICE_STATUS,
 };
 
@@ -19,16 +22,28 @@ pub fn secondary_logon_running() -> Result<bool, String> {
 }
 
 fn ensure_service_running(service_name: &str) -> Result<(), String> {
-    let service = open_service(service_name, SERVICE_QUERY_STATUS | SERVICE_START)?;
+    let service = open_service(
+        service_name,
+        SERVICE_QUERY_STATUS | SERVICE_START | SERVICE_CHANGE_CONFIG,
+    )?;
     let _service_guard = ServiceHandleGuard(service);
     if query_running(service)? {
         return Ok(());
     }
-    let ok = unsafe { StartServiceW(service, 0, std::ptr::null()) };
+    let mut ok = unsafe { StartServiceW(service, 0, std::ptr::null()) };
+    if ok == 0 {
+        let error = unsafe { GetLastError() };
+        if error == ERROR_SERVICE_DISABLED {
+            enable_service_demand_start(service, service_name)?;
+            ok = unsafe { StartServiceW(service, 0, std::ptr::null()) };
+        } else if error != ERROR_SERVICE_ALREADY_RUNNING {
+            return Err(format!("StartServiceW({service_name}) failed: {error}"));
+        }
+    }
     if ok == 0 {
         let error = unsafe { GetLastError() };
         if error != ERROR_SERVICE_ALREADY_RUNNING {
-            return Err(format!("StartServiceW({service_name}) failed: {error}"));
+            return Err(format!("StartServiceW({service_name}) failed after enabling service: {error}"));
         }
     }
     for _ in 0..20 {
@@ -40,6 +55,34 @@ fn ensure_service_running(service_name: &str) -> Result<(), String> {
     Err(format!(
         "service {service_name} did not reach running state"
     ))
+}
+
+fn enable_service_demand_start(
+    service: *mut std::ffi::c_void,
+    service_name: &str,
+) -> Result<(), String> {
+    let ok = unsafe {
+        ChangeServiceConfigW(
+            service,
+            SERVICE_NO_CHANGE,
+            SERVICE_DEMAND_START,
+            SERVICE_ERROR_NORMAL,
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null_mut(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+            std::ptr::null(),
+        )
+    };
+    if ok == 0 {
+        return Err(format!(
+            "ChangeServiceConfigW({service_name}) failed: {}",
+            unsafe { GetLastError() }
+        ));
+    }
+    Ok(())
 }
 
 fn service_running(service_name: &str) -> Result<bool, String> {

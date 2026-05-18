@@ -95,7 +95,40 @@ function quotePowerShellSingleQuotedString(value: string) {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
-function launchElevatedSandboxSetup(handoff: WindowsSandboxSetupHandoff): WindowsSandboxSetupHandoff {
+function quoteWindowsCommandLineArg(value: string) {
+  if (value.length > 0 && !/[\s"]/.test(value)) {
+    return value;
+  }
+
+  let result = '"';
+  let backslashes = 0;
+  for (const char of value) {
+    if (char === "\\") {
+      backslashes += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      result += "\\".repeat(backslashes * 2 + 1);
+      result += '"';
+      backslashes = 0;
+      continue;
+    }
+
+    result += "\\".repeat(backslashes);
+    backslashes = 0;
+    result += char;
+  }
+
+  result += "\\".repeat(backslashes * 2);
+  result += '"';
+  return result;
+}
+
+async function launchElevatedSandboxSetup(
+  handoff: WindowsSandboxSetupHandoff,
+  managedRootDir: string,
+): Promise<WindowsSandboxSetupHandoff> {
   if (!handoff.ok) return handoff;
   if (!handoff.setupExePath || !handoff.setupArgs?.length) {
     return {
@@ -106,15 +139,30 @@ function launchElevatedSandboxSetup(handoff: WindowsSandboxSetupHandoff): Window
   }
 
   const quotedExe = quotePowerShellSingleQuotedString(handoff.setupExePath);
-  const quotedArgs = handoff.setupArgs.map((arg) => quotePowerShellSingleQuotedString(arg)).join(", ");
-  const script = `Start-Process -FilePath ${quotedExe} -ArgumentList @(${quotedArgs}) -Verb RunAs`;
-  const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
-    detached: true,
-    stdio: "ignore",
-    windowsHide: true,
+  const argumentList = handoff.setupArgs.map((arg) => quoteWindowsCommandLineArg(arg)).join(" ");
+  const quotedArgumentList = quotePowerShellSingleQuotedString(argumentList);
+  const script = `$p = Start-Process -FilePath ${quotedExe} -ArgumentList ${quotedArgumentList} -Verb RunAs -Wait -PassThru; exit $p.ExitCode`;
+  const exitCode = await new Promise<number>((resolve, reject) => {
+    const child = spawn(
+      "powershell.exe",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+      { windowsHide: true },
+    );
+    child.once("error", reject);
+    child.once("exit", (code) => resolve(code ?? 0));
   });
-  child.unref();
-  return handoff;
+
+  const status = await checkOfficeAgentWindowsSandboxSetup(managedRootDir).catch(() => null);
+  const readyAfterRun = status?.ok === true && status.result?.ready === true;
+  return {
+    ...handoff,
+    launched: true,
+    exitCode,
+    readyAfterRun,
+    ...(exitCode !== 0 && !readyAfterRun
+      ? { ok: false, error: `Windows sandbox setup exited with code ${exitCode}.` }
+      : {}),
+  };
 }
 
 export function createWindowsSandboxHandlers(): WindowsSandboxHandlers {
@@ -159,7 +207,7 @@ export function createWindowsSandboxHandlers(): WindowsSandboxHandlers {
       const response = requestedAction === "reset"
         ? await prepareOfficeAgentWindowsSandboxReset(managedRootDir)
         : await prepareOfficeAgentWindowsSandboxSetup({ managedRoot: managedRootDir });
-      return launchElevatedSandboxSetup(mapHandoffResponse(requestedAction, response));
+      return launchElevatedSandboxSetup(mapHandoffResponse(requestedAction, response), managedRootDir);
     },
   };
 }

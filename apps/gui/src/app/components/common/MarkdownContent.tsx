@@ -1,6 +1,7 @@
 import type { AnchorHTMLAttributes, HTMLAttributes, ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { showGlobalToast } from "../../hooks/useToast";
 import { inlineCodeClass } from "../../ui/classes";
 import { cn } from "../../utils/cn";
 
@@ -34,6 +35,13 @@ function getToneStrongClass(tone: MarkdownTone) {
   }
 }
 
+function markdownUrlTransform(url: string) {
+  if (url.startsWith("office-agent://")) {
+    return url;
+  }
+  return defaultUrlTransform(url);
+}
+
 function MarkdownLink(props: AnchorHTMLAttributes<HTMLAnchorElement>) {
   const { href, children, ...rest } = props;
 
@@ -49,7 +57,25 @@ function MarkdownLink(props: AnchorHTMLAttributes<HTMLAnchorElement>) {
 
         if (href === "office-agent://windows-sandbox/setup") {
           event.preventDefault();
-          void window.piDesktop?.runWindowsSandboxSetup?.("setup");
+          showGlobalToast({ message: "Solicitando permisos de administrador para configurar el sandbox…", tone: "info" });
+          void window.piDesktop?.runWindowsSandboxSetup?.("setup")
+            .then((result) => {
+              if (result?.readyAfterRun) {
+                showGlobalToast({ message: "Sandbox configurado correctamente. Ya puedes reintentar.", tone: "success" });
+                return;
+              }
+              if (result?.ok === false) {
+                showGlobalToast({ message: result.error ?? "No se pudo configurar el sandbox.", tone: "error" });
+                return;
+              }
+              showGlobalToast({ message: "Configuración lanzada. Acepta UAC y reintenta cuando termine.", tone: "info" });
+            })
+            .catch((error) => {
+              showGlobalToast({
+                message: error instanceof Error ? error.message : "No se pudo lanzar la configuración del sandbox.",
+                tone: "error",
+              });
+            });
           return;
         }
 
@@ -115,6 +141,7 @@ export function MarkdownContent({ markdown, tone = "default", className }: Markd
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        urlTransform={markdownUrlTransform}
         components={{
           p: ({ children }) => (
             <p className={cn("m-0 whitespace-pre-wrap break-words", getToneTextClass(tone))}>

@@ -30,5 +30,8 @@ export interface WindowsSandboxSetupHandoff {
   readonly username?: string;
   readonly groupName?: string;
   readonly intendedRealUserSid?: string;
+  readonly launched?: boolean;
+  readonly exitCode?: number;
+  readonly readyAfterRun?: boolean;
   readonly error?: string;
 }
