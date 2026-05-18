@@ -43,7 +43,9 @@ const gpt55Route = {
   modelId:
     process.env.GATEWAY_GPT55_UPSTREAM_MODEL ||
     process.env.GATEWAY_GPT_5_5_UPSTREAM_MODEL ||
-    "gpt-5.5",
+    // The OfficeAgent client still asks the gateway for abstract model "gpt-5.5".
+    // Route that abstract model to the current upstream Codex model exposed by Pi.
+    "gpt-5.4",
 };
 const routedProvider = sparkRoute.provider;
 const routedModelId = sparkRoute.modelId;
@@ -251,7 +253,17 @@ function getRoutedModel(abstractModel = "assistant") {
   modelRegistry.refresh();
   const model = modelRegistry.find(route.provider, route.modelId);
   if (!model) {
-    throw new Error(`Routed model not found for ${abstractModel}: ${route.provider}/${route.modelId}`);
+    const providerModels = modelRegistry
+      .getAll()
+      .filter((candidate) => candidate.provider === route.provider)
+      .map((candidate) => candidate.id)
+      .sort();
+    const availableHint = providerModels.length > 0
+      ? ` Available ${route.provider} models: ${providerModels.join(", ")}.`
+      : ` No models are registered for provider ${route.provider}.`;
+    throw new Error(
+      `Routed model not found for ${abstractModel}: ${route.provider}/${route.modelId}.${availableHint}`,
+    );
   }
   return model;
 }

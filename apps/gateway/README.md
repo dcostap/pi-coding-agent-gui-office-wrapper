@@ -11,7 +11,7 @@ This first version exposes:
 - `GET /v1/models`
 - `POST /v1/chat/completions`
 
-It accepts the abstract model `assistant`, routes every request to one configured upstream model, and writes practical request analytics to an append-only JSONL ledger. The dashboard focuses on request volume, estimated input/output tokens, processing time, users, models, and tools; health/latency are present but secondary.
+It accepts abstract models such as `assistant` and `gpt-5.5`, routes them to configured upstream Pi models, and writes practical request analytics to an append-only JSONL ledger. The dashboard focuses on request volume, estimated input/output tokens, processing time, users, models, and tools; health/latency are present but secondary.
 
 ## Environment variables
 
@@ -23,7 +23,8 @@ It accepts the abstract model `assistant`, routes every request to one configure
 - `OFFICE_AGENT_GATEWAY_AUTH_PATH` - gateway-owned Pi auth store
 - `OFFICE_AGENT_GATEWAY_MODELS_PATH` - gateway-owned Pi model registry
 - `GATEWAY_UPSTREAM_PROVIDER` - default `openai-codex`
-- `GATEWAY_UPSTREAM_MODEL` - default `gpt-5.3-codex-spark`
+- `GATEWAY_UPSTREAM_MODEL` - default `gpt-5.3-codex-spark` for `assistant`
+- `GATEWAY_GPT55_UPSTREAM_MODEL` / `GATEWAY_GPT_5_5_UPSTREAM_MODEL` - default `gpt-5.4` for abstract `gpt-5.5`
 
 ## Start
 
