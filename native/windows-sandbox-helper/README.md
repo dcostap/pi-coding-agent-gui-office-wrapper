@@ -78,7 +78,7 @@ The response includes `status: "uac-handoff-ready"`, `setupCommand`, `payloadPat
 
 Use `"action": "reset"` to prepare an elevated clean-slate reset command. The reset entry point is idempotent and removes the sandbox account/group plus v2 setup files where present.
 
-After setup, use `checkSandboxSetup` to validate non-elevated readiness. It verifies marker/secrets presence, DPAPI password decrypt, sandbox user existence, Secondary Logon (`seclogon`) service availability, and a password logon check without exposing the password:
+After setup, use `checkSandboxSetup` to validate non-elevated readiness. It verifies marker/secrets presence, DPAPI password decrypt, sandbox user existence, and a password logon check without exposing the password. Secondary Logon (`seclogon`) status is reported as runtime diagnostics only; it is not treated as setup readiness because `CreateProcessWithLogonW` may start/use the Manual service on demand:
 
 ```json
 {

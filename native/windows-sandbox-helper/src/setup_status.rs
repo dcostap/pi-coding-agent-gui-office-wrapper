@@ -228,27 +228,17 @@ fn check_capability_sids(managed_root: &Path, result: &mut CheckSandboxSetupResu
 
 #[cfg(windows)]
 fn check_secondary_logon_service(result: &mut CheckSandboxSetupResult) {
-    match crate::windows_services::secondary_logon_running() {
-        Ok(running) => {
-            result.secondary_logon_service_running = running;
-            if !running {
-                result
-                    .issues
-                    .push("Secondary Logon service (seclogon) is not running".to_string());
-            }
-        }
-        Err(error) => result.issues.push(format!(
-            "Secondary Logon service (seclogon) status check failed: {error}"
-        )),
+    // Treat Secondary Logon as runtime state, not setup readiness. Windows commonly keeps
+    // seclogon as Manual/Stopped, and CreateProcessWithLogonW can start/use it on demand.
+    // Failing readiness here incorrectly forces users through sandbox setup again before we
+    // even try the Codex-style launch path.
+    if let Ok(running) = crate::windows_services::secondary_logon_running() {
+        result.secondary_logon_service_running = running;
     }
 }
 
 #[cfg(not(windows))]
-fn check_secondary_logon_service(result: &mut CheckSandboxSetupResult) {
-    result.issues.push(
-        "Secondary Logon service (seclogon) status check is only supported on Windows".to_string(),
-    );
-}
+fn check_secondary_logon_service(_result: &mut CheckSandboxSetupResult) {}
 
 #[cfg(windows)]
 fn check_account(result: &mut CheckSandboxSetupResult) {

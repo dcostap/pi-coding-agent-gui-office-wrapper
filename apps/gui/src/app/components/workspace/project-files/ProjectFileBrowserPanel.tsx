@@ -279,12 +279,24 @@ export function ProjectFileBrowserPanel({
 
   useEffect(() => {
     if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    window.addEventListener("pointerdown", close, true);
-    window.addEventListener("keydown", close, true);
+
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest("[data-project-files-context-menu='true']")
+      ) {
+        return;
+      }
+      setContextMenu(null);
+    };
+
+    const closeOnKeyDown = () => setContextMenu(null);
+
+    window.addEventListener("pointerdown", closeOnOutsidePointerDown, true);
+    window.addEventListener("keydown", closeOnKeyDown, true);
     return () => {
-      window.removeEventListener("pointerdown", close, true);
-      window.removeEventListener("keydown", close, true);
+      window.removeEventListener("pointerdown", closeOnOutsidePointerDown, true);
+      window.removeEventListener("keydown", closeOnKeyDown, true);
     };
   }, [contextMenu]);
 
@@ -608,6 +620,7 @@ export function ProjectFileBrowserPanel({
               className="fixed z-[1000] grid min-w-44 gap-1 rounded-xl border border-white/10 bg-[rgba(24,24,24,0.96)] p-1.5 text-[12px] text-[color:var(--text)] shadow-[0_18px_50px_rgba(0,0,0,0.42)] backdrop-blur-xl"
               style={{ left: contextMenu.x, top: contextMenu.y }}
               onContextMenu={(event) => event.preventDefault()}
+              data-project-files-context-menu="true"
             >
               {(() => {
                 const rows = getSelectedRowsForAction(contextMenu.row, contextMenu.selectionPaths);
