@@ -95,6 +95,14 @@ export function getDraftReplacementSessionPath(
     : null;
 }
 
+function getNextThreadCount(project: ShellState["projects"][number], threads: Thread[]) {
+  const removedThreadCount = project.threads.length - threads.length;
+  const indexedThreadCount = project.threadCount ?? project.threads.length;
+  return indexedThreadCount > project.threads.length
+    ? indexedThreadCount
+    : Math.max(threads.length, indexedThreadCount - removedThreadCount);
+}
+
 export function removeProjectThreadFromShellState(
   queryClient: QueryClientLike,
   projectId: string,
@@ -114,17 +122,66 @@ export function removeProjectThreadFromShellState(
         }
 
         const threads = project.threads.filter((thread) => thread.sessionPath !== sessionPath);
-        const removedThreadCount = project.threads.length - threads.length;
-        const indexedThreadCount = project.threadCount ?? project.threads.length;
-        const nextThreadCount =
-          indexedThreadCount > project.threads.length
-            ? indexedThreadCount
-            : Math.max(threads.length, indexedThreadCount - removedThreadCount);
 
         return {
           ...project,
           threads,
-          threadCount: nextThreadCount,
+          threadCount: getNextThreadCount(project, threads),
+        };
+      }),
+    };
+  });
+}
+
+export function removeProjectThreadByIdFromShellState(
+  queryClient: QueryClientLike,
+  projectId: string,
+  threadId: string,
+) {
+  queryClient.setQueryData(desktopQueryKeys.shellState(), (current) => {
+    const currentState = current as ShellState | null | undefined;
+    if (!currentState) {
+      return currentState ?? null;
+    }
+
+    return {
+      ...currentState,
+      projects: currentState.projects.map((project) => {
+        if (project.id !== projectId) {
+          return project;
+        }
+
+        const threads = project.threads.filter((thread) => thread.id !== threadId);
+
+        return {
+          ...project,
+          threads,
+          threadCount: getNextThreadCount(project, threads),
+        };
+      }),
+    };
+  });
+}
+
+export function removeThreadByIdFromShellState(queryClient: QueryClientLike, threadId: string) {
+  queryClient.setQueryData(desktopQueryKeys.shellState(), (current) => {
+    const currentState = current as ShellState | null | undefined;
+    if (!currentState) {
+      return currentState ?? null;
+    }
+
+    return {
+      ...currentState,
+      projects: currentState.projects.map((project) => {
+        const threads = project.threads.filter((thread) => thread.id !== threadId);
+        if (threads.length === project.threads.length) {
+          return project;
+        }
+
+        return {
+          ...project,
+          threads,
+          threadCount: getNextThreadCount(project, threads),
         };
       }),
     };

@@ -14,7 +14,9 @@ import { isLocalSessionPath } from "../../../shared/session-paths";
 import { desktopQueryKeys } from "../query/desktop-query";
 import {
   applyProjectThreadToShellState,
+  removeProjectThreadByIdFromShellState,
   removeProjectThreadFromShellState,
+  removeThreadByIdFromShellState,
 } from "./project-thread-cache";
 import type { WorkspaceAction, WorkspaceState } from "../state/workspace";
 import { refreshArchivedThreadsIfOpen } from "./controller-action-helpers";
@@ -41,6 +43,36 @@ export {
   getOptimisticallyUpdatedShellState,
 } from "./controller-optimistic-updates";
 
+export function applyOptimisticArchiveUpdate(
+  queryClient: QueryClient,
+  action: DesktopAction,
+  payload: ActionPayload,
+) {
+  const projectId = getPayloadProjectId(payload);
+
+  if (action === "thread.archive") {
+    const threadId = typeof payload.threadId === "string" ? payload.threadId : null;
+    if (!threadId) {
+      return;
+    }
+
+    if (projectId) {
+      removeProjectThreadByIdFromShellState(queryClient, projectId, threadId);
+    }
+    removeThreadByIdFromShellState(queryClient, threadId);
+    return;
+  }
+
+  if (action === "thread.archive-many") {
+    for (const threadId of getPayloadThreadIds(payload)) {
+      if (projectId) {
+        removeProjectThreadByIdFromShellState(queryClient, projectId, threadId);
+      }
+      removeThreadByIdFromShellState(queryClient, threadId);
+    }
+  }
+}
+
 type RunPostDesktopActionEffectsInput = {
   action: DesktopAction;
   contextualPayload: ActionPayload;
@@ -54,7 +86,7 @@ type RunPostDesktopActionEffectsInput = {
     composerMode?: "chat" | "code" | null;
   }) => Promise<ComposerState | null>;
   loadProjectGitState: (projectId: string) => Promise<ProjectGitState | null>;
-  loadProjectThreads: (projectId: string) => Promise<unknown>;
+  loadProjectThreads: (projectId: string, options?: { chat?: boolean }) => Promise<unknown>;
   refreshShellState: () => Promise<unknown>;
   setArchivedThreads: (threads: ArchivedThread[]) => void;
   setComposerState: (state: ComposerState | null) => void;
@@ -83,11 +115,12 @@ export async function runPostDesktopActionEffects({
 }: RunPostDesktopActionEffectsInput) {
   const invalidateInboxThreads = () =>
     queryClient.invalidateQueries({ queryKey: desktopQueryKeys.inboxThreads() });
+  const chatScope = { chat: workspaceState.activeView === "chat" };
 
   if (action === "thread.pin" || action === "thread.archive" || action === "thread.archive-many") {
     const projectId = getPayloadProjectId(contextualPayload);
     if (projectId) {
-      await loadProjectThreads(projectId);
+      await loadProjectThreads(projectId, chatScope);
     }
 
     if (action === "thread.archive" || action === "thread.archive-many") {
@@ -129,10 +162,10 @@ export async function runPostDesktopActionEffects({
       const projectIds = [...new Set(getPayloadProjectIds(contextualPayload))];
 
       if (projectIds.length > 0) {
-        await Promise.all(projectIds.map((batchProjectId) => loadProjectThreads(batchProjectId)));
+        await Promise.all(projectIds.map((batchProjectId) => loadProjectThreads(batchProjectId, chatScope)));
       }
     } else if (projectId) {
-      await loadProjectThreads(projectId);
+      await loadProjectThreads(projectId, chatScope);
     }
 
     setArchivedThreads(await loadArchivedThreads());
@@ -161,7 +194,7 @@ export async function runPostDesktopActionEffects({
     const projectId = getPayloadProjectId(contextualPayload);
 
     if (projectId) {
-      await loadProjectThreads(projectId);
+      await loadProjectThreads(projectId, chatScope);
     }
 
     await invalidateInboxThreads();
@@ -188,7 +221,7 @@ export async function runPostDesktopActionEffects({
     const projectId = getPayloadProjectId(contextualPayload);
 
     if (projectId) {
-      await loadProjectThreads(projectId);
+      await loadProjectThreads(projectId, chatScope);
     }
 
     await refreshShellState();
@@ -213,7 +246,7 @@ export async function runPostDesktopActionEffects({
 
       const projectId = getPayloadProjectId(contextualPayload);
       await refreshShellState();
-      const refreshedThreads = projectId ? await loadProjectThreads(projectId) : null;
+      const refreshedThreads = projectId ? await loadProjectThreads(projectId, chatScope) : null;
 
       if (
         projectId === workspaceState.selectedProjectId &&
@@ -295,7 +328,7 @@ export async function runPostDesktopActionEffects({
       });
       dispatch({ type: "open-thread", projectId: nextProjectId, threadId, sessionPath });
       if (!isLocalSessionPath(sessionPath)) {
-        await loadProjectThreads(nextProjectId);
+        await loadProjectThreads(nextProjectId, chatScope);
         applyProjectThreadToShellState(queryClient, nextProjectId, optimisticThread, {
           revealProject: true,
         });
@@ -320,7 +353,7 @@ export async function runPostDesktopActionEffects({
     } else if (resultProjectId ?? projectId) {
       const nextProjectId = resultProjectId ?? projectId;
       dispatch({ type: "select-project", projectId: nextProjectId });
-      await loadProjectThreads(nextProjectId);
+      await loadProjectThreads(nextProjectId, chatScope);
     } else {
       dispatch({ type: "show-view", view: "code" });
     }

@@ -16,6 +16,7 @@ import type { View } from "../types";
 import { cleanUserErrorMessage } from "../desktop/error-messages";
 import { buildContextualActionPayload } from "./controller-action-helpers";
 import {
+  applyOptimisticArchiveUpdate,
   applyOptimisticPinUpdate,
   applyOptimisticPiSettingsUpdate,
   applyOptimisticProjectRename,
@@ -37,7 +38,7 @@ type UseDesktopActionHandlersArgs = {
     composerMode?: "chat" | "code" | null;
   }) => Promise<ComposerState | null>;
   loadProjectGitState: (projectId: string) => Promise<ProjectGitState | null>;
-  loadProjectThreads: (projectId: string) => Promise<unknown>;
+  loadProjectThreads: (projectId: string, options?: { chat?: boolean }) => Promise<unknown>;
   refreshShellState: () => Promise<unknown>;
   selectedSessionPath: string | null;
   setArchivedThreads: Dispatch<SetStateAction<ArchivedThread[]>>;
@@ -175,6 +176,10 @@ export function useDesktopActionHandlers({
 
       if (action === "thread.pin" || action === "project.pin") {
         applyOptimisticPinUpdate(queryClient, action, payload);
+      }
+
+      if (action === "thread.archive" || action === "thread.archive-many") {
+        applyOptimisticArchiveUpdate(queryClient, action, payload);
       }
 
       return await runDesktopAction(action, payload);

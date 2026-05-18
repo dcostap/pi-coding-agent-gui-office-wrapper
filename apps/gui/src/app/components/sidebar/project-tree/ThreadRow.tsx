@@ -32,6 +32,7 @@ export function ThreadRow({
   onPin,
 }: ThreadRowProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archivedLocally, setArchivedLocally] = useState(false);
   const archiveActionRef = useRef<HTMLButtonElement>(null);
 
   useDismissibleLayer({
@@ -39,6 +40,10 @@ export function ThreadRow({
     onDismiss: () => setConfirmArchive(false),
     refs: [archiveActionRef],
   });
+
+  if (archivedLocally) {
+    return null;
+  }
 
   return (
     <div
@@ -110,6 +115,7 @@ export function ThreadRow({
             onClick={(event) => {
               event.stopPropagation();
               setConfirmArchive(false);
+              setArchivedLocally(true);
               onArchive();
             }}
             aria-label="Confirmar archivar chat"
