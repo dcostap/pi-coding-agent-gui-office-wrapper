@@ -8,6 +8,7 @@ const desktopRoot = path.join(repoRoot, "desktop");
 const allowedPiRuntimeImportPrefixes = [
   "desktop/runtime-host/",
   "desktop/runtime/",
+  "desktop/office-agent-runtime.cts",
   "desktop/pi-module.cts",
   // Package internals are only exported to Electron through runtime-host-bridge.cts; the host
   // imports these implementations directly so native package-manager dependencies stay in Node.
@@ -57,7 +58,8 @@ function isForbiddenRuntimeSpecifier(resolvedSpecifier: string) {
     resolvedSpecifier.startsWith("desktop/runtime/composer-state.cts") ||
     resolvedSpecifier.startsWith("desktop/runtime/runtime-registry.cts") ||
     resolvedSpecifier.startsWith("desktop/runtime/thread-publisher.cts") ||
-    resolvedSpecifier.startsWith("@mariozechner/pi-")
+    resolvedSpecifier.startsWith("@mariozechner/pi-") ||
+    resolvedSpecifier.startsWith("@earendil-works/pi-")
   );
 }
 

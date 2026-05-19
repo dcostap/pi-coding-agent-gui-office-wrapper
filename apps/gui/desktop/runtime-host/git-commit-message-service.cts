@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ComposerStateRequest } from "../../shared/desktop-contracts.ts";
 import { mapAgentMessageToUiMessage } from "../../shared/pi-message-mapper.ts";
 import { loadAppSettings } from "../app-settings/readers.cts";
@@ -10,6 +10,7 @@ import {
   createComposerSnapshotSession,
   getAvailableThinkingLevelsForModel,
 } from "../runtime/composer-state.cts";
+import { disposeAgentSessionGracefully } from "../runtime/pi-session-services.cts";
 
 const MAX_FILE_SECTION_CHARS = 12_000;
 const MAX_PATCH_CHARS = 48_000;
@@ -220,7 +221,7 @@ async function resolveCommitMessageModel(
         return {
           model: configuredModel,
           modelRegistry: snapshot.session.modelRegistry,
-          dispose: () => snapshot.session.dispose(),
+          dispose: () => disposeAgentSessionGracefully(snapshot.session),
         };
       }
     }
@@ -228,10 +229,10 @@ async function resolveCommitMessageModel(
     return {
       model: snapshot.session.model,
       modelRegistry: snapshot.session.modelRegistry,
-      dispose: () => snapshot.session.dispose(),
+      dispose: () => disposeAgentSessionGracefully(snapshot.session),
     };
   } catch (error) {
-    snapshot.session.dispose();
+    await disposeAgentSessionGracefully(snapshot.session);
     throw error;
   }
 }
@@ -244,7 +245,7 @@ export async function generateGitCommitMessage(
   const resolvedModel = await resolveCommitMessageModel(request, appSettings.gitCommitMessageModel);
   const model = resolvedModel.model;
   if (!model) {
-    resolvedModel.dispose();
+    await resolvedModel.dispose();
     return null;
   }
 
@@ -276,7 +277,9 @@ export async function generateGitCommitMessage(
   } catch {
     return null;
   } finally {
-    session?.dispose();
-    resolvedModel.dispose();
+    if (session) {
+      await disposeAgentSessionGracefully(session);
+    }
+    await resolvedModel.dispose();
   }
 }

@@ -220,6 +220,7 @@ export function sendComposerPrompt(
     text: string;
     attachments?: ComposerAttachment[];
     streamingBehavior?: ComposerStreamingBehavior | null;
+    allowSlashCommand?: boolean;
   },
 ) {
   return invokeRuntimeHost("sendComposerPrompt", withComposerModeSettings(request));

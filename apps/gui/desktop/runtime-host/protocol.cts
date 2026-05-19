@@ -66,6 +66,7 @@ export type RuntimeHostRequestMap = {
     text: string;
     attachments?: ComposerAttachment[];
     streamingBehavior?: ComposerStreamingBehavior | null;
+    allowSlashCommand?: boolean;
   };
   stopComposerRun: { request: ComposerStateRequest };
   dequeueComposerPrompt: ComposerStateRequest & {

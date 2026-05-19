@@ -10,7 +10,7 @@ import {
   type PathMetadata,
   type ResolvedPaths,
   type ResolvedResource,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import type {
   RuntimeLoginCallbacks,
   RuntimeExtensionDiagnostic,
@@ -27,7 +27,7 @@ import type { WorkspaceRef } from "@pi-gui/session-driver";
 import { createRuntimeDependencies } from "./runtime-deps.js";
 import { createSettingsManagerWithoutNpmPackages, isGlobalNpmLookupError } from "./npm-package-fallback.js";
 import { skillSlashCommand } from "./runtime-command-utils.js";
-import type { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
+import type { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { OFFICE_AGENT_PROVIDER_ID, OFFICE_AGENT_PROVIDER_LABEL } from "@office-agent/runtime";
 
 interface ModelSettingsSnapshot {
@@ -78,7 +78,7 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
 
   async refreshRuntime(workspace: WorkspaceRef): Promise<RuntimeSnapshot> {
     const context = await this.ensureContext(workspace);
-    context.settingsManager.reload();
+    await context.settingsManager.reload();
     this.authStorage.reload();
     this.modelRegistry.refresh();
     await context.resourceLoader.reload();
@@ -152,7 +152,7 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
     settingsManager.markProjectModified("defaultModel");
     settingsManager.saveProjectSettings(projectSettings);
     await context.settingsManager.flush();
-    context.settingsManager.reload();
+    await context.settingsManager.reload();
     return this.buildSnapshot(context);
   }
 
@@ -183,7 +183,7 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
     settingsManager.markProjectModified("defaultThinkingLevel");
     settingsManager.saveProjectSettings(projectSettings);
     await context.settingsManager.flush();
-    context.settingsManager.reload();
+    await context.settingsManager.reload();
     return this.buildSnapshot(context);
   }
 
@@ -210,7 +210,7 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
     settingsManager.markProjectModified("enabledModels");
     settingsManager.saveProjectSettings(projectSettings);
     await context.settingsManager.flush();
-    context.settingsManager.reload();
+    await context.settingsManager.reload();
     return this.buildSnapshot(context);
   }
 
@@ -353,8 +353,15 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
 
   private applyPendingProviderRegistrations(resourceLoader: DefaultResourceLoader): void {
     const extensionsResult = resourceLoader.getExtensions();
-    for (const { name, config } of extensionsResult.runtime.pendingProviderRegistrations) {
-      this.modelRegistry.registerProvider(name, config);
+    for (const { name, config, extensionPath } of extensionsResult.runtime.pendingProviderRegistrations) {
+      try {
+        this.modelRegistry.registerProvider(name, config);
+      } catch (error) {
+        extensionsResult.errors.push({
+          path: extensionPath,
+          error: `Provider registration failed: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
     }
     extensionsResult.runtime.pendingProviderRegistrations = [];
   }

@@ -2,14 +2,17 @@
   "name": "@office-agent/tui",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
     "build:deps": "npm run build --workspace @office-agent/runtime",
-    "pi": "node ./node_modules/@mariozechner/pi-coding-agent/dist/cli.js",
+    "pi": "node ./scripts/run-tui.mjs",
     "tui": "npm run build:deps && node ./scripts/run-tui.mjs",
     "start": "npm run tui"
   },
   "dependencies": {
-    "@mariozechner/pi-coding-agent": "0.67.2",
+    "@earendil-works/pi-coding-agent": "0.75.3",
     "@office-agent/runtime": "0.0.0"
   }
 }

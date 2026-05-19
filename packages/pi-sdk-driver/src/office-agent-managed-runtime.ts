@@ -11,14 +11,14 @@ import {
   createEditToolDefinition,
   createReadToolDefinition,
   createWriteToolDefinition,
-  DefaultResourceLoader,
   SettingsManager,
   type CreateAgentSessionOptions,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import {
   createAgentSessionRuntimeWithNpmFallback,
-  createSettingsManagerWithoutNpmPackages,
-  isGlobalNpmLookupError,
+  type CreateAgentSessionRuntimePreparationOptions,
+  type CreateAgentSessionRuntimeWithNpmFallbackOptions,
+  type PreparedAgentSessionRuntimeOptions,
 } from "./npm-package-fallback.js";
 import { getOfficeAgentAppPromptContext } from "./office-agent-prompt-context.js";
 import {
@@ -55,11 +55,62 @@ export async function createOfficeAgentManagedSessionRuntime(
     );
   }
 
-  const sessionId = options.sessionManager?.getSessionId();
+  if (!options.sessionManager?.getSessionId()) {
+    throw new Error("OfficeAgent managed runtime requires a session manager with a session id.");
+  }
+
+  const initialSessionId = options.sessionManager.getSessionId();
+  const {
+    customTools: baseCustomTools,
+    noTools: _ignoredNoTools,
+    resourceLoader: providedResourceLoader,
+    settingsManager: providedSettingsManager,
+    tools: _ignoredTools,
+    ...baseOptions
+  } = options;
+  const runtimeOptions: CreateAgentSessionRuntimeWithNpmFallbackOptions = {
+    ...baseOptions,
+    cwd,
+    prepareRuntimeOptions: (runtimePreparationOptions) =>
+      createOfficeAgentManagedRuntimeOptions({
+        baseCustomTools,
+        baseOptions,
+        initialCwd: cwd,
+        initialSessionId,
+        providedResourceLoader,
+        providedSettingsManager,
+        runtimeOptions: runtimePreparationOptions,
+      }),
+  };
+
+  return createAgentSessionRuntimeWithNpmFallback(runtimeOptions);
+}
+
+async function createOfficeAgentManagedRuntimeOptions(options: {
+  readonly baseCustomTools?: CreateAgentSessionOptions["customTools"];
+  readonly baseOptions: Omit<
+    CreateAgentSessionOptions,
+    "customTools" | "noTools" | "resourceLoader" | "settingsManager" | "tools"
+  >;
+  readonly initialCwd: string;
+  readonly initialSessionId: string;
+  readonly providedResourceLoader?: CreateAgentSessionOptions["resourceLoader"];
+  readonly providedSettingsManager?: CreateAgentSessionOptions["settingsManager"];
+  readonly runtimeOptions: CreateAgentSessionRuntimePreparationOptions;
+}): Promise<PreparedAgentSessionRuntimeOptions> {
+  const cwd = resolve(options.runtimeOptions.cwd);
+  const managedRootDir = findOfficeAgentManagedRootForPath(cwd);
+  if (!managedRootDir) {
+    throw new Error(`OfficeAgent refused to switch to an unmanaged Pi runtime cwd: ${cwd}`);
+  }
+
+  const sessionManager = options.runtimeOptions.sessionManager;
+  const sessionId = sessionManager.getSessionId();
   if (!sessionId) {
     throw new Error("OfficeAgent managed runtime requires a session manager with a session id.");
   }
 
+  const agentDir = options.runtimeOptions.agentDir;
   const [sessionPaths, projectStatePaths] = await Promise.all([
     ensureOfficeAgentManagedSessionLayout(sessionId, managedRootDir),
     ensureOfficeAgentManagedProjectStateLayout(cwd, managedRootDir),
@@ -75,18 +126,19 @@ export async function createOfficeAgentManagedSessionRuntime(
       ...getOfficeAgentProjectStateWritablePathsForSetup(projectStatePaths),
     ],
   });
+
   const shellConfig = await ensureOfficeAgentSandboxShellConfig(managedRootDir);
   const appPromptContext = getOfficeAgentAppPromptContext({ cwd, managedRootDir, sessionId });
   const shellPromptContext = getOfficeAgentSandboxShellPromptContext(shellConfig);
   const promptContexts = [appPromptContext, shellPromptContext];
-  const agentDir = options.agentDir;
-  const resourceSetup = options.resourceLoader
-    ? { resourceLoader: options.resourceLoader, settingsManager: options.settingsManager }
-    : await createOfficeAgentResourceLoader(cwd, agentDir, promptContexts, options.settingsManager);
+  const settingsManager =
+    options.providedSettingsManager && resolve(options.initialCwd) === cwd
+      ? options.providedSettingsManager
+      : SettingsManager.create(cwd, agentDir);
   const sessionEnv = getOfficeAgentManagedSessionEnv(sessionId, process.env, {
     managedRootDir,
     activeProjectDir: cwd,
-    ...(agentDir ? { agentDir } : {}),
+    agentDir,
   });
 
   const sandboxCommandTool = createBashToolDefinition(cwd, {
@@ -124,37 +176,44 @@ export async function createOfficeAgentManagedSessionRuntime(
   ];
 
   const customTools = [
-      createReadToolDefinition(cwd),
-      sandboxCommandTool,
-      createEditToolDefinition(cwd, {
-        operations: {
-          access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
-          readFile: (absolutePath: string) => readFile(assertManagedPath(managedRootDir, absolutePath)),
-          writeFile: async (absolutePath: string, content: string) => {
-            const target = assertManagedPath(managedRootDir, absolutePath);
-            await writeFileWithOfficeAgentSandbox(managedRootDir, target, content, { createParentDirs: true });
-          },
+    createReadToolDefinition(cwd),
+    sandboxCommandTool,
+    createEditToolDefinition(cwd, {
+      operations: {
+        access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
+        readFile: (absolutePath: string) => readFile(assertManagedPath(managedRootDir, absolutePath)),
+        writeFile: async (absolutePath: string, content: string) => {
+          const target = assertManagedPath(managedRootDir, absolutePath);
+          await writeFileWithOfficeAgentSandbox(managedRootDir, target, content, { createParentDirs: true });
         },
-      }),
-      createWriteToolDefinition(cwd, {
-        operations: {
-          mkdir: (dir: string) => mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
-          writeFile: (absolutePath: string, content: string) => writeFileWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, absolutePath), content),
-        },
-      }),
-      ...(options.customTools ?? []),
-    ] as unknown as NonNullable<CreateAgentSessionOptions["customTools"]>;
+      },
+    }),
+    createWriteToolDefinition(cwd, {
+      operations: {
+        mkdir: (dir: string) => mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
+        writeFile: (absolutePath: string, content: string) =>
+          writeFileWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, absolutePath), content),
+      },
+    }),
+    ...(options.baseCustomTools ?? []),
+  ] as unknown as NonNullable<CreateAgentSessionOptions["customTools"]>;
 
-  const managedOptions: CreateAgentSessionOptions = {
-    ...options,
+  return {
+    ...options.baseOptions,
     cwd,
-    ...(resourceSetup.settingsManager ? { settingsManager: resourceSetup.settingsManager } : {}),
-    resourceLoader: resourceSetup.resourceLoader,
-    tools: [],
+    agentDir,
+    sessionManager,
+    ...(options.runtimeOptions.sessionStartEvent
+      ? { sessionStartEvent: options.runtimeOptions.sessionStartEvent }
+      : {}),
+    settingsManager,
+    ...(options.providedResourceLoader && resolve(options.initialCwd) === cwd && options.initialSessionId === sessionId
+      ? { resourceLoader: options.providedResourceLoader }
+      : { resourceLoaderOptions: { appendSystemPromptOverride: (base) => [...base, ...promptContexts] } }),
+    noTools: "builtin",
     customTools,
+    processEnv: sessionEnv,
   };
-
-  return withScopedProcessEnv(sessionEnv, () => createAgentSessionRuntimeWithNpmFallback(managedOptions));
 }
 
 function getOfficeAgentSessionWritablePathsForSetup(paths: Awaited<ReturnType<typeof ensureOfficeAgentManagedSessionLayout>>): string[] {
@@ -197,41 +256,6 @@ function defaultWindowsSandboxBackendToV2(): void {
   }
 }
 
-async function createOfficeAgentResourceLoader(
-  cwd: string,
-  agentDir: string | undefined,
-  promptContexts: readonly string[],
-  providedSettingsManager: SettingsManager | undefined,
-): Promise<{ resourceLoader: DefaultResourceLoader; settingsManager: SettingsManager }> {
-  const settingsManager = providedSettingsManager ?? SettingsManager.create(cwd, agentDir);
-  const resourceLoader = new DefaultResourceLoader({
-    cwd,
-    ...(agentDir ? { agentDir } : {}),
-    settingsManager,
-    appendSystemPromptOverride: (base) => [...base, ...promptContexts],
-  });
-  try {
-    await resourceLoader.reload();
-    return { resourceLoader, settingsManager };
-  } catch (error) {
-    if (!isGlobalNpmLookupError(error)) {
-      throw error;
-    }
-    const fallbackSettingsManager = createSettingsManagerWithoutNpmPackages(settingsManager);
-    if (!fallbackSettingsManager) {
-      throw error;
-    }
-    const fallbackResourceLoader = new DefaultResourceLoader({
-      cwd,
-      ...(agentDir ? { agentDir } : {}),
-      settingsManager: fallbackSettingsManager,
-      appendSystemPromptOverride: (base) => [...base, ...promptContexts],
-    });
-    await fallbackResourceLoader.reload();
-    return { resourceLoader: fallbackResourceLoader, settingsManager: fallbackSettingsManager };
-  }
-}
-
 function assertManagedPath(managedRootDir: string, pathValue: string): string {
   const absolutePath = resolve(pathValue);
   if (!isPathWithin(managedRootDir, absolutePath)) {
@@ -243,28 +267,4 @@ function assertManagedPath(managedRootDir: string, pathValue: string): string {
 function isPathWithin(parentPath: string, childPath: string): boolean {
   const relativePath = relative(resolve(parentPath), resolve(childPath));
   return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
-}
-
-async function withScopedProcessEnv<T>(env: NodeJS.ProcessEnv, fn: () => Promise<T>): Promise<T> {
-  const previous = new Map<string, string | undefined>();
-  for (const [key, value] of Object.entries(env)) {
-    previous.set(key, process.env[key]);
-    if (value === undefined) {
-      delete process.env[key];
-    } else {
-      process.env[key] = value;
-    }
-  }
-
-  try {
-    return await fn();
-  } finally {
-    for (const [key, value] of previous) {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
-  }
 }

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { access, readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import type { CreateAgentSessionOptions } from "@mariozechner/pi-coding-agent";
+import type { CreateAgentSessionOptions } from "@earendil-works/pi-coding-agent";
 import type { PiModule } from "./pi-module.cts";
 import {
   ensureOfficeAgentManagedAgentDir,

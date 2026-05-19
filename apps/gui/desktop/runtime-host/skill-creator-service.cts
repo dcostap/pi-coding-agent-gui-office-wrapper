@@ -2,7 +2,7 @@ import { mkdir, readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Message, SkillCreatorSessionState } from "../../shared/desktop-contracts.ts";
 import { mapAgentMessagesToUiMessages } from "../../shared/pi-message-mapper.ts";
 import { loadAppSettings } from "../app-settings/readers.cts";
@@ -14,6 +14,10 @@ import {
   createComposerSnapshotSession,
   getAvailableThinkingLevelsForModel,
 } from "../runtime/composer-state.cts";
+import {
+  createServicesFromLoadedResourceLoader,
+  disposeAgentSessionGracefully,
+} from "../runtime/pi-session-services.cts";
 import {
   getActiveChatSkillsRoot,
   getActiveGlobalSkillsRoot,
@@ -155,7 +159,7 @@ async function createSkillCreatorSession(cwd: string, projectPath?: string | nul
     ModelRegistry,
     SessionManager,
     SettingsManager,
-    createAgentSession,
+    createAgentSessionFromServices,
     getAgentDir,
   } = await getPiModule();
   const agentDir = getAgentDir();
@@ -191,26 +195,29 @@ async function createSkillCreatorSession(cwd: string, projectPath?: string | nul
       model = snapshot.session.model ?? null;
     }
   } finally {
-    snapshot.session.dispose();
+    await disposeAgentSessionGracefully(snapshot.session);
   }
 
   if (!model) {
     throw new Error("No skill creator model is available.");
   }
 
-  const result = await createAgentSession({
+  const services = createServicesFromLoadedResourceLoader({
     cwd,
     agentDir,
     authStorage,
     modelRegistry,
+    settingsManager: SettingsManager.inMemory(),
+    resourceLoader,
+  });
+  const result = await createAgentSessionFromServices({
+    services,
+    sessionManager: SessionManager.inMemory(),
     model,
     thinkingLevel: clampThinkingLevel(
       appSettings.skillCreatorThinkingLevel,
       getAvailableThinkingLevelsForModel(model),
     ),
-    resourceLoader,
-    sessionManager: SessionManager.inMemory(),
-    settingsManager: SettingsManager.inMemory(),
   });
   await bindHeadlessAgentSessionExtensions(result.session);
   return result;
@@ -297,7 +304,7 @@ export async function startSkillCreatorSession(request: {
       }),
     );
   } catch (error) {
-    session.dispose();
+    await disposeAgentSessionGracefully(session);
     skillCreatorSessions.delete(session.sessionId);
     throw error;
   }
@@ -321,7 +328,7 @@ export async function closeSkillCreatorSession(request: { sessionId: string }) {
     return { ok: true };
   }
 
-  sessionEntry.session.dispose();
+  await disposeAgentSessionGracefully(sessionEntry.session);
   skillCreatorSessions.delete(request.sessionId);
   return { ok: true };
 }

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { app } from "electron";
@@ -6,11 +7,15 @@ import { prepareOfficeAgentDesktopRuntime } from "../../../../desktop/office-age
 const require = createRequire(__filename);
 
 function resolvePiPackageDirectory() {
-  try {
-    return path.dirname(require.resolve("@mariozechner/pi-coding-agent/package.json"));
-  } catch {
-    return null;
+  const packageName = "@earendil-works/pi-coding-agent";
+  const searchPaths = require.resolve.paths(packageName) ?? [];
+  for (const searchPath of searchPaths) {
+    const packageDirectory = path.join(searchPath, packageName);
+    if (existsSync(path.join(packageDirectory, "package.json"))) {
+      return packageDirectory;
+    }
   }
+  return null;
 }
 
 function resolveConfiguredUserDataPath() {

@@ -4,8 +4,8 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
-import { streamSimple as piStreamSimple } from "@mariozechner/pi-ai";
+import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
+import { streamSimple as piStreamSimple } from "@earendil-works/pi-ai";
 
 const PORT = Number(process.env.OFFICE_AGENT_GATEWAY_PORT || process.env.PORT || 8082);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -43,9 +43,9 @@ const gpt55Route = {
   modelId:
     process.env.GATEWAY_GPT55_UPSTREAM_MODEL ||
     process.env.GATEWAY_GPT_5_5_UPSTREAM_MODEL ||
-    // The OfficeAgent client still asks the gateway for abstract model "gpt-5.5".
-    // Route that abstract model to the current upstream Codex model exposed by Pi.
-    "gpt-5.4",
+    // The OfficeAgent client asks the gateway for abstract model "gpt-5.5".
+    // Route that abstract model to Pi's current upstream Codex model by default.
+    "gpt-5.5",
 };
 const routedProvider = sparkRoute.provider;
 const routedModelId = sparkRoute.modelId;

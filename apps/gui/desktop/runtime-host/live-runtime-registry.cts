@@ -9,6 +9,10 @@ import {
 } from "../runtime/agent-session-extensions.cts";
 import { buildComposerState } from "../runtime/composer-state.cts";
 import { createArtifactTools } from "../runtime/artifact-tools.cts";
+import {
+  createServicesFromLoadedResourceLoader,
+  disposeAgentSessionGracefully,
+} from "../runtime/pi-session-services.cts";
 import { createOfficeAgentManagedCustomTools } from "../office-agent-runtime.cts";
 import { invokeMainRequest } from "./main-request-client.cts";
 import {
@@ -97,7 +101,7 @@ export function scheduleRuntimeDisposal(runtimeKey: string) {
           scheduleRuntimeDisposal(runtimeKey);
           return;
         }
-        runtime.session.dispose();
+        await disposeAgentSessionGracefully(runtime.session);
         if (runtimeRecords.get(runtimeKey) === record) runtimeRecords.delete(runtimeKey);
         staleRuntimeGenerations.delete(runtimeKey);
       } catch {
@@ -121,7 +125,8 @@ async function createRuntime(options: {
     SessionManager,
     SettingsManager,
     DefaultResourceLoader,
-    createAgentSession,
+    createAgentSessionFromServices,
+    createAgentSessionServices,
     createBashToolDefinition,
     createEditToolDefinition,
     createReadToolDefinition,
@@ -165,13 +170,24 @@ async function createRuntime(options: {
           createWriteToolDefinition,
         },
       });
-  const { session } = await createAgentSession({
-    cwd: options.cwd,
-    agentDir,
-    authStorage,
-    modelRegistry,
-    settingsManager,
-    resourceLoader,
+  const services = resourceLoader
+    ? createServicesFromLoadedResourceLoader({
+        cwd: options.cwd,
+        agentDir,
+        authStorage,
+        modelRegistry,
+        settingsManager,
+        resourceLoader,
+      })
+    : await createAgentSessionServices({
+        cwd: options.cwd,
+        agentDir,
+        authStorage,
+        modelRegistry,
+        settingsManager,
+      });
+  const { session } = await createAgentSessionFromServices({
+    services,
     sessionManager,
     noTools: "builtin" as const,
     customTools,
@@ -409,7 +425,7 @@ export async function getOrCreateRuntimeForSessionPath(
   if (existingRuntime) {
     if (existingRuntime.settingsCwd !== settingsCwd) {
       const runtime = await existingRuntime.runtimePromise;
-      runtime.session.dispose();
+      await disposeAgentSessionGracefully(runtime.session);
       runtimeRecords.delete(persistedSessionPath);
     } else {
       if (options.suspendDisposal) suspendRuntimeDisposal(persistedSessionPath);
@@ -576,7 +592,7 @@ export async function disposeAllRuntimeHosts() {
     entries.map(async ([runtimeKey, record]) => {
       clearRuntimeDisposeTimeout(runtimeKey);
       try {
-        (await record.runtimePromise).session.dispose();
+        await disposeAgentSessionGracefully((await record.runtimePromise).session);
       } catch {
         // Ignore shutdown races.
       }

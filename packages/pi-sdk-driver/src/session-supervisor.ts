@@ -19,7 +19,7 @@ import {
   type ExtensionUIContext,
   type ExtensionWidgetOptions,
   type SessionInfo,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import type { SessionCatalogSnapshot, WorkspaceCatalogSnapshot } from "@pi-gui/catalogs";
 import type {
   NavigateSessionTreeOptions,
@@ -672,6 +672,7 @@ export class SessionSupervisor {
     const record = existing ?? this.createRecord(workspaceToRef(workspace), runtime, session, sessionEntry.title);
     record.runtime = runtime;
     this.attachSessionSubscription(record, session);
+    this.configureRuntimeRebinding(record);
     record.sessionFile = sessionFile;
     record.title = sessionEntry.title;
     record.status = sessionEntry.status;
@@ -730,6 +731,7 @@ export class SessionSupervisor {
     };
 
     this.attachSessionSubscription(record, session);
+    this.configureRuntimeRebinding(record);
     return record;
   }
 
@@ -738,6 +740,23 @@ export class SessionSupervisor {
     record.session = session;
     record.unsubscribeAgent = session.subscribe((event) => {
       void this.handleAgentEvent(record, event);
+    });
+  }
+
+  private configureRuntimeRebinding(record: ManagedSessionRecord): void {
+    const runtime = record.runtime;
+    if (!runtime) {
+      return;
+    }
+
+    runtime.setBeforeSessionInvalidate(() => {
+      this.resetExtensionUi(record);
+    });
+    runtime.setRebindSession(async (session) => {
+      this.attachSessionSubscription(record, session);
+      record.closed = false;
+      await this.bindSessionRuntime(record);
+      await this.syncRecordAfterSessionMutation(record, { emitUpdate: true });
     });
   }
 
@@ -802,27 +821,30 @@ export class SessionSupervisor {
     return {
       waitForIdle: () => this.requireSession(record).agent.waitForIdle(),
       newSession: async (options) => {
-        const result = await this.requireRuntime(record).newSession(options);
-        if (!result.cancelled) {
+        const runtime = this.requireRuntime(record);
+        const result = await runtime.newSession(options);
+        if (!result.cancelled && record.session !== runtime.session) {
           await this.syncRecordAfterRuntimeTransition(record, { emitUpdate: true });
         }
         return result;
       },
-      fork: async (entryId) => {
-        const result = await this.requireRuntime(record).fork(entryId);
-        if (!result.cancelled) {
+      fork: async (entryId, options) => {
+        const runtime = this.requireRuntime(record);
+        const result = await runtime.fork(entryId, options);
+        if (!result.cancelled && record.session !== runtime.session) {
           await this.syncRecordAfterRuntimeTransition(record, { emitUpdate: true });
         }
-        return { cancelled: result.cancelled };
+        return result;
       },
       navigateTree: async (targetId, options) => {
         const result = await this.requireSession(record).navigateTree(targetId, options);
         await this.syncRecordAfterSessionMutation(record, { emitUpdate: true });
         return { cancelled: result.cancelled };
       },
-      switchSession: async (sessionPath) => {
-        const result = await this.requireRuntime(record).switchSession(sessionPath);
-        if (!result.cancelled) {
+      switchSession: async (sessionPath, options) => {
+        const runtime = this.requireRuntime(record);
+        const result = await runtime.switchSession(sessionPath, options);
+        if (!result.cancelled && record.session !== runtime.session) {
           await this.syncRecordAfterRuntimeTransition(record, { emitUpdate: true });
         }
         return result;
@@ -945,6 +967,8 @@ export class SessionSupervisor {
         });
       },
       setWorkingMessage: () => {},
+      setWorkingVisible: () => {},
+      setWorkingIndicator: () => {},
       setHiddenThinkingLabel: () => {},
       setWidget: (key, content: unknown, options?: ExtensionWidgetOptions) => {
         if (content === undefined || Array.isArray(content)) {
@@ -1002,6 +1026,8 @@ export class SessionSupervisor {
           (response) => ("cancelled" in response && response.cancelled ? undefined : "value" in response ? response.value : undefined),
         ),
       setEditorComponent: () => {},
+      getEditorComponent: () => undefined,
+      addAutocompleteProvider: () => {},
       get theme() {
         return noOpTheme;
       },
@@ -1363,15 +1389,17 @@ export class SessionSupervisor {
           callId: event.toolCallId,
           input: event.args,
         }, record);
-      case "tool_execution_update":
+      case "tool_execution_update": {
+        const text = toolUpdateText(event.partialResult);
         return toDriverEvents({
           type: "toolUpdated" as const,
           sessionRef: record.ref,
           timestamp,
           callId: event.toolCallId,
-          ...(typeof event.partialResult === "string" ? { text: event.partialResult } : {}),
+          ...(text ? { text } : {}),
           ...(typeof event.partialResult === "number" ? { progress: event.partialResult } : {}),
         }, record);
+      }
       case "tool_execution_end":
         return toDriverEvents({
           type: "toolFinished" as const,
@@ -1592,7 +1620,7 @@ function resolvedCatalogSessionTitle(existingTitle: string | undefined, infoTitl
 }
 
 const DEFAULT_SESSION_THINKING_LEVEL = "medium";
-const THINKING_LEVEL_ORDER = ["off", "low", "medium", "high", "xhigh"] as const;
+const THINKING_LEVEL_ORDER = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
 type SessionTreeNodeRecord = ReturnType<SessionManager["getTree"]>[number];
 
 function clampThinkingLevel(level: string, availableLevels: readonly string[]): string {
@@ -1941,6 +1969,34 @@ function previewForTreeContent(content: unknown): string | undefined {
         .trim(),
     ) || undefined
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function toolUpdateText(partialResult: unknown): string | undefined {
+  if (typeof partialResult === "string") {
+    return partialResult;
+  }
+  if (!isRecord(partialResult)) {
+    return undefined;
+  }
+
+  const content = partialResult.content;
+  if (typeof content === "string") {
+    return content;
+  }
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+
+  const text = content
+    .flatMap((part) =>
+      isRecord(part) && part.type === "text" && typeof part.text === "string" ? [part.text] : [],
+    )
+    .join("");
+  return text || undefined;
 }
 
 const extensionUiThemeStub = new Proxy(

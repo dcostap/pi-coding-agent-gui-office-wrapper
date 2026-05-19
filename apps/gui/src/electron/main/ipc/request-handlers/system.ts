@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Dirent } from "node:fs";
 import { mkdir, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -180,7 +181,7 @@ async function listProjectFileEntriesForDirectory(request: {
   const directoryPath = isPathWithinRoot(requestedDirectoryPath, rootPath)
     ? requestedDirectoryPath
     : rootPath;
-  let directoryEntries: Awaited<ReturnType<typeof readdir>>;
+  let directoryEntries: Dirent[];
   try {
     directoryEntries = await readdir(directoryPath, { withFileTypes: true });
   } catch (error) {

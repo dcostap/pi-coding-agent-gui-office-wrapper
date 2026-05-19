@@ -1,4 +1,4 @@
-import type { AgentSession } from "@mariozechner/pi-coding-agent";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { DesktopEvent } from "../../shared/desktop-contracts.ts";
 
 export type PiRuntime = {

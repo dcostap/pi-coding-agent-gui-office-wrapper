@@ -1,4 +1,4 @@
-import type { ResourceLoader, SettingsManager } from "@mariozechner/pi-coding-agent";
+import type { ResourceLoader, SettingsManager } from "@earendil-works/pi-coding-agent";
 import path from "node:path";
 
 type SettingsManagerFactory = {

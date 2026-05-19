@@ -7,7 +7,7 @@ import {
   getOfficeAgentManagedEnv,
 } from "@office-agent/runtime";
 
-const piMainUrl = await import.meta.resolve("@mariozechner/pi-coding-agent");
+const piMainUrl = await import.meta.resolve("@earendil-works/pi-coding-agent");
 const piMainPath = fileURLToPath(piMainUrl);
 const piPackageRoot = path.resolve(path.dirname(piMainPath), "..");
 const cliPath = path.join(piPackageRoot, "dist", "cli.js");

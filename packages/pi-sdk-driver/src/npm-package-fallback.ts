@@ -1,13 +1,42 @@
+import { join } from "node:path";
 import {
-  AgentSessionRuntime,
-  DefaultResourceLoader,
+  AuthStorage,
+  ModelRegistry,
+  SessionManager,
   SettingsManager,
-  createAgentSession,
+  createAgentSessionFromServices,
+  createAgentSessionRuntime,
+  createAgentSessionServices,
   getAgentDir,
-  type AgentSession,
   type AgentSessionServices,
   type CreateAgentSessionOptions,
-} from "@mariozechner/pi-coding-agent";
+  type CreateAgentSessionResult,
+  type CreateAgentSessionRuntimeResult,
+  type CreateAgentSessionServicesOptions,
+  type ResourceLoader,
+} from "@earendil-works/pi-coding-agent";
+
+export type CreateAgentSessionWithNpmFallbackOptions = CreateAgentSessionOptions & {
+  resourceLoaderOptions?: CreateAgentSessionServicesOptions["resourceLoaderOptions"];
+};
+
+export interface CreateAgentSessionRuntimePreparationOptions {
+  readonly cwd: string;
+  readonly agentDir: string;
+  readonly sessionManager: SessionManager;
+  readonly sessionStartEvent?: CreateAgentSessionOptions["sessionStartEvent"];
+  readonly baseOptions: CreateAgentSessionWithNpmFallbackOptions;
+}
+
+export type PreparedAgentSessionRuntimeOptions = CreateAgentSessionWithNpmFallbackOptions & {
+  processEnv?: NodeJS.ProcessEnv;
+};
+
+export type CreateAgentSessionRuntimeWithNpmFallbackOptions = CreateAgentSessionWithNpmFallbackOptions & {
+  prepareRuntimeOptions?: (
+    options: CreateAgentSessionRuntimePreparationOptions,
+  ) => PreparedAgentSessionRuntimeOptions | Promise<PreparedAgentSessionRuntimeOptions>;
+};
 
 export function isGlobalNpmLookupError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -39,17 +68,111 @@ export function createSettingsManagerWithoutNpmPackages(current: SettingsManager
   });
 }
 
-export async function createAgentSessionWithNpmFallback(options?: CreateAgentSessionOptions) {
+export async function createAgentSessionWithNpmFallback(
+  options: CreateAgentSessionWithNpmFallbackOptions = {},
+): Promise<CreateAgentSessionResult> {
+  const cwd = resolveSessionCwd(options);
+  const agentDir = options.agentDir ?? getAgentDir();
+  const sessionManager = options.sessionManager ?? SessionManager.create(cwd);
+  const services = await createAgentSessionServicesWithNpmFallback(options, cwd, agentDir);
+
+  return createAgentSessionFromServices({
+    services,
+    sessionManager,
+    ...(options.sessionStartEvent ? { sessionStartEvent: options.sessionStartEvent } : {}),
+    ...(options.model ? { model: options.model } : {}),
+    ...(options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
+    ...(options.scopedModels ? { scopedModels: options.scopedModels } : {}),
+    ...(options.tools ? { tools: options.tools } : {}),
+    ...(options.noTools ? { noTools: options.noTools } : {}),
+    ...(options.customTools ? { customTools: options.customTools } : {}),
+  });
+}
+
+export async function createAgentSessionRuntimeWithNpmFallback(
+  options: CreateAgentSessionRuntimeWithNpmFallbackOptions = {},
+) {
+  const cwd = resolveSessionCwd(options);
+  const agentDir = options.agentDir ?? getAgentDir();
+  const sessionManager = options.sessionManager ?? SessionManager.create(cwd);
+  const { prepareRuntimeOptions: _prepareRuntimeOptions, processEnv: _ignoredProcessEnv, ...baseOptions } =
+    options as CreateAgentSessionRuntimeWithNpmFallbackOptions & { processEnv?: NodeJS.ProcessEnv };
+
+  const createRuntime = async (runtimeOptions: {
+    cwd: string;
+    agentDir: string;
+    sessionManager: SessionManager;
+    sessionStartEvent?: CreateAgentSessionOptions["sessionStartEvent"];
+  }): Promise<CreateAgentSessionRuntimeResult> => {
+    const hasExistingEntries = runtimeOptions.sessionManager.getEntries().length > 0;
+    const defaultRuntimeOptions: CreateAgentSessionWithNpmFallbackOptions = {
+      ...baseOptions,
+      cwd: runtimeOptions.cwd,
+      agentDir: runtimeOptions.agentDir,
+      sessionManager: runtimeOptions.sessionManager,
+      ...(runtimeOptions.sessionStartEvent ? { sessionStartEvent: runtimeOptions.sessionStartEvent } : {}),
+    };
+    const preparedOptions: PreparedAgentSessionRuntimeOptions = options.prepareRuntimeOptions
+      ? await options.prepareRuntimeOptions({
+          ...runtimeOptions,
+          baseOptions: defaultRuntimeOptions,
+        })
+      : defaultRuntimeOptions;
+    const { processEnv, ...sessionOptions } = preparedOptions;
+
+    return withScopedProcessEnv(processEnv, async () => {
+      const services = await createAgentSessionServicesWithNpmFallback(
+        sessionOptions,
+        runtimeOptions.cwd,
+        runtimeOptions.agentDir,
+      );
+      const result = await createAgentSessionFromServices({
+        services,
+        sessionManager: runtimeOptions.sessionManager,
+        ...(runtimeOptions.sessionStartEvent ? { sessionStartEvent: runtimeOptions.sessionStartEvent } : {}),
+        ...(!hasExistingEntries && sessionOptions.model ? { model: sessionOptions.model } : {}),
+        ...(!hasExistingEntries && sessionOptions.thinkingLevel ? { thinkingLevel: sessionOptions.thinkingLevel } : {}),
+        ...(sessionOptions.scopedModels ? { scopedModels: sessionOptions.scopedModels } : {}),
+        ...(sessionOptions.tools ? { tools: sessionOptions.tools } : {}),
+        ...(sessionOptions.noTools ? { noTools: sessionOptions.noTools } : {}),
+        ...(sessionOptions.customTools ? { customTools: sessionOptions.customTools } : {}),
+      });
+      return {
+        ...result,
+        services,
+        diagnostics: services.diagnostics,
+      };
+    });
+  };
+
+  const runtime = await createAgentSessionRuntime(createRuntime, {
+    cwd,
+    agentDir,
+    sessionManager,
+    ...(options.sessionStartEvent ? { sessionStartEvent: options.sessionStartEvent } : {}),
+  });
+
+  return {
+    session: runtime.session,
+    extensionsResult: runtime.session.resourceLoader.getExtensions(),
+    ...(runtime.modelFallbackMessage ? { modelFallbackMessage: runtime.modelFallbackMessage } : {}),
+    runtime,
+  };
+}
+
+async function createAgentSessionServicesWithNpmFallback(
+  options: CreateAgentSessionWithNpmFallbackOptions,
+  cwd: string,
+  agentDir: string,
+): Promise<AgentSessionServices> {
   try {
-    return await createAgentSession(options);
+    return await createAgentSessionServicesFromOptions(options, cwd, agentDir);
   } catch (error) {
     if (!isGlobalNpmLookupError(error)) {
       throw error;
     }
 
-    const cwd = options?.cwd ?? process.cwd();
-    const agentDir = options?.agentDir ?? getAgentDir();
-    const currentSettingsManager = options?.settingsManager ?? SettingsManager.create(cwd, agentDir);
+    const currentSettingsManager = options.settingsManager ?? SettingsManager.create(cwd, agentDir);
     const fallbackSettingsManager = createSettingsManagerWithoutNpmPackages(currentSettingsManager);
     if (!fallbackSettingsManager) {
       throw error;
@@ -61,68 +184,71 @@ export async function createAgentSessionWithNpmFallback(options?: CreateAgentSes
       }`,
     );
 
-    const resourceLoader = new DefaultResourceLoader({
+    const { resourceLoader: _ignoredResourceLoader, ...fallbackOptions } = options;
+    return createAgentSessionServicesFromOptions(
+      {
+        ...fallbackOptions,
+        settingsManager: fallbackSettingsManager,
+      },
       cwd,
       agentDir,
-      settingsManager: fallbackSettingsManager,
-    });
-    await resourceLoader.reload();
-
-    return createAgentSession({
-      ...options,
-      agentDir,
-      settingsManager: fallbackSettingsManager,
-      resourceLoader,
-    });
+    );
   }
 }
 
-export async function createAgentSessionRuntimeWithNpmFallback(options: CreateAgentSessionOptions = {}) {
-  const initial = await createAgentSessionWithNpmFallback(options);
-  const agentDir = options.agentDir ?? getAgentDir();
-  const runtime = new AgentSessionRuntime(
-    initial.session,
-    toAgentSessionServices(initial.session, agentDir),
-    async (runtimeOptions) => {
-      const hasExistingEntries = runtimeOptions.sessionManager.getEntries().length > 0;
-      const result = await createAgentSessionWithNpmFallback({
-        cwd: runtimeOptions.cwd,
-        agentDir: runtimeOptions.agentDir,
-        sessionManager: runtimeOptions.sessionManager,
-        ...(runtimeOptions.sessionStartEvent ? { sessionStartEvent: runtimeOptions.sessionStartEvent } : {}),
-        ...(options.authStorage ? { authStorage: options.authStorage } : {}),
-        ...(options.modelRegistry ? { modelRegistry: options.modelRegistry } : {}),
-        ...(options.settingsManager ? { settingsManager: options.settingsManager } : {}),
-        ...(options.resourceLoader ? { resourceLoader: options.resourceLoader } : {}),
-        ...(!hasExistingEntries && options.model ? { model: options.model } : {}),
-        ...(!hasExistingEntries && options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
-        ...(options.scopedModels ? { scopedModels: options.scopedModels } : {}),
-        ...(options.tools ? { tools: options.tools } : {}),
-        ...(options.customTools ? { customTools: options.customTools } : {}),
-      });
-      return {
-        ...result,
-        services: toAgentSessionServices(result.session, runtimeOptions.agentDir),
-        diagnostics: [],
-      };
-    },
-    [],
-    initial.modelFallbackMessage,
-  );
+async function createAgentSessionServicesFromOptions(
+  options: CreateAgentSessionWithNpmFallbackOptions,
+  cwd: string,
+  agentDir: string,
+): Promise<AgentSessionServices> {
+  if (options.resourceLoader) {
+    const settingsManager = options.settingsManager ?? SettingsManager.create(cwd, agentDir);
+    const authStorage = options.authStorage ?? options.modelRegistry?.authStorage ?? AuthStorage.create(join(agentDir, "auth.json"));
+    const modelRegistry = options.modelRegistry ?? ModelRegistry.create(authStorage, join(agentDir, "models.json"));
+    const diagnostics = applyPendingProviderRegistrations(options.resourceLoader, modelRegistry);
+    return {
+      cwd,
+      agentDir,
+      authStorage,
+      settingsManager,
+      modelRegistry,
+      resourceLoader: options.resourceLoader,
+      diagnostics,
+    };
+  }
 
-  return { ...initial, runtime };
+  return createAgentSessionServices({
+    cwd,
+    agentDir,
+    ...(options.authStorage ? { authStorage: options.authStorage } : {}),
+    ...(options.settingsManager ? { settingsManager: options.settingsManager } : {}),
+    ...(options.modelRegistry ? { modelRegistry: options.modelRegistry } : {}),
+    ...(options.resourceLoaderOptions ? { resourceLoaderOptions: options.resourceLoaderOptions } : {}),
+  });
 }
 
-function toAgentSessionServices(session: AgentSession, agentDir: string): AgentSessionServices {
-  return {
-    cwd: session.sessionManager.getCwd(),
-    agentDir,
-    authStorage: session.modelRegistry.authStorage,
-    settingsManager: session.settingsManager,
-    modelRegistry: session.modelRegistry,
-    resourceLoader: session.resourceLoader,
-    diagnostics: [],
-  };
+function applyPendingProviderRegistrations(
+  resourceLoader: ResourceLoader,
+  modelRegistry: ModelRegistry,
+): AgentSessionServices["diagnostics"] {
+  const diagnostics: AgentSessionServices["diagnostics"] = [];
+  const extensionsResult = resourceLoader.getExtensions();
+  for (const { name, config, extensionPath } of extensionsResult.runtime.pendingProviderRegistrations) {
+    try {
+      modelRegistry.registerProvider(name, config);
+    } catch (error) {
+      diagnostics.push({
+        type: "error",
+        message: `Extension "${extensionPath}" error: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
+  extensionsResult.runtime.pendingProviderRegistrations = [];
+  return diagnostics;
+}
+
+function resolveSessionCwd(options: CreateAgentSessionOptions): string {
+  return options.cwd ?? options.sessionManager?.getCwd() ?? process.cwd();
 }
 
 function filterOutNpmPackageSources(value: unknown): unknown {
@@ -144,4 +270,32 @@ function isNpmPackageSource(value: unknown): boolean {
   }
 
   return typeof value.source === "string" && value.source.trim().startsWith("npm:");
+}
+
+async function withScopedProcessEnv<T>(env: NodeJS.ProcessEnv | undefined, fn: () => Promise<T>): Promise<T> {
+  if (!env) {
+    return fn();
+  }
+
+  const previous = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(env)) {
+    previous.set(key, process.env[key]);
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  try {
+    return await fn();
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
 }

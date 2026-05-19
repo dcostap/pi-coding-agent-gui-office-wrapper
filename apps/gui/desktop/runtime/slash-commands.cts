@@ -7,6 +7,7 @@ import {
 import { getPersistedSessionPath } from "../../shared/session-paths.ts";
 import { discoverHeadlessAgentSessionResources } from "./agent-session-extensions.cts";
 import { createComposerSnapshotSession } from "./composer-state.cts";
+import { disposeAgentSessionGracefully } from "./pi-session-services.cts";
 import {
   getCachedRuntimeForSessionPath,
   reloadRuntimeSettingsIfSafe,
@@ -98,6 +99,6 @@ export async function getComposerSlashCommands(
     });
     return mapSessionCommands(snapshot.session);
   } finally {
-    snapshot.session.dispose();
+    await disposeAgentSessionGracefully(snapshot.session);
   }
 }

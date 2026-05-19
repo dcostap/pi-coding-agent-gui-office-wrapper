@@ -5,6 +5,9 @@
   "license": "MIT",
   "type": "module",
   "description": "SDK-first session driver spike for pi-gui.",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -19,7 +22,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@mariozechner/pi-coding-agent": "^0.67.2",
+    "@earendil-works/pi-coding-agent": "0.75.3",
     "@office-agent/runtime": "0.0.0",
     "@pi-gui/catalogs": "0.0.0",
     "@pi-gui/session-driver": "0.0.0"

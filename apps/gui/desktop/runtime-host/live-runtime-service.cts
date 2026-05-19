@@ -29,6 +29,7 @@ import {
   getAvailableThinkingLevelsForModel,
   getDefaultThinkingLevelForModel,
 } from "../runtime/composer-state.cts";
+import { disposeAgentSessionGracefully } from "../runtime/pi-session-services.cts";
 import type { PiRuntime } from "../runtime/types.cts";
 import { publishComposerUpdate, publishThreadUpdate } from "./live-thread-publisher.cts";
 import {
@@ -187,7 +188,7 @@ export async function getComposerSlashCommands(request: ComposerStateRequest = {
     });
     return mapSessionCommands(snapshot.session);
   } finally {
-    snapshot.session.dispose();
+    await disposeAgentSessionGracefully(snapshot.session);
   }
 }
 

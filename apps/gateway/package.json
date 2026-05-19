@@ -2,6 +2,9 @@
   "name": "@office-agent/gateway",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
     "dev": "node src/server.mjs",
     "start": "node src/server.mjs",
@@ -10,7 +13,7 @@
     "probe-auth": "node scripts/probe-pi-auth.mjs"
   },
   "dependencies": {
-    "@mariozechner/pi-ai": "0.67.2",
-    "@mariozechner/pi-coding-agent": "0.67.2"
+    "@earendil-works/pi-ai": "0.75.3",
+    "@earendil-works/pi-coding-agent": "0.75.3"
   }
 }

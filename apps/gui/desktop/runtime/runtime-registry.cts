@@ -15,6 +15,10 @@ import {
 } from "./agent-session-extensions.cts";
 import { buildComposerState } from "./composer-state.cts";
 import { createArtifactTools } from "./artifact-tools.cts";
+import {
+  createServicesFromLoadedResourceLoader,
+  disposeAgentSessionGracefully,
+} from "./pi-session-services.cts";
 import { rememberSessionPath } from "./session-path-index.cts";
 import { createRuntimeSettingsRefreshController, isRuntimeBusy } from "./settings-refresh.ts";
 import {
@@ -148,7 +152,8 @@ async function createRuntime(options: {
     SessionManager,
     SettingsManager,
     DefaultResourceLoader,
-    createAgentSession,
+    createAgentSessionFromServices,
+    createAgentSessionServices,
     getAgentDir,
   } = await getPiModule();
   const agentDir = getAgentDir();
@@ -168,14 +173,26 @@ async function createRuntime(options: {
     settingsCwd: options.settingsCwd,
     settingsManager,
   });
-  const { session } = await createAgentSession({
-    cwd: options.cwd,
-    agentDir,
-    authStorage,
-    modelRegistry,
-    settingsManager,
-    resourceLoader,
-    sessionManager: options.sessionManager ?? SessionManager.create(options.cwd, sessionDir),
+  const sessionManager = options.sessionManager ?? SessionManager.create(options.cwd, sessionDir);
+  const services = resourceLoader
+    ? createServicesFromLoadedResourceLoader({
+        cwd: options.cwd,
+        agentDir,
+        authStorage,
+        modelRegistry,
+        settingsManager,
+        resourceLoader,
+      })
+    : await createAgentSessionServices({
+        cwd: options.cwd,
+        agentDir,
+        authStorage,
+        modelRegistry,
+        settingsManager,
+      });
+  const { session } = await createAgentSessionFromServices({
+    services,
+    sessionManager,
     ...(options.settingsCwd
       ? {
           noTools: "builtin" as const,
@@ -373,7 +390,7 @@ export async function getOrCreateRuntimeForSessionPath(
   if (existingRuntime) {
     if (existingRuntime.settingsCwd !== settingsCwd) {
       const runtime = await existingRuntime.runtimePromise;
-      runtime.session.dispose();
+      await disposeAgentSessionGracefully(runtime.session);
       deleteRuntimeRecordIfCurrent(persistedSessionPath, existingRuntime);
     } else {
       if (options.suspendDisposal) {
@@ -426,7 +443,7 @@ export async function createRuntimeForNewSession(
     const existingRuntime = getRuntimeRecord(runtimeKey);
     if (existingRuntime) {
       suspendRuntimeDisposal(runtimeKey);
-      runtime.session.dispose();
+      await disposeAgentSessionGracefully(runtime.session);
       return await existingRuntime.runtimePromise;
     }
 

@@ -1,6 +1,6 @@
-import type { ThinkingLevel } from "@mariozechner/pi-agent-core";
-import { getSupportedThinkingLevels } from "@mariozechner/pi-ai";
-import type { AgentSession } from "@mariozechner/pi-coding-agent";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type {
   ComposerContextUsage,
   ComposerModel,
@@ -25,6 +25,10 @@ import {
 } from "./isolated-settings-manager.cts";
 import { isHeadlessExtensionCommandRunning } from "./agent-session-extensions.cts";
 import { buildQueuedPrompts } from "./composer-queue";
+import {
+  createServicesFromLoadedResourceLoader,
+  disposeAgentSessionGracefully,
+} from "./pi-session-services.cts";
 import type { PiRuntime } from "./types.cts";
 
 export const DEFAULT_COMPOSER_THINKING_LEVEL: ComposerThinkingLevel = "medium";
@@ -240,7 +244,7 @@ async function resolveComposerStateSnapshot(request: ComposerStateRequest = {}) 
       contextUsage: mapContextUsage(session),
     };
   } finally {
-    session.dispose();
+    await disposeAgentSessionGracefully(session);
   }
 }
 
@@ -252,7 +256,8 @@ export async function createComposerSnapshotSession(request: ComposerStateReques
     SessionManager,
     SettingsManager,
     DefaultResourceLoader,
-    createAgentSession,
+    createAgentSessionFromServices,
+    createAgentSessionServices,
     getAgentDir,
   } = await getPiModule();
   const cwd = persistedSessionPath
@@ -277,13 +282,24 @@ export async function createComposerSnapshotSession(request: ComposerStateReques
     settingsCwd: request.composerSessionDir,
     settingsManager,
   });
-  const { session } = await createAgentSession({
-    cwd,
-    agentDir,
-    authStorage,
-    modelRegistry,
-    settingsManager,
-    resourceLoader,
+  const services = resourceLoader
+    ? createServicesFromLoadedResourceLoader({
+        cwd,
+        agentDir,
+        authStorage,
+        modelRegistry,
+        settingsManager,
+        resourceLoader,
+      })
+    : await createAgentSessionServices({
+        cwd,
+        agentDir,
+        authStorage,
+        modelRegistry,
+        settingsManager,
+      });
+  const { session } = await createAgentSessionFromServices({
+    services,
     sessionManager,
     tools: [],
   });
@@ -300,7 +316,7 @@ export async function resolveComposerModel(request: ComposerStateRequest = {}) {
   try {
     return (session.model as ComposerSourceModel | null | undefined) ?? null;
   } finally {
-    session.dispose();
+    await disposeAgentSessionGracefully(session);
   }
 }
 

@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { access, cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { delimiter, dirname, isAbsolute, join, normalize, resolve } from "node:path";
-import type { BashOperations } from "@mariozechner/pi-coding-agent";
+import type { BashOperations } from "@earendil-works/pi-coding-agent";
 import {
   getOfficeAgentPythonRuntimeCurrentManifestPath,
   getOfficeAgentPythonRuntimeDir,

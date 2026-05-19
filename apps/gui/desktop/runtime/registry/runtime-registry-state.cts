@@ -1,3 +1,4 @@
+import { disposeAgentSessionGracefully } from "../pi-session-services.cts";
 import type { PiRuntime } from "../types.cts";
 
 const RUNTIME_IDLE_TIMEOUT_MS = 15 * 60 * 1_000;
@@ -85,7 +86,7 @@ export function scheduleRuntimeDisposal(
           return;
         }
 
-        runtime.session.dispose();
+        await disposeAgentSessionGracefully(runtime.session);
       } catch {
         // Ignore runtime disposal races after failed creation.
       } finally {
