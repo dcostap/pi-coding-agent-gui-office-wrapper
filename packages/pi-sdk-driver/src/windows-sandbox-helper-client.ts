@@ -521,7 +521,7 @@ export function getOfficeAgentSandboxShellPromptContext(shellConfig: OfficeAgent
     `Commands are launched as: ${invocation}.`,
     syntax,
     "Commands run as real Windows processes with OfficeAgent write containment. They can modify only the OfficeAgent AgentData/managed project tree. Standard user folders (Desktop, Documents, Downloads, Pictures, Videos, Music) are intended to be readable after sandbox setup; other outside reads may fail according to Windows permissions.",
-    "USERPROFILE/HOME/APPDATA/LOCALAPPDATA are sandbox-private per-session locations. For user-facing folders, prefer OFFICE_AGENT_REAL_DESKTOP, OFFICE_AGENT_REAL_DOWNLOADS, OFFICE_AGENT_REAL_DOCUMENTS, OFFICE_AGENT_REAL_PICTURES, OFFICE_AGENT_REAL_VIDEOS, and OFFICE_AGENT_REAL_MUSIC.",
+    "USERPROFILE/HOME/APPDATA/LOCALAPPDATA are sandbox-private per-session locations. For the active workspace, use %OFFICE_AGENT_WORKSPACE% in commands. For user-facing folders, use OFFICE_AGENT_REAL_USER_DESKTOP, OFFICE_AGENT_REAL_USER_DOWNLOADS, OFFICE_AGENT_REAL_USER_DOCUMENTS, OFFICE_AGENT_REAL_USER_PICTURES, OFFICE_AGENT_REAL_USER_VIDEOS, and OFFICE_AGENT_REAL_USER_MUSIC.",
   ].join("\n");
 }
 
@@ -1449,15 +1449,16 @@ function createSandboxEnvironment(
     "UV_NO_MODIFY_PATH",
     "OFFICE_AGENT_SESSION_DIR",
     "OFFICE_AGENT_SESSION_LOGS_DIR",
-    "OFFICE_AGENT_REAL_USERPROFILE",
-    "OFFICE_AGENT_REAL_DESKTOP",
-    "OFFICE_AGENT_REAL_DOCUMENTS",
-    "OFFICE_AGENT_REAL_DOWNLOADS",
-    "OFFICE_AGENT_REAL_PICTURES",
-    "OFFICE_AGENT_REAL_VIDEOS",
+    "OFFICE_AGENT_REAL_USER_PROFILE",
+    "OFFICE_AGENT_REAL_USER_DESKTOP",
+    "OFFICE_AGENT_REAL_USER_DOCUMENTS",
+    "OFFICE_AGENT_REAL_USER_DOWNLOADS",
+    "OFFICE_AGENT_REAL_USER_PICTURES",
+    "OFFICE_AGENT_REAL_USER_VIDEOS",
+    "OFFICE_AGENT_REAL_USER_MUSIC",
     "OFFICE_AGENT_SANDBOX_PROFILE",
     "OFFICE_AGENT_MANAGED_ROOT",
-    "OFFICE_AGENT_ACTIVE_PROJECT",
+    "OFFICE_AGENT_WORKSPACE",
   ]);
   copyEnvKeys(env, commandEnv, [
     "HOME",
@@ -1484,15 +1485,16 @@ function createSandboxEnvironment(
     "UV_NO_MODIFY_PATH",
     "OFFICE_AGENT_SESSION_DIR",
     "OFFICE_AGENT_SESSION_LOGS_DIR",
-    "OFFICE_AGENT_REAL_USERPROFILE",
-    "OFFICE_AGENT_REAL_DESKTOP",
-    "OFFICE_AGENT_REAL_DOCUMENTS",
-    "OFFICE_AGENT_REAL_DOWNLOADS",
-    "OFFICE_AGENT_REAL_PICTURES",
-    "OFFICE_AGENT_REAL_VIDEOS",
+    "OFFICE_AGENT_REAL_USER_PROFILE",
+    "OFFICE_AGENT_REAL_USER_DESKTOP",
+    "OFFICE_AGENT_REAL_USER_DOCUMENTS",
+    "OFFICE_AGENT_REAL_USER_DOWNLOADS",
+    "OFFICE_AGENT_REAL_USER_PICTURES",
+    "OFFICE_AGENT_REAL_USER_VIDEOS",
+    "OFFICE_AGENT_REAL_USER_MUSIC",
     "OFFICE_AGENT_SANDBOX_PROFILE",
     "OFFICE_AGENT_MANAGED_ROOT",
-    "OFFICE_AGENT_ACTIVE_PROJECT",
+    "OFFICE_AGENT_WORKSPACE",
   ]);
 
   const pathEntries = uniquePaths([

@@ -51,16 +51,16 @@ export const OFFICE_AGENT_PYTHON_RUNTIME_MANIFEST_NAME = "officeagent-python-run
 export const OFFICE_AGENT_UV_RUNTIME_MANIFEST_NAME = "officeagent-uv-runtime.json";
 export const OFFICE_AGENT_STAGED_GIT_BASH_DIR_ENV_NAME = "OFFICE_AGENT_STAGED_GIT_BASH_DIR";
 export const OFFICE_AGENT_SANDBOX_BASH_PATH_ENV_NAME = "OFFICE_AGENT_SANDBOX_BASH_PATH";
-export const OFFICE_AGENT_REAL_USERPROFILE_ENV_NAME = "OFFICE_AGENT_REAL_USERPROFILE";
-export const OFFICE_AGENT_REAL_DESKTOP_ENV_NAME = "OFFICE_AGENT_REAL_DESKTOP";
-export const OFFICE_AGENT_REAL_DOCUMENTS_ENV_NAME = "OFFICE_AGENT_REAL_DOCUMENTS";
-export const OFFICE_AGENT_REAL_DOWNLOADS_ENV_NAME = "OFFICE_AGENT_REAL_DOWNLOADS";
-export const OFFICE_AGENT_REAL_PICTURES_ENV_NAME = "OFFICE_AGENT_REAL_PICTURES";
-export const OFFICE_AGENT_REAL_VIDEOS_ENV_NAME = "OFFICE_AGENT_REAL_VIDEOS";
-export const OFFICE_AGENT_REAL_MUSIC_ENV_NAME = "OFFICE_AGENT_REAL_MUSIC";
+export const OFFICE_AGENT_REAL_USER_PROFILE_ENV_NAME = "OFFICE_AGENT_REAL_USER_PROFILE";
+export const OFFICE_AGENT_REAL_USER_DESKTOP_ENV_NAME = "OFFICE_AGENT_REAL_USER_DESKTOP";
+export const OFFICE_AGENT_REAL_USER_DOCUMENTS_ENV_NAME = "OFFICE_AGENT_REAL_USER_DOCUMENTS";
+export const OFFICE_AGENT_REAL_USER_DOWNLOADS_ENV_NAME = "OFFICE_AGENT_REAL_USER_DOWNLOADS";
+export const OFFICE_AGENT_REAL_USER_PICTURES_ENV_NAME = "OFFICE_AGENT_REAL_USER_PICTURES";
+export const OFFICE_AGENT_REAL_USER_VIDEOS_ENV_NAME = "OFFICE_AGENT_REAL_USER_VIDEOS";
+export const OFFICE_AGENT_REAL_USER_MUSIC_ENV_NAME = "OFFICE_AGENT_REAL_USER_MUSIC";
 export const OFFICE_AGENT_SANDBOX_PROFILE_ENV_NAME = "OFFICE_AGENT_SANDBOX_PROFILE";
 export const OFFICE_AGENT_MANAGED_ROOT_ENV_NAME = "OFFICE_AGENT_MANAGED_ROOT";
-export const OFFICE_AGENT_ACTIVE_PROJECT_ENV_NAME = "OFFICE_AGENT_ACTIVE_PROJECT";
+export const OFFICE_AGENT_WORKSPACE_ENV_NAME = "OFFICE_AGENT_WORKSPACE";
 export const OFFICE_AGENT_PROJECT_STATE_ENV_NAME = "OFFICE_AGENT_PROJECT_STATE";
 export const OFFICE_AGENT_PROJECT_CACHE_ENV_NAME = "OFFICE_AGENT_PROJECT_CACHE";
 export const OFFICE_AGENT_PROJECT_TOOLS_ENV_NAME = "OFFICE_AGENT_PROJECT_TOOLS";
@@ -584,16 +584,16 @@ export function getOfficeAgentManagedSessionEnv(
     USERPROFILE: paths.profileDir,
     APPDATA: paths.appDataDir,
     LOCALAPPDATA: paths.localAppDataDir,
-    [OFFICE_AGENT_REAL_USERPROFILE_ENV_NAME]: realUserFolders.userProfile,
-    [OFFICE_AGENT_REAL_DESKTOP_ENV_NAME]: realUserFolders.desktop,
-    [OFFICE_AGENT_REAL_DOCUMENTS_ENV_NAME]: realUserFolders.documents,
-    [OFFICE_AGENT_REAL_DOWNLOADS_ENV_NAME]: realUserFolders.downloads,
-    [OFFICE_AGENT_REAL_PICTURES_ENV_NAME]: realUserFolders.pictures,
-    [OFFICE_AGENT_REAL_VIDEOS_ENV_NAME]: realUserFolders.videos,
-    [OFFICE_AGENT_REAL_MUSIC_ENV_NAME]: realUserFolders.music,
+    [OFFICE_AGENT_REAL_USER_PROFILE_ENV_NAME]: realUserFolders.userProfile,
+    [OFFICE_AGENT_REAL_USER_DESKTOP_ENV_NAME]: realUserFolders.desktop,
+    [OFFICE_AGENT_REAL_USER_DOCUMENTS_ENV_NAME]: realUserFolders.documents,
+    [OFFICE_AGENT_REAL_USER_DOWNLOADS_ENV_NAME]: realUserFolders.downloads,
+    [OFFICE_AGENT_REAL_USER_PICTURES_ENV_NAME]: realUserFolders.pictures,
+    [OFFICE_AGENT_REAL_USER_VIDEOS_ENV_NAME]: realUserFolders.videos,
+    [OFFICE_AGENT_REAL_USER_MUSIC_ENV_NAME]: realUserFolders.music,
     [OFFICE_AGENT_SANDBOX_PROFILE_ENV_NAME]: paths.profileDir,
     [OFFICE_AGENT_MANAGED_ROOT_ENV_NAME]: managedRootDir,
-    ...(options.activeProjectDir ? { [OFFICE_AGENT_ACTIVE_PROJECT_ENV_NAME]: options.activeProjectDir } : {}),
+    ...(options.activeProjectDir ? { [OFFICE_AGENT_WORKSPACE_ENV_NAME]: options.activeProjectDir } : {}),
     ...(projectStatePaths
       ? {
           [OFFICE_AGENT_PROJECT_STATE_ENV_NAME]: projectStatePaths.projectStateDir,
@@ -639,19 +639,19 @@ export interface OfficeAgentRealUserFolders {
 
 export function getOfficeAgentRealUserFolders(env: NodeJS.ProcessEnv = process.env): OfficeAgentRealUserFolders {
   const userProfile =
-    env[OFFICE_AGENT_REAL_USERPROFILE_ENV_NAME]
+    env[OFFICE_AGENT_REAL_USER_PROFILE_ENV_NAME]
     ?? env.USERPROFILE
     ?? (env.HOMEDRIVE && env.HOMEPATH ? path.join(env.HOMEDRIVE, env.HOMEPATH) : undefined)
     ?? os.homedir();
 
   return {
     userProfile,
-    desktop: env[OFFICE_AGENT_REAL_DESKTOP_ENV_NAME] ?? path.join(userProfile, "Desktop"),
-    documents: env[OFFICE_AGENT_REAL_DOCUMENTS_ENV_NAME] ?? path.join(userProfile, "Documents"),
-    downloads: env[OFFICE_AGENT_REAL_DOWNLOADS_ENV_NAME] ?? path.join(userProfile, "Downloads"),
-    pictures: env[OFFICE_AGENT_REAL_PICTURES_ENV_NAME] ?? path.join(userProfile, "Pictures"),
-    videos: env[OFFICE_AGENT_REAL_VIDEOS_ENV_NAME] ?? path.join(userProfile, "Videos"),
-    music: env[OFFICE_AGENT_REAL_MUSIC_ENV_NAME] ?? path.join(userProfile, "Music"),
+    desktop: env[OFFICE_AGENT_REAL_USER_DESKTOP_ENV_NAME] ?? path.join(userProfile, "Desktop"),
+    documents: env[OFFICE_AGENT_REAL_USER_DOCUMENTS_ENV_NAME] ?? path.join(userProfile, "Documents"),
+    downloads: env[OFFICE_AGENT_REAL_USER_DOWNLOADS_ENV_NAME] ?? path.join(userProfile, "Downloads"),
+    pictures: env[OFFICE_AGENT_REAL_USER_PICTURES_ENV_NAME] ?? path.join(userProfile, "Pictures"),
+    videos: env[OFFICE_AGENT_REAL_USER_VIDEOS_ENV_NAME] ?? path.join(userProfile, "Videos"),
+    music: env[OFFICE_AGENT_REAL_USER_MUSIC_ENV_NAME] ?? path.join(userProfile, "Music"),
   };
 }
 

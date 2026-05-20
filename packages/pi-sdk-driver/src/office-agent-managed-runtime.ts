@@ -21,6 +21,8 @@ import {
   type PreparedAgentSessionRuntimeOptions,
 } from "./npm-package-fallback.js";
 import { getOfficeAgentAppPromptContext } from "./office-agent-prompt-context.js";
+import { expandOfficeAgentPathPlaceholders } from "./office-agent-path-placeholders.js";
+import { createCopyFileIntoWorkspaceToolDefinition } from "./office-agent-workspace-tools.js";
 import {
   createOfficeAgentSandboxBashOperations,
   ensureOfficeAgentSandboxShellConfig,
@@ -175,26 +177,31 @@ async function createOfficeAgentManagedRuntimeOptions(options: {
     "For multi-step or complex logic, write a temporary .cmd, .ps1, .js, or .py script inside the project and execute it.",
   ];
 
+  const readTool = withOfficeAgentPathPlaceholderExpansion(createReadToolDefinition(cwd), sessionEnv);
+  const editTool = withOfficeAgentPathPlaceholderExpansion(createEditToolDefinition(cwd, {
+    operations: {
+      access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
+      readFile: (absolutePath: string) => readFile(assertManagedPath(managedRootDir, absolutePath)),
+      writeFile: async (absolutePath: string, content: string) => {
+        const target = assertManagedPath(managedRootDir, absolutePath);
+        await writeFileWithOfficeAgentSandbox(managedRootDir, target, content, { createParentDirs: true });
+      },
+    },
+  }), sessionEnv);
+  const writeTool = withOfficeAgentPathPlaceholderExpansion(createWriteToolDefinition(cwd, {
+    operations: {
+      mkdir: (dir: string) => mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
+      writeFile: (absolutePath: string, content: string) =>
+        writeFileWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, absolutePath), content),
+    },
+  }), sessionEnv);
+
   const customTools = [
-    createReadToolDefinition(cwd),
+    readTool,
+    createCopyFileIntoWorkspaceToolDefinition({ cwd, managedRootDir, env: sessionEnv }),
     sandboxCommandTool,
-    createEditToolDefinition(cwd, {
-      operations: {
-        access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
-        readFile: (absolutePath: string) => readFile(assertManagedPath(managedRootDir, absolutePath)),
-        writeFile: async (absolutePath: string, content: string) => {
-          const target = assertManagedPath(managedRootDir, absolutePath);
-          await writeFileWithOfficeAgentSandbox(managedRootDir, target, content, { createParentDirs: true });
-        },
-      },
-    }),
-    createWriteToolDefinition(cwd, {
-      operations: {
-        mkdir: (dir: string) => mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
-        writeFile: (absolutePath: string, content: string) =>
-          writeFileWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, absolutePath), content),
-      },
-    }),
+    editTool,
+    writeTool,
     ...(options.baseCustomTools ?? []),
   ] as unknown as NonNullable<CreateAgentSessionOptions["customTools"]>;
 
@@ -245,6 +252,37 @@ function getOfficeAgentProjectStateWritablePathsForSetup(paths: Awaited<ReturnTy
     paths.uvPythonInstallDir,
     paths.uvPythonBinDir,
   ];
+}
+
+type ToolWithPrepareArguments = {
+  prepareArguments?: (args: unknown) => unknown;
+};
+
+function withOfficeAgentPathPlaceholderExpansion<TTool>(tool: TTool, env: NodeJS.ProcessEnv): TTool {
+  const mutableTool = tool as ToolWithPrepareArguments;
+  const previousPrepareArguments = mutableTool.prepareArguments;
+  mutableTool.prepareArguments = (args: unknown) => {
+    const preparedArgs = previousPrepareArguments ? previousPrepareArguments(args) : args;
+    return expandToolPathArguments(preparedArgs, env);
+  };
+  return tool;
+}
+
+function expandToolPathArguments(args: unknown, env: NodeJS.ProcessEnv): unknown {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    return args;
+  }
+  const mutableArgs = { ...(args as Record<string, unknown>) };
+  const rawPath = typeof mutableArgs.path === "string"
+    ? mutableArgs.path
+    : typeof mutableArgs.file_path === "string"
+      ? mutableArgs.file_path
+      : undefined;
+  if (rawPath !== undefined) {
+    mutableArgs.path = expandOfficeAgentPathPlaceholders(rawPath, env);
+    delete mutableArgs.file_path;
+  }
+  return mutableArgs;
 }
 
 function defaultWindowsSandboxBackendToV2(): void {
