@@ -165,16 +165,18 @@ async function createOfficeAgentManagedRuntimeOptions(options: {
     "Run a command with OfficeAgent's Windows write-contained execution model for the current project. OfficeAgent launches real Windows processes; it does not provide a fake shell command language.",
     "You may use normal Windows commands and tools such as cmd.exe, powershell.exe, pwsh.exe, npm, npx, node, python, pip, uv, git, cargo, dotnet, and package scripts when they are available.",
     "The OS enforces write containment. Commands can modify the OfficeAgent managed project/root; reads outside the root may succeed or fail according to normal Windows permissions.",
+    "Python is managed by OfficeAgent: use normal python/pip/py/uv commands; packages install into the hidden managed environment, not into the visible workspace.",
+    "For complex logic, write temporary .cmd, .ps1, .js, or .py files under %OFFICE_AGENT_SCRATCH%; save only user-facing inputs/outputs in %OFFICE_AGENT_WORKSPACE%.",
     "Host tools visible on PATH may be tried when available. Prefer OfficeAgent-staged/project-local tools for reproducibility.",
-    "For complex logic, write a temporary .cmd, .ps1, .js, or .py file inside the project and run it.",
   ].join(" ");
   sandboxCommandTool.promptSnippet = "Execute normal Windows commands with OfficeAgent write containment for the current project.";
   sandboxCommandTool.promptGuidelines = [
     shellPromptContext,
     "You may use cmd.exe, powershell.exe, pwsh.exe, direct project/toolchain commands, and package scripts. OfficeAgent should not be treated as a fake shell with its own command vocabulary.",
     "Prefer commands that operate within the current project/managed root. Writes outside the managed root should fail; reads outside may succeed or fail according to Windows permissions.",
+    "Use normal python, py, pip, python -m pip, and uv pip commands. OfficeAgent routes them to a hidden per-workspace Python environment automatically; do not create pylibs, .venv, or package folders in the visible workspace.",
+    "For multi-step or complex logic, write temporary .cmd, .ps1, .js, or .py scripts under %OFFICE_AGENT_SCRATCH% and execute them. Keep %OFFICE_AGENT_WORKSPACE% for user-visible files and final results.",
     "Host tools on PATH may be tried when available. Prefer npm scripts, node, python, pip, uv, git, cargo, dotnet, and other project-local/staged tools over host-specific assumptions.",
-    "For multi-step or complex logic, write a temporary .cmd, .ps1, .js, or .py script inside the project and execute it.",
   ];
 
   const readTool = withOfficeAgentPathPlaceholderExpansion(createReadToolDefinition(cwd), sessionEnv);
@@ -230,6 +232,7 @@ function getOfficeAgentSessionWritablePathsForSetup(paths: Awaited<ReturnType<ty
     paths.appDataDir,
     paths.localAppDataDir,
     paths.tempDir,
+    paths.scratchDir,
     paths.logsDir,
   ];
 }
@@ -242,10 +245,13 @@ function getOfficeAgentProjectStateWritablePathsForSetup(paths: Awaited<ReturnTy
     paths.dataDir,
     paths.toolsDir,
     paths.binDir,
+    paths.scratchDir,
     paths.npmCacheDir,
     paths.npmPrefixDir,
     paths.pipCacheDir,
+    paths.pipConfigPath,
     paths.pythonUserBaseDir,
+    paths.pythonEnvDir,
     paths.uvCacheDir,
     paths.uvToolDir,
     paths.uvToolBinDir,
@@ -280,7 +286,7 @@ function expandToolPathArguments(args: unknown, env: NodeJS.ProcessEnv): unknown
       : undefined;
   if (rawPath !== undefined) {
     mutableArgs.path = expandOfficeAgentPathPlaceholders(rawPath, env);
-    delete mutableArgs.file_path;
+    mutableArgs.file_path = undefined;
   }
   return mutableArgs;
 }

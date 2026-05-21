@@ -151,7 +151,7 @@ describe.skipIf(!runV2PackageSmoke)("OfficeAgent Windows sandbox v2 package-mana
     await expect(readFile(path.join(projectDir, "npm-result.txt"), "utf8")).resolves.toContain("npm-ok");
   }, 240_000);
 
-  it("creates a local uv virtualenv and runs Python from it", async () => {
+  it("routes uv Python commands through the managed hidden environment", async () => {
     const { operations, projectDir } = await createOperations("v2-package-uv-smoke");
     const probe = await execText(operations, "uv --version", projectDir);
     if (probe.exitCode !== 0) {
@@ -159,7 +159,14 @@ describe.skipIf(!runV2PackageSmoke)("OfficeAgent Windows sandbox v2 package-mana
       return;
     }
 
-    const result = await execText(operations, "uv venv .uv-smoke-venv && uv run python -c \"print('uv-ok')\"", projectDir);
+    const venvResult = await execText(operations, "uv venv .uv-smoke-venv", projectDir);
+    expect(venvResult.exitCode).not.toBe(0);
+    expect(venvResult.output).toContain("hidden Python environment");
+    await expect(
+      readFile(path.join(projectDir, ".uv-smoke-venv", "pyvenv.cfg"), "utf8"),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+
+    const result = await execText(operations, "uv run python -c \"print('uv-ok')\"", projectDir);
     expect(result.exitCode).toBe(0);
     expect(result.output).toContain("uv-ok");
   }, 240_000);

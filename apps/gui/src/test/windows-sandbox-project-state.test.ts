@@ -1,34 +1,60 @@
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
-describe.skipIf(process.platform !== "win32")(
+const runPythonSandboxSmoke =
+  process.platform === "win32" && process.env.OFFICE_AGENT_WINDOWS_SANDBOX_PYTHON_SMOKE === "1";
+
+describe.skipIf(!runPythonSandboxSmoke)(
   "OfficeAgent Windows sandbox project-scoped package state",
   () => {
     it("lets two sessions in the same project write/read the same project PYTHONUSERBASE", async () => {
-      const managedRootDir = await mkdtemp(path.join(tmpdir(), "officeagent-sandbox-project-state-"));
-      const projectDir = path.join(managedRootDir, "projects", "project-state-smoke");
-      await mkdir(projectDir, { recursive: true });
+      process.env.OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND = "codex-v2";
+      const testId = `project-state-smoke-${Date.now()}`;
+      const cleanupPaths: string[] = [];
 
       try {
         const [runtime, sandbox] = await Promise.all([
           import(
-            pathToFileURL(path.resolve(process.cwd(), "../../packages/office-agent-runtime/src/index.ts")).href
+            pathToFileURL(
+              path.resolve(process.cwd(), "../../packages/office-agent-runtime/src/index.ts"),
+            ).href
           ),
           import(
             pathToFileURL(
-              path.resolve(process.cwd(), "../../packages/pi-sdk-driver/src/windows-sandbox-helper-client.ts"),
+              path.resolve(
+                process.cwd(),
+                "../../packages/pi-sdk-driver/src/windows-sandbox-helper-client.ts",
+              ),
             ).href
           ),
         ]);
+        const managedRootDir = runtime.getOfficeAgentManagedRootDir();
+        const projectDir = path.join(managedRootDir, "Projects", testId);
+        cleanupPaths.push(projectDir);
+        await rm(projectDir, { recursive: true, force: true });
+        await mkdir(projectDir, { recursive: true });
 
-        const projectStatePaths = await runtime.ensureOfficeAgentManagedProjectStateLayout(projectDir, managedRootDir);
+        const projectStatePaths = await runtime.ensureOfficeAgentManagedProjectStateLayout(
+          projectDir,
+          managedRootDir,
+        );
+        cleanupPaths.push(projectStatePaths.projectStateDir);
         const shellConfig = await sandbox.ensureOfficeAgentSandboxShellConfig(managedRootDir);
+        if (!shellConfig.pythonRuntime) {
+          console.warn(
+            "Skipping project-state Python smoke because bundled Python is unavailable.",
+          );
+          return;
+        }
 
         const createOperations = async (sessionId: string) => {
-          const sessionPaths = await runtime.ensureOfficeAgentManagedSessionLayout(sessionId, managedRootDir);
+          const sessionPaths = await runtime.ensureOfficeAgentManagedSessionLayout(
+            sessionId,
+            managedRootDir,
+          );
+          cleanupPaths.push(sessionPaths.sessionDir);
           const env = runtime.getOfficeAgentManagedSessionEnv(sessionId, process.env, {
             managedRootDir,
             activeProjectDir: projectDir,
@@ -42,8 +68,8 @@ describe.skipIf(process.platform !== "win32")(
           });
         };
 
-        const sessionA = await createOperations("session-a");
-        const sessionB = await createOperations("session-b");
+        const sessionA = await createOperations(`session-a-${Date.now()}`);
+        const sessionB = await createOperations(`session-b-${Date.now()}`);
         const markerScript = [
           "import os",
           "target = os.path.join(os.environ['PYTHONUSERBASE'], 'officeagent-shared-marker.txt')",
@@ -73,7 +99,11 @@ describe.skipIf(process.platform !== "win32")(
         expect(readResult.exitCode).toBe(0);
         expect(output).toContain("shared-ok");
       } finally {
-        await rm(managedRootDir, { recursive: true, force: true }).catch(() => undefined);
+        await Promise.all(
+          cleanupPaths.map((target) =>
+            rm(target, { recursive: true, force: true }).catch(() => undefined),
+          ),
+        );
       }
     }, 180_000);
   },

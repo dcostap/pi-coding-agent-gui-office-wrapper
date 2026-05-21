@@ -137,6 +137,7 @@ export interface OfficeAgentSandboxShellConfig {
 export function createOfficeAgentSandboxBashOperations(
   options: OfficeAgentSandboxBashOptions,
 ): BashOperations {
+  let managedPythonSelfTest: Promise<void> | undefined;
   return {
     exec: async (command, cwd, execOptions) => {
       if (process.platform !== "win32") {
@@ -151,7 +152,6 @@ export function createOfficeAgentSandboxBashOperations(
       const timeoutMs = execOptions.timeout && execOptions.timeout > 0
         ? Math.ceil(execOptions.timeout * 1000)
         : undefined;
-      const commandLaunch = await prepareSandboxCommandLaunch(command, shellConfig, options.managedRootDir, options.sessionPaths.sessionDir, runId);
       const pythonCompatDir = await ensureOfficeAgentSessionPythonCompat(options.managedRootDir, options.sessionPaths);
       const sandboxEnv = createSandboxEnvironment(shellConfig, options.env, execOptions.env, cwd);
       prependPathLikeEnv(sandboxEnv, "PYTHONPATH", pythonCompatDir);
@@ -159,6 +159,30 @@ export function createOfficeAgentSandboxBashOperations(
       if (execOptions.signal?.aborted) {
         throw new Error("aborted");
       }
+
+      if (shellConfig.pythonRuntime && commandMayUseManagedPython(command)) {
+        managedPythonSelfTest ??= runOfficeAgentManagedPythonSelfTest({
+          managedRootDir: options.managedRootDir,
+          sessionPaths: options.sessionPaths,
+          ...(options.projectStatePaths ? { projectStatePaths: options.projectStatePaths } : {}),
+          shellConfig,
+          env: sandboxEnv,
+          cwd,
+          ...(execOptions.signal ? { signal: execOptions.signal } : {}),
+        });
+        try {
+          await managedPythonSelfTest;
+        } catch (error) {
+          managedPythonSelfTest = undefined;
+          throw error;
+        }
+      }
+
+      if (execOptions.signal?.aborted) {
+        throw new Error("aborted");
+      }
+
+      const commandLaunch = await prepareSandboxCommandLaunch(command, shellConfig, options.managedRootDir, options.sessionPaths.sessionDir, runId);
 
       const response = await invokeWindowsSandboxHelper({
         kind: "launch",
@@ -173,6 +197,7 @@ export function createOfficeAgentSandboxBashOperations(
           cwd,
           ...getOfficeAgentSessionWritablePaths(options.sessionPaths),
           ...(options.projectStatePaths ? getOfficeAgentProjectStateWritablePaths(options.projectStatePaths) : []),
+          ...getOfficeAgentToolRuntimeWritablePaths(shellConfig),
           ...commandLaunch.writableScriptPaths,
         ],
         stdoutPath,
@@ -210,6 +235,10 @@ export function createOfficeAgentSandboxBashOperations(
   };
 }
 
+function commandMayUseManagedPython(command: string): boolean {
+  return /(^|[\s&|()<>])(?:python3?|py|pip3?|uvx?)(?:\.exe|\.cmd)?(?=$|[\s&|()<>])/i.test(command);
+}
+
 function getOfficeAgentSessionWritablePaths(paths: OfficeAgentManagedSessionPaths): string[] {
   return [
     paths.sessionDir,
@@ -217,8 +246,23 @@ function getOfficeAgentSessionWritablePaths(paths: OfficeAgentManagedSessionPath
     paths.appDataDir,
     paths.localAppDataDir,
     paths.tempDir,
+    paths.scratchDir,
     paths.logsDir,
     getOfficeAgentSessionPythonCompatDir(paths),
+  ];
+}
+
+function getOfficeAgentToolRuntimeWritablePaths(shellConfig: OfficeAgentSandboxShellConfig): string[] {
+  // The v2 helper applies launch-time ACLs only to writable paths. Include hidden,
+  // OfficeAgent-owned runtime paths so the sandbox account can read/execute shims
+  // and bundled executables created after initial setup.
+  return [
+    ...(shellConfig.pythonRuntime
+      ? [shellConfig.pythonRuntime.runtimeDir, ...shellConfig.pythonRuntime.pathEntries]
+      : []),
+    ...(shellConfig.uvRuntime
+      ? [shellConfig.uvRuntime.runtimeDir, ...shellConfig.uvRuntime.pathEntries]
+      : []),
   ];
 }
 
@@ -230,10 +274,13 @@ function getOfficeAgentProjectStateWritablePaths(paths: OfficeAgentManagedProjec
     paths.dataDir,
     paths.toolsDir,
     paths.binDir,
+    paths.scratchDir,
     paths.npmCacheDir,
     paths.npmPrefixDir,
     paths.pipCacheDir,
+    paths.pipConfigPath,
     paths.pythonUserBaseDir,
+    paths.pythonEnvDir,
     paths.uvCacheDir,
     paths.uvToolDir,
     paths.uvToolBinDir,
@@ -249,15 +296,30 @@ function getOfficeAgentSessionPythonCompatDir(paths: OfficeAgentManagedSessionPa
 function getOfficeAgentPythonSiteCustomizeSource(): string {
   return [
     "import os",
+    "import subprocess",
     "import tempfile",
     "import uuid",
     "_officeagent_tmp = os.environ.get('TMPDIR') or os.environ.get('TEMP') or os.environ.get('TMP')",
     "_officeagent_orig_mkdir = os.mkdir",
     "_officeagent_orig_mkdtemp = tempfile.mkdtemp",
     "_officeagent_orig_named_temporary_file = tempfile.NamedTemporaryFile",
+    "def _officeagent_cmd_mkdir(path):",
+    "    cmd = os.environ.get('COMSPEC') or os.environ.get('ComSpec') or 'cmd.exe'",
+    "    completed = subprocess.run([cmd, '/d', '/q', '/c', 'mkdir', os.fspath(path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)",
+    "    return completed.returncode == 0",
     "def _officeagent_mkdir(path, mode=0o777, *, dir_fd=None):",
+    "    # Python 3.12+ maps mode=0o700 on Windows to an owner-only DACL. That breaks",
+    "    # OfficeAgent's write-restricted token because the token also needs the managed",
+    "    # restricting SID to be present on created temp directories. Use an inheritable",
+    "    # mode for sandbox-created directories so children keep the parent OfficeAgent ACE.",
     "    create_mode = 0o777 if mode == 0o700 else mode",
-    "    return _officeagent_orig_mkdir(path, create_mode, dir_fd=dir_fd) if dir_fd is not None else _officeagent_orig_mkdir(path, create_mode)",
+    "    try:",
+    "        return _officeagent_orig_mkdir(path, create_mode, dir_fd=dir_fd) if dir_fd is not None else _officeagent_orig_mkdir(path, create_mode)",
+    "    except OSError:",
+    "        if dir_fd is None and isinstance(path, (str, bytes, os.PathLike)):",
+    "            if _officeagent_cmd_mkdir(path):",
+    "                return None",
+    "        raise",
     "os.mkdir = _officeagent_mkdir",
     "if _officeagent_tmp:",
     "    try:",
@@ -279,7 +341,11 @@ function getOfficeAgentPythonSiteCustomizeSource(): string {
     "        except FileExistsError:",
     "            continue",
     "        except OSError:",
-    "            break",
+    "            try:",
+    "                if _officeagent_cmd_mkdir(path):",
+    "                    return path",
+    "            except OSError:",
+    "                break",
     "    return _officeagent_orig_mkdtemp(suffix=suffix, prefix=prefix, dir=dir)",
     "tempfile.mkdtemp = _officeagent_mkdtemp",
     "class _OfficeAgentNamedTemporaryFile:",
@@ -394,6 +460,103 @@ async function prepareSandboxCommandLaunch(
   return { args: [...shellConfig.args, command], writableScriptPaths: [] };
 }
 
+async function runOfficeAgentManagedPythonSelfTest(options: {
+  readonly managedRootDir: string;
+  readonly sessionPaths: OfficeAgentManagedSessionPaths;
+  readonly projectStatePaths?: OfficeAgentManagedProjectStatePaths;
+  readonly shellConfig: OfficeAgentSandboxShellConfig;
+  readonly env: Readonly<Record<string, string>>;
+  readonly cwd: string;
+  readonly signal?: AbortSignal;
+}): Promise<void> {
+  if (!options.shellConfig.pythonRuntime) {
+    if (process.env.OFFICE_AGENT_ALLOW_HOST_PYTHON_FALLBACK === "1") {
+      return;
+    }
+    throw new Error("OfficeAgent Python runtime unavailable; refusing to run commands with host Python fallback.");
+  }
+
+  const pythonEnv = options.env.OFFICE_AGENT_PYTHON_ENV ?? options.env.VIRTUAL_ENV;
+  if (!pythonEnv) {
+    throw new Error("OfficeAgent managed Python environment is not configured for this session.");
+  }
+
+  const runId = `python-selftest-${randomUUID()}`;
+  const stdoutPath = join(options.sessionPaths.logsDir, `${runId}.stdout.log`);
+  const stderrPath = join(options.sessionPaths.logsDir, `${runId}.stderr.log`);
+  const pythonProbe = [
+    "import os,sys",
+    "env=os.environ.get('OFFICE_AGENT_PYTHON_ENV') or os.environ.get('VIRTUAL_ENV')",
+    "expected=os.path.normcase(os.path.abspath(os.path.join(env,'Scripts','python.exe')))",
+    "actual=os.path.normcase(os.path.abspath(sys.executable))",
+    "print(sys.executable)",
+    "raise SystemExit(0 if actual == expected else 73)",
+  ].join("; ");
+  const commands = [
+    `python -c ${quoteWindowsCmdArgument(pythonProbe)}`,
+    "pip --version",
+    "python -m pip --version",
+    "py -m pip --version",
+    ...(options.shellConfig.uvRuntime ? ["uv python find"] : []),
+  ];
+  const commandScriptPath = join(options.sessionPaths.sessionDir, `${runId}.cmd`);
+  await writeFileWithOfficeAgentSandbox(
+    options.managedRootDir,
+    commandScriptPath,
+    [
+      "@echo off",
+      ...commands.flatMap((selfTestCommand) => [
+        selfTestCommand,
+        "if errorlevel 1 exit /b %ERRORLEVEL%",
+      ]),
+      "",
+    ].join("\r\n"),
+    { createParentDirs: true },
+  );
+  const systemRoot = firstDefined(getEnvCaseInsensitive(process.env, "SystemRoot"), "C:\\Windows");
+  const cmdExe = firstDefined(getEnvCaseInsensitive(process.env, "ComSpec"), join(systemRoot, "System32", "cmd.exe"));
+  const response = await invokeWindowsSandboxHelper({
+    kind: "launch",
+    requestId: runId,
+    executable: cmdExe,
+    args: ["/d", "/q", "/c", commandScriptPath],
+    cwd: options.cwd,
+    managedRoot: options.managedRootDir,
+    sessionDir: options.sessionPaths.sessionDir,
+    env: options.env,
+    writablePaths: [
+      options.cwd,
+      ...getOfficeAgentSessionWritablePaths(options.sessionPaths),
+      ...(options.projectStatePaths ? getOfficeAgentProjectStateWritablePaths(options.projectStatePaths) : []),
+      ...getOfficeAgentToolRuntimeWritablePaths(options.shellConfig),
+    ],
+    stdoutPath,
+    stderrPath,
+    timeoutMs: 180_000,
+  }, options.signal ? { signal: options.signal } : undefined);
+
+  const [stdout, stderr] = await Promise.all([
+    readFileIfExists(stdoutPath),
+    readFileIfExists(stderrPath),
+  ]);
+  const fileOutput = filterSandboxOutputBuffer(Buffer.concat([stdout, stderr])).toString("utf8").trim();
+  const responseOutput = filterSandboxOutputBuffer(
+    Buffer.from(`${response.result?.stdout ?? ""}${response.result?.stderr ?? ""}`, "utf8"),
+  ).toString("utf8").trim();
+  const output = fileOutput || responseOutput;
+  if (!response.ok || response.result?.exitCode !== 0) {
+    const detail = response.error?.message ?? output;
+    throw new Error([
+      "OfficeAgent managed Python startup self-test failed.",
+      `Expected python/pip/py to resolve to the hidden managed environment: ${pythonEnv}`,
+      ...(detail ? [`Details: ${detail}`] : []),
+    ].join("\n"));
+  }
+}
+
+function quoteWindowsCmdArgument(value: string): string {
+  return `"${value.replaceAll('"', '\\"')}"`;
+}
 
 export function resolveOfficeAgentSandboxShellConfig(managedRootDir: string): OfficeAgentSandboxShellConfig {
   const inheritedHostPathEntries = getInheritedHostPathEntries();
@@ -521,7 +684,8 @@ export function getOfficeAgentSandboxShellPromptContext(shellConfig: OfficeAgent
     `Commands are launched as: ${invocation}.`,
     syntax,
     "Commands run as real Windows processes with OfficeAgent write containment. They can modify only the OfficeAgent AgentData/managed project tree. Standard user folders (Desktop, Documents, Downloads, Pictures, Videos, Music) are intended to be readable after sandbox setup; other outside reads may fail according to Windows permissions.",
-    "USERPROFILE/HOME/APPDATA/LOCALAPPDATA are sandbox-private per-session locations. For the active workspace, use %OFFICE_AGENT_WORKSPACE% in commands. For user-facing folders, use OFFICE_AGENT_REAL_USER_DESKTOP, OFFICE_AGENT_REAL_USER_DOWNLOADS, OFFICE_AGENT_REAL_USER_DOCUMENTS, OFFICE_AGENT_REAL_USER_PICTURES, OFFICE_AGENT_REAL_USER_VIDEOS, and OFFICE_AGENT_REAL_USER_MUSIC.",
+    "USERPROFILE/HOME/APPDATA/LOCALAPPDATA are sandbox-private per-session locations. For the active workspace, use %OFFICE_AGENT_WORKSPACE% in commands. Use %OFFICE_AGENT_SCRATCH% for hidden temporary scripts/intermediate files. For user-facing folders, use OFFICE_AGENT_REAL_USER_DESKTOP, OFFICE_AGENT_REAL_USER_DOWNLOADS, OFFICE_AGENT_REAL_USER_DOCUMENTS, OFFICE_AGENT_REAL_USER_PICTURES, OFFICE_AGENT_REAL_USER_VIDEOS, and OFFICE_AGENT_REAL_USER_MUSIC.",
+    "Python commands are routed through OfficeAgent's hidden managed Python environment. Use normal python/py/pip/python -m pip/uv pip commands; do not create pylibs or .venv folders in the visible workspace.",
   ].join("\n");
 }
 
@@ -882,15 +1046,15 @@ async function ensureOfficeAgentManagedToolRuntimes(
     ensureOfficeAgentUvRuntime(managedRootDir),
   ]);
 
-  if (!pythonRuntime && process.env.OFFICE_AGENT_REQUIRE_BUNDLED_PYTHON === "1") {
-    throw new Error("OfficeAgent bundled Python runtime is required but was not found.");
-  }
+  const uvPathEntries = uvRuntime?.pathEntries ?? await ensureOfficeAgentUvUnavailablePathEntries(managedRootDir);
+  const pythonPathEntries = pythonRuntime?.pathEntries
+    ?? await ensureOfficeAgentPythonUnavailablePathEntries(managedRootDir);
 
   return withHostPathCompatibility({
     ...config,
     prependPathEntries: [
-      ...(pythonRuntime?.pathEntries ?? []),
-      ...(uvRuntime?.pathEntries ?? []),
+      ...pythonPathEntries,
+      ...uvPathEntries,
       ...config.prependPathEntries,
     ],
     ...(pythonRuntime ? { pythonRuntime } : {}),
@@ -913,6 +1077,9 @@ async function ensureOfficeAgentPythonRuntime(managedRootDir: string): Promise<O
     OFFICE_AGENT_PYTHON_RUNTIME_MANIFEST_NAME,
     "OFFICE_AGENT_BUNDLED_PYTHON_RUNTIME_DIR",
     "python",
+  ) ?? await findManagedToolRuntimeDir(
+    getOfficeAgentPythonRuntimeRootDir(managedRootDir),
+    OFFICE_AGENT_PYTHON_RUNTIME_MANIFEST_NAME,
   );
   if (!sourceDir) {
     return undefined;
@@ -922,9 +1089,7 @@ async function ensureOfficeAgentPythonRuntime(managedRootDir: string): Promise<O
   const runtimeId = requiredManifestString(manifest.runtimeId, OFFICE_AGENT_PYTHON_RUNTIME_MANIFEST_NAME, "runtimeId");
   const targetDir = getOfficeAgentPythonRuntimeDir(managedRootDir, runtimeId);
   const pythonRelativePath = manifest.executableRelativePath ?? "python.exe";
-  const scriptsRelativePath = manifest.scriptsRelativePath ?? "Scripts";
   const pythonExe = join(targetDir, pythonRelativePath);
-  const scriptsDir = join(targetDir, scriptsRelativePath);
   await ensureManagedRuntimeCopied(sourceDir, targetDir, pythonExe);
 
   const shimsDir = getOfficeAgentPythonRuntimeShimsDir(managedRootDir);
@@ -935,155 +1100,17 @@ async function ensureOfficeAgentPythonRuntime(managedRootDir: string): Promise<O
   await Promise.all([
     writeCmdShim(join(shimsDir, "python.cmd"), `@echo off\r\n"${pythonExe}" "${pythonShim}" %*\r\n`),
     writeCmdShim(join(shimsDir, "python3.cmd"), `@echo off\r\n"${pythonExe}" "${pythonShim}" %*\r\n`),
-    writeFile(
-      pythonShim,
-      [
-        "import os",
-        "import subprocess",
-        "import sys",
-        `PYTHON_EXE = r'''${pythonExe}'''`,
-        "args = sys.argv[1:]",
-        "def _run(argv):",
-        "    raise SystemExit(subprocess.call(argv))",
-        "if len(args) >= 2 and args[0] == '-m' and args[1] == 'venv' and '--without-pip' not in args[2:]:",
-        "    venv_args = args[2:]",
-        "    env_dirs = [arg for arg in venv_args if not arg.startswith('-')]",
-        "    code = subprocess.call([PYTHON_EXE, '-m', 'venv', '--without-pip', *venv_args])",
-        "    if code == 0:",
-        "        for env_dir in env_dirs:",
-        "            env_python = os.path.join(env_dir, 'Scripts', 'python.exe')",
-        "            code = subprocess.call([env_python, '-m', 'ensurepip', '--upgrade', '--default-pip'])",
-        "            if code != 0:",
-        "                break",
-        "    raise SystemExit(code)",
-        "_run([PYTHON_EXE, *args])",
-        "",
-      ].join("\n"),
-      "utf8",
-    ),
-    writeFile(
-      pipShim,
-      [
-        "import os",
-        "import subprocess",
-        "import sys",
-        `PYTHON_EXE = r'''${pythonExe}'''`,
-        "args = sys.argv[1:]",
-        "if args[:1] == ['install'] and not os.environ.get('VIRTUAL_ENV'):",
-        "    args = ['install', '--user', *args[1:]]",
-        "raise SystemExit(subprocess.call([PYTHON_EXE, '-m', 'pip', *args]))",
-        "",
-      ].join("\n"),
-      "utf8",
-    ),
-    writeFile(
-      siteCustomize,
-      [
-        "import os",
-        "import subprocess",
-        "import tempfile",
-        "import uuid",
-        "_officeagent_tmp = os.environ.get('TMPDIR') or os.environ.get('TEMP') or os.environ.get('TMP')",
-        "_officeagent_orig_mkdir = os.mkdir",
-        "_officeagent_orig_mkdtemp = tempfile.mkdtemp",
-        "_officeagent_orig_named_temporary_file = tempfile.NamedTemporaryFile",
-        "def _officeagent_cmd_mkdir(path):",
-        "    cmd = os.environ.get('COMSPEC') or os.environ.get('ComSpec') or 'cmd.exe'",
-        "    completed = subprocess.run([cmd, '/d', '/q', '/c', 'mkdir', os.fspath(path)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)",
-        "    return completed.returncode == 0",
-        "def _officeagent_mkdir(path, mode=0o777, *, dir_fd=None):",
-        "    # Python 3.12+ maps mode=0o700 on Windows to an owner-only DACL. That breaks",
-        "    # OfficeAgent's write-restricted token because the token also needs the managed",
-        "    # restricting SID to be present on created temp directories. Use an inheritable",
-        "    # mode for sandbox-created directories so children keep the parent OfficeAgent ACE.",
-        "    create_mode = 0o777 if mode == 0o700 else mode",
-        "    try:",
-        "        return _officeagent_orig_mkdir(path, create_mode, dir_fd=dir_fd) if dir_fd is not None else _officeagent_orig_mkdir(path, create_mode)",
-        "    except OSError:",
-        "        if dir_fd is None and isinstance(path, (str, bytes, os.PathLike)):",
-        "            if _officeagent_cmd_mkdir(path):",
-        "                return None",
-        "        raise",
-        "os.mkdir = _officeagent_mkdir",
-        "if _officeagent_tmp:",
-        "    try:",
-        "        os.makedirs(_officeagent_tmp, exist_ok=True)",
-        "        tempfile.tempdir = _officeagent_tmp",
-        "    except OSError:",
-        "        pass",
-        "def _officeagent_mkdtemp(suffix=None, prefix=None, dir=None):",
-        "    suffix = '' if suffix is None else suffix",
-        "    prefix = 'tmp' if prefix is None else prefix",
-        "    dir = tempfile.gettempdir() if dir is None else dir",
-        "    for _ in range(100):",
-        "        path = os.path.join(dir, prefix + uuid.uuid4().hex[:8] + suffix)",
-        "        if os.path.exists(path):",
-        "            continue",
-        "        try:",
-        "            _officeagent_orig_mkdir(path, 0o777)",
-        "            return path",
-        "        except FileExistsError:",
-        "            continue",
-        "        except OSError:",
-        "            try:",
-        "                if _officeagent_cmd_mkdir(path):",
-        "                    return path",
-        "            except OSError:",
-        "                break",
-        "    return _officeagent_orig_mkdtemp(suffix=suffix, prefix=prefix, dir=dir)",
-        "tempfile.mkdtemp = _officeagent_mkdtemp",
-        "class _OfficeAgentNamedTemporaryFile:",
-        "    def __init__(self, file, name, delete=True):",
-        "        self.file = file",
-        "        self.name = name",
-        "        self.delete = delete",
-        "        self._closed = False",
-        "    def __getattr__(self, name):",
-        "        return getattr(self.file, name)",
-        "    def __enter__(self):",
-        "        self.file.__enter__()",
-        "        return self",
-        "    def __exit__(self, exc_type, exc, tb):",
-        "        try:",
-        "            return self.file.__exit__(exc_type, exc, tb)",
-        "        finally:",
-        "            self._delete_if_needed()",
-        "    def close(self):",
-        "        try:",
-        "            return self.file.close()",
-        "        finally:",
-        "            self._delete_if_needed()",
-        "    def _delete_if_needed(self):",
-        "        if self.delete and not self._closed:",
-        "            self._closed = True",
-        "            try:",
-        "                os.unlink(self.name)",
-        "            except OSError:",
-        "                pass",
-        "def _officeagent_named_temporary_file(mode='w+b', buffering=-1, encoding=None, newline=None, suffix=None, prefix=None, dir=None, delete=True, errors=None, delete_on_close=True):",
-        "    suffix = '' if suffix is None else suffix",
-        "    prefix = 'tmp' if prefix is None else prefix",
-        "    dir = tempfile.gettempdir() if dir is None else dir",
-        "    for _ in range(100):",
-        "        path = os.path.join(dir, prefix + uuid.uuid4().hex[:8] + suffix)",
-        "        if os.path.exists(path):",
-        "            continue",
-        "        try:",
-        "            fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o666)",
-        "            file = os.fdopen(fd, mode, buffering=buffering, encoding=encoding, errors=errors, newline=newline)",
-        "            return _OfficeAgentNamedTemporaryFile(file, path, delete=delete and delete_on_close)",
-        "        except FileExistsError:",
-        "            continue",
-        "        except OSError:",
-        "            break",
-        "    return _officeagent_orig_named_temporary_file(mode=mode, buffering=buffering, encoding=encoding, newline=newline, suffix=suffix, prefix=prefix, dir=dir, delete=delete, errors=errors)",
-        "tempfile.NamedTemporaryFile = _officeagent_named_temporary_file",
-        "",
-      ].join("\n"),
-      "utf8",
-    ),
+    writeCmdShim(join(shimsDir, "py.cmd"), `@echo off\r\n"${pythonExe}" "${pythonShim}" %*\r\n`),
+    writePosixShim(join(shimsDir, "python"), [pythonExe, pythonShim]),
+    writePosixShim(join(shimsDir, "python3"), [pythonExe, pythonShim]),
+    writePosixShim(join(shimsDir, "py"), [pythonExe, pythonShim]),
+    writeFile(pythonShim, getOfficeAgentPythonShimSource(pythonExe), "utf8"),
+    writeFile(pipShim, getOfficeAgentPipShimSource(pythonExe), "utf8"),
+    writeFile(siteCustomize, getOfficeAgentPythonSiteCustomizeSource(), "utf8"),
     writeCmdShim(join(shimsDir, "pip.cmd"), `@echo off\r\n"${pythonExe}" "${pipShim}" %*\r\n`),
     writeCmdShim(join(shimsDir, "pip3.cmd"), `@echo off\r\n"${pythonExe}" "${pipShim}" %*\r\n`),
+    writePosixShim(join(shimsDir, "pip"), [pythonExe, pipShim]),
+    writePosixShim(join(shimsDir, "pip3"), [pythonExe, pipShim]),
   ]);
 
   await writeCurrentRuntimeManifest(getOfficeAgentPythonRuntimeCurrentManifestPath(managedRootDir), {
@@ -1098,7 +1125,7 @@ async function ensureOfficeAgentPythonRuntime(managedRootDir: string): Promise<O
     runtimeId,
     runtimeDir: targetDir,
     executable: pythonExe,
-    pathEntries: [shimsDir, targetDir, scriptsDir],
+    pathEntries: [shimsDir],
     environment: {
       PYTHONPATH: shimsDir,
     },
@@ -1106,11 +1133,129 @@ async function ensureOfficeAgentPythonRuntime(managedRootDir: string): Promise<O
   };
 }
 
+async function ensureOfficeAgentPythonUnavailablePathEntries(managedRootDir: string): Promise<readonly string[]> {
+  if (process.env.OFFICE_AGENT_ALLOW_HOST_PYTHON_FALLBACK === "1") {
+    return [];
+  }
+
+  const shimsDir = getOfficeAgentPythonRuntimeShimsDir(managedRootDir);
+  await mkdir(shimsDir, { recursive: true });
+  const message = [
+    "OfficeAgent Python runtime unavailable.",
+    "Reinstall OfficeAgent or run the runtime preparation step so officeagent-python-runtime.json is packaged.",
+    "Host Python fallback is disabled to keep packages out of the Windows profile and visible workspace.",
+  ].join(" ");
+  await Promise.all([
+    writeCmdShim(join(shimsDir, "python.cmd"), `@echo off\r\necho ${message} 1>&2\r\nexit /b 1\r\n`),
+    writeCmdShim(join(shimsDir, "python3.cmd"), `@echo off\r\necho ${message} 1>&2\r\nexit /b 1\r\n`),
+    writeCmdShim(join(shimsDir, "py.cmd"), `@echo off\r\necho ${message} 1>&2\r\nexit /b 1\r\n`),
+    writeCmdShim(join(shimsDir, "pip.cmd"), `@echo off\r\necho ${message} 1>&2\r\nexit /b 1\r\n`),
+    writeCmdShim(join(shimsDir, "pip3.cmd"), `@echo off\r\necho ${message} 1>&2\r\nexit /b 1\r\n`),
+    writeUnavailablePosixShim(join(shimsDir, "python"), message),
+    writeUnavailablePosixShim(join(shimsDir, "python3"), message),
+    writeUnavailablePosixShim(join(shimsDir, "py"), message),
+    writeUnavailablePosixShim(join(shimsDir, "pip"), message),
+    writeUnavailablePosixShim(join(shimsDir, "pip3"), message),
+  ]);
+  return [shimsDir];
+}
+
+function getOfficeAgentPythonShimSource(pythonExe: string): string {
+  return [
+    "import os",
+    "import subprocess",
+    "import sys",
+    `PYTHON_EXE = r'''${pythonExe}'''`,
+    ...getOfficeAgentManagedPythonSupportSource(),
+    "raw_args = sys.argv[1:]",
+    "args = _strip_py_launcher_version_args(raw_args)",
+    "if len(args) >= 2 and args[0] == '-m' and args[1] == 'pip':",
+    "    env_python = _ensure_managed_env(required=True)",
+    "    _run([env_python, '-m', 'pip', *_normalize_pip_args(args[2:])])",
+    "if len(args) >= 2 and args[0] == '-m' and args[1] == 'venv':",
+    "    _ensure_managed_env(required=True)",
+    "    print(f'OfficeAgent already maintains a hidden Python environment for this workspace at {MANAGED_ENV}', file=sys.stderr)",
+    "    print('Visible virtualenv creation is disabled to keep dependency files out of the workspace. Use normal python and pip commands; they already use the hidden environment.', file=sys.stderr)",
+    "    raise SystemExit(2)",
+    "env_python = _ensure_managed_env(required=True)",
+    "_run([env_python, *args])",
+    "",
+  ].join("\n");
+}
+
+function getOfficeAgentPipShimSource(pythonExe: string): string {
+  return [
+    "import os",
+    "import subprocess",
+    "import sys",
+    `PYTHON_EXE = r'''${pythonExe}'''`,
+    ...getOfficeAgentManagedPythonSupportSource(),
+    "args = _normalize_pip_args(sys.argv[1:])",
+    "env_python = _ensure_managed_env(required=True)",
+    "_run([env_python, '-m', 'pip', *args])",
+    "",
+  ].join("\n");
+}
+
+function getOfficeAgentManagedPythonSupportSource(): string[] {
+  return [
+    "MANAGED_ENV = os.environ.get('OFFICE_AGENT_PYTHON_ENV') or os.environ.get('VIRTUAL_ENV')",
+    "def _run(argv):",
+    "    raise SystemExit(subprocess.call(argv))",
+    "def _strip_py_launcher_version_args(values):",
+    "    args = list(values)",
+    "    while args and len(args[0]) >= 2 and args[0][0] == '-' and args[0][1].isdigit():",
+    "        args.pop(0)",
+    "    return args",
+    "def _managed_env_python_path():",
+    "    if not MANAGED_ENV:",
+    "        return None",
+    "    return os.path.join(MANAGED_ENV, 'Scripts', 'python.exe')",
+    "def _ensure_managed_env(required=False):",
+    "    env_python = _managed_env_python_path()",
+    "    if not env_python:",
+    "        if required:",
+    "            print('OfficeAgent managed Python environment is not configured (OFFICE_AGENT_PYTHON_ENV is missing).', file=sys.stderr)",
+    "            raise SystemExit(1)",
+    "        return None",
+    "    if os.path.exists(env_python):",
+    "        return env_python",
+    "    os.makedirs(MANAGED_ENV, exist_ok=True)",
+    "    code = subprocess.call([PYTHON_EXE, '-m', 'venv', '--without-pip', MANAGED_ENV])",
+    "    if code == 0:",
+    "        code = subprocess.call([env_python, '-m', 'ensurepip', '--upgrade', '--default-pip'])",
+    "    if code != 0:",
+    "        if required:",
+    "            print(f'OfficeAgent could not create managed Python environment at {MANAGED_ENV}', file=sys.stderr)",
+    "            raise SystemExit(code or 1)",
+    "        return None",
+    "    return env_python",
+    "def _normalize_pip_args(values):",
+    "    args = []",
+    "    iterator = iter(values)",
+    "    for arg in iterator:",
+    "        if arg in ('--user', '--no-user'):",
+    "            continue",
+    "        if arg in ('--target', '-t', '--prefix', '--root', '--python'):",
+    "            next(iterator, None)",
+    "            print(f'OfficeAgent installs Python packages into the hidden managed environment; pip {arg} is disabled. Use plain pip install <package>.', file=sys.stderr)",
+    "            raise SystemExit(2)",
+    "        if arg.startswith('--target=') or arg.startswith('--prefix=') or arg.startswith('--root=') or arg.startswith('--python='):",
+    "            print('OfficeAgent installs Python packages into the hidden managed environment; pip target/prefix/root/python overrides are disabled. Use plain pip install <package>.', file=sys.stderr)",
+    "            raise SystemExit(2)",
+    "        args.append(arg)",
+    "    return args",
+  ];
+}
+
 async function ensureOfficeAgentUvRuntime(managedRootDir: string): Promise<OfficeAgentManagedToolRuntimeConfig | undefined> {
   const sourceDir = await findBundledToolRuntimeDir(
     OFFICE_AGENT_UV_RUNTIME_MANIFEST_NAME,
     "OFFICE_AGENT_BUNDLED_UV_RUNTIME_DIR",
     "uv",
+  ) ?? await findManagedToolRuntimeDir(
+    getOfficeAgentUvRuntimeRootDir(managedRootDir),
+    OFFICE_AGENT_UV_RUNTIME_MANIFEST_NAME,
   );
   if (!sourceDir) {
     return undefined;
@@ -1127,65 +1272,11 @@ async function ensureOfficeAgentUvRuntime(managedRootDir: string): Promise<Offic
   const uvShim = join(shimsDir, "uv-shim.py");
   await mkdir(shimsDir, { recursive: true });
   await Promise.all([
-    writeCmdShim(join(shimsDir, "uv.cmd"), `@echo off\r\nif "%~1"=="--version" (\r\n  "${uvExe}" %*\r\n  exit /b %ERRORLEVEL%\r\n)\r\nif "%~1"=="-V" (\r\n  "${uvExe}" %*\r\n  exit /b %ERRORLEVEL%\r\n)\r\nif "%~1"=="version" (\r\n  "${uvExe}" %*\r\n  exit /b %ERRORLEVEL%\r\n)\r\nif defined OFFICE_AGENT_PYTHON_EXE (\r\n  "%OFFICE_AGENT_PYTHON_EXE%" "${uvShim}" "${uvExe}" %*\r\n) else (\r\n  "${uvExe}" %*\r\n)\r\n`),
+    writeCmdShim(join(shimsDir, "uv.cmd"), `@echo off\r\nif defined OFFICE_AGENT_PYTHON_EXE (\r\n  "%OFFICE_AGENT_PYTHON_EXE%" "${uvShim}" "${uvExe}" %*\r\n) else (\r\n  "${uvExe}" %*\r\n)\r\n`),
     writeCmdShim(join(shimsDir, "uvx.cmd"), `@echo off\r\nif defined OFFICE_AGENT_PYTHON_EXE (\r\n  "%OFFICE_AGENT_PYTHON_EXE%" "${uvShim}" "${uvExe}" tool run %*\r\n) else (\r\n  "${uvExe}" tool run %*\r\n)\r\n`),
-    writeFile(
-      uvShim,
-      [
-        "import os",
-        "import subprocess",
-        "import sys",
-        "REAL_UV = sys.argv[1]",
-        "ARGS = sys.argv[2:]",
-        "PYTHON_EXE = os.environ.get('OFFICE_AGENT_PYTHON_EXE') or 'python'",
-        "def _call(argv):",
-        "    raise SystemExit(subprocess.call(argv))",
-        "def _venv_python():",
-        "    virtual_env = os.environ.get('VIRTUAL_ENV')",
-        "    candidates = []",
-        "    if virtual_env:",
-        "        candidates.append(os.path.join(virtual_env, 'Scripts', 'python.exe'))",
-        "    candidates.append(os.path.join(os.getcwd(), '.venv', 'Scripts', 'python.exe'))",
-        "    for candidate in candidates:",
-        "        if os.path.exists(candidate):",
-        "            return candidate",
-        "    return None",
-        "def _run_venv(args):",
-        "    env_dirs = [arg for arg in args if not arg.startswith('-')]",
-        "    target_dirs = env_dirs or ['.venv']",
-        "    code = 0",
-        "    for target in target_dirs:",
-        "        code = subprocess.call([PYTHON_EXE, '-m', 'venv', '--without-pip', target])",
-        "        if code != 0:",
-        "            return code",
-        "        env_python = os.path.join(target, 'Scripts', 'python.exe')",
-        "        code = subprocess.call([env_python, '-m', 'ensurepip', '--upgrade', '--default-pip'])",
-        "        if code != 0:",
-        "            return code",
-        "    return code",
-        "def _run(args):",
-        "    if not args or args[0] in ('--version', '-V', 'version'):",
-        "        _call([REAL_UV, *args])",
-        "    if args[:2] == ['python', 'find']:",
-        "        print(PYTHON_EXE)",
-        "        raise SystemExit(0)",
-        "    if args and args[0] == 'venv':",
-        "        raise SystemExit(_run_venv(args[1:]))",
-        "    if args and args[0] == 'pip':",
-        "        python = _venv_python() or PYTHON_EXE",
-        "        _call([python, '-m', 'pip', *args[1:]])",
-        "    if args and args[0] == 'run':",
-        "        rest = args[1:]",
-        "        if rest and rest[0] == 'python':",
-        "            _call([_venv_python() or PYTHON_EXE, *rest[1:]])",
-        "    print('OfficeAgent sandbox supports a managed uv subset: uv --version, uv python find, uv venv, uv pip ..., and uv run python ...', file=sys.stderr)",
-        "    print('This uv subcommand is not enabled in the OfficeAgent managed runtime yet.', file=sys.stderr)",
-        "    raise SystemExit(2)",
-        "_run(ARGS)",
-        "",
-      ].join("\n"),
-      "utf8",
-    ),
+    writePosixShim(join(shimsDir, "uv"), ["python", uvShim, uvExe]),
+    writePosixShim(join(shimsDir, "uvx"), ["python", uvShim, uvExe, "tool", "run"]),
+    writeFile(uvShim, getOfficeAgentUvShimSource(), "utf8"),
   ]);
 
   await writeCurrentRuntimeManifest(getOfficeAgentUvRuntimeCurrentManifestPath(managedRootDir), {
@@ -1200,9 +1291,84 @@ async function ensureOfficeAgentUvRuntime(managedRootDir: string): Promise<Offic
     runtimeId,
     runtimeDir: targetDir,
     executable: uvExe,
-    pathEntries: [shimsDir, targetDir],
+    pathEntries: [shimsDir],
     ...(version ? { version } : {}),
   };
+}
+
+async function ensureOfficeAgentUvUnavailablePathEntries(managedRootDir: string): Promise<readonly string[]> {
+  if (process.env.OFFICE_AGENT_ALLOW_HOST_UV_FALLBACK === "1") {
+    return [];
+  }
+
+  const shimsDir = getOfficeAgentUvRuntimeShimsDir(managedRootDir);
+  await mkdir(shimsDir, { recursive: true });
+  const message = "OfficeAgent uv runtime unavailable. Use pip/python, or bundle uv with officeagent-uv-runtime.json.";
+  await Promise.all([
+    writeCmdShim(join(shimsDir, "uv.cmd"), `@echo off\r\necho ${message} 1>&2\r\nexit /b 1\r\n`),
+    writeCmdShim(join(shimsDir, "uvx.cmd"), `@echo off\r\necho ${message} 1>&2\r\nexit /b 1\r\n`),
+    writeUnavailablePosixShim(join(shimsDir, "uv"), message),
+    writeUnavailablePosixShim(join(shimsDir, "uvx"), message),
+  ]);
+  return [shimsDir];
+}
+
+function getOfficeAgentUvShimSource(): string {
+  return [
+    "import os",
+    "import subprocess",
+    "import sys",
+    "REAL_UV = sys.argv[1]",
+    "ARGS = sys.argv[2:]",
+    "PYTHON_EXE = os.environ.get('OFFICE_AGENT_PYTHON_EXE') or 'python'",
+    ...getOfficeAgentManagedPythonSupportSource(),
+    "def _call(argv):",
+    "    raise SystemExit(subprocess.call(argv))",
+    "def _venv_python(required=False):",
+    "    return _ensure_managed_env(required=required)",
+    "def _run(args):",
+    "    if not args or args[0] in ('--version', '-V', 'version'):",
+    "        _call([REAL_UV, *args])",
+    "    if args[:2] == ['python', 'find']:",
+    "        print(_venv_python(required=True))",
+    "        raise SystemExit(0)",
+    "    if args and args[0] == 'venv':",
+    "        _venv_python(required=True)",
+    "        print(f'OfficeAgent already maintains a hidden Python environment for this workspace at {MANAGED_ENV}', file=sys.stderr)",
+    "        print('Visible virtualenv creation is disabled to keep dependency files out of the workspace. Use normal python and pip commands; they already use the hidden environment.', file=sys.stderr)",
+    "        raise SystemExit(2)",
+    "    if args and args[0] == 'pip':",
+    "        python = _venv_python(required=True)",
+    "        _call([python, '-m', 'pip', *_normalize_pip_args(args[1:])])",
+    "    if args and args[0] == 'run':",
+    "        rest = args[1:]",
+    "        if rest and rest[0] == 'python':",
+    "            _call([_venv_python(required=True), *rest[1:]])",
+    "    print('OfficeAgent sandbox supports a managed uv subset: uv --version, uv python find, uv venv, uv pip ..., and uv run python ...', file=sys.stderr)",
+    "    print('This uv subcommand is not enabled in the OfficeAgent managed runtime yet.', file=sys.stderr)",
+    "    raise SystemExit(2)",
+    "_run(ARGS)",
+    "",
+  ].join("\n");
+}
+
+async function findManagedToolRuntimeDir(rootDir: string, manifestName: string): Promise<string | undefined> {
+  if (existsSync(join(rootDir, manifestName))) {
+    return rootDir;
+  }
+  let entries: string[] = [];
+  try {
+    entries = await readdir(rootDir);
+  } catch {
+    return undefined;
+  }
+  for (const entry of entries) {
+    const candidate = join(rootDir, entry);
+    if (directoryExists(candidate) && existsSync(join(candidate, manifestName))) {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
 async function findBundledToolRuntimeDir(
@@ -1245,6 +1411,7 @@ function bundledRuntimeRootCandidates(runtimeName: "python" | "uv"): string[] {
   return uniquePaths([
     ...(resourcesPath ? [join(resourcesPath, "runtime", runtimeName)] : []),
     join(process.cwd(), "build", "runtime", runtimeName),
+    join(process.cwd(), "desktop", "build", "runtime", runtimeName),
     join(process.cwd(), "apps", "gui", "desktop", "build", "runtime", runtimeName),
     resolve("apps", "gui", "desktop", "build", "runtime", runtimeName),
   ]);
@@ -1291,6 +1458,23 @@ function basenameSafe(pathValue: string): string {
 
 async function writeCmdShim(pathValue: string, content: string): Promise<void> {
   await writeFile(pathValue, content, "utf8");
+}
+
+async function writePosixShim(pathValue: string, argv: readonly string[]): Promise<void> {
+  const command = argv.map(quotePosixShellArg).join(" ");
+  await writeFile(pathValue, `#!/usr/bin/env sh\nexec ${command} "$@"\n`, { encoding: "utf8", mode: 0o755 });
+}
+
+async function writeUnavailablePosixShim(pathValue: string, message: string): Promise<void> {
+  await writeFile(
+    pathValue,
+    `#!/usr/bin/env sh\necho ${quotePosixShellArg(message)} >&2\nexit 1\n`,
+    { encoding: "utf8", mode: 0o755 },
+  );
+}
+
+function quotePosixShellArg(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
 async function writeCurrentRuntimeManifest(pathValue: string, manifest: Record<string, unknown>): Promise<void> {
@@ -1377,6 +1561,53 @@ function getEnvCaseInsensitive(source: NodeJS.ProcessEnv, key: string): string |
   return actualKey ? source[actualKey] : undefined;
 }
 
+const OFFICE_AGENT_SANDBOX_ENV_KEYS = [
+  "HOME",
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "TEMP",
+  "TMP",
+  "TMPDIR",
+  "npm_config_cache",
+  "NPM_CONFIG_CACHE",
+  "npm_config_prefix",
+  "NPM_CONFIG_PREFIX",
+  "PIP_CACHE_DIR",
+  "PIP_CONFIG_FILE",
+  "PYTHONUSERBASE",
+  "OFFICE_AGENT_PYTHON_ENV",
+  "VIRTUAL_ENV",
+  "OFFICE_AGENT_SCRATCH",
+  "UV_CACHE_DIR",
+  "UV_TOOL_DIR",
+  "UV_TOOL_BIN_DIR",
+  "UV_PYTHON_INSTALL_DIR",
+  "UV_PYTHON_BIN_DIR",
+  "UV_PYTHON_NO_REGISTRY",
+  "UV_PYTHON_DOWNLOADS",
+  "UV_LINK_MODE",
+  "UV_NO_MODIFY_PATH",
+  "OFFICE_AGENT_SESSION_DIR",
+  "OFFICE_AGENT_SESSION_LOGS_DIR",
+  "OFFICE_AGENT_REAL_USER_PROFILE",
+  "OFFICE_AGENT_REAL_USER_DESKTOP",
+  "OFFICE_AGENT_REAL_USER_DOCUMENTS",
+  "OFFICE_AGENT_REAL_USER_DOWNLOADS",
+  "OFFICE_AGENT_REAL_USER_PICTURES",
+  "OFFICE_AGENT_REAL_USER_VIDEOS",
+  "OFFICE_AGENT_REAL_USER_MUSIC",
+  "OFFICE_AGENT_SANDBOX_PROFILE",
+  "OFFICE_AGENT_MANAGED_ROOT",
+  "OFFICE_AGENT_WORKSPACE",
+  "OFFICE_AGENT_PROJECT_STATE",
+  "OFFICE_AGENT_PROJECT_CACHE",
+  "OFFICE_AGENT_PROJECT_TOOLS",
+  "XDG_CACHE_HOME",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+] as const;
+
 function inferRuntimeDirFromBashPath(shell: string): string | undefined {
   const normalized = shell.replaceAll("/", "\\");
   const lower = normalized.toLowerCase();
@@ -1403,7 +1634,7 @@ function createSandboxEnvironment(
     SYSTEMROOT: systemRoot,
     ComSpec: comSpec,
     COMSPEC: comSpec,
-    PATHEXT: firstDefined(getEnvCaseInsensitive(process.env, "PATHEXT"), ".COM;.EXE;.BAT;.CMD"),
+    PATHEXT: getOfficeAgentSandboxPathExt(),
     PYTHONUTF8: "1",
     PIP_DISABLE_PIP_VERSION_CHECK: "1",
     NODE_OPTIONS: "--preserve-symlinks --preserve-symlinks-main",
@@ -1424,78 +1655,8 @@ function createSandboxEnvironment(
       : {}),
   };
 
-  copyEnvKeys(env, sessionEnv, [
-    "HOME",
-    "USERPROFILE",
-    "APPDATA",
-    "LOCALAPPDATA",
-    "TEMP",
-    "TMP",
-    "TMPDIR",
-    "npm_config_cache",
-    "NPM_CONFIG_CACHE",
-    "npm_config_prefix",
-    "NPM_CONFIG_PREFIX",
-    "PIP_CACHE_DIR",
-    "PYTHONUSERBASE",
-    "UV_CACHE_DIR",
-    "UV_TOOL_DIR",
-    "UV_TOOL_BIN_DIR",
-    "UV_PYTHON_INSTALL_DIR",
-    "UV_PYTHON_BIN_DIR",
-    "UV_PYTHON_NO_REGISTRY",
-    "UV_PYTHON_DOWNLOADS",
-    "UV_LINK_MODE",
-    "UV_NO_MODIFY_PATH",
-    "OFFICE_AGENT_SESSION_DIR",
-    "OFFICE_AGENT_SESSION_LOGS_DIR",
-    "OFFICE_AGENT_REAL_USER_PROFILE",
-    "OFFICE_AGENT_REAL_USER_DESKTOP",
-    "OFFICE_AGENT_REAL_USER_DOCUMENTS",
-    "OFFICE_AGENT_REAL_USER_DOWNLOADS",
-    "OFFICE_AGENT_REAL_USER_PICTURES",
-    "OFFICE_AGENT_REAL_USER_VIDEOS",
-    "OFFICE_AGENT_REAL_USER_MUSIC",
-    "OFFICE_AGENT_SANDBOX_PROFILE",
-    "OFFICE_AGENT_MANAGED_ROOT",
-    "OFFICE_AGENT_WORKSPACE",
-  ]);
-  copyEnvKeys(env, commandEnv, [
-    "HOME",
-    "USERPROFILE",
-    "APPDATA",
-    "LOCALAPPDATA",
-    "TEMP",
-    "TMP",
-    "TMPDIR",
-    "npm_config_cache",
-    "NPM_CONFIG_CACHE",
-    "npm_config_prefix",
-    "NPM_CONFIG_PREFIX",
-    "PIP_CACHE_DIR",
-    "PYTHONUSERBASE",
-    "UV_CACHE_DIR",
-    "UV_TOOL_DIR",
-    "UV_TOOL_BIN_DIR",
-    "UV_PYTHON_INSTALL_DIR",
-    "UV_PYTHON_BIN_DIR",
-    "UV_PYTHON_NO_REGISTRY",
-    "UV_PYTHON_DOWNLOADS",
-    "UV_LINK_MODE",
-    "UV_NO_MODIFY_PATH",
-    "OFFICE_AGENT_SESSION_DIR",
-    "OFFICE_AGENT_SESSION_LOGS_DIR",
-    "OFFICE_AGENT_REAL_USER_PROFILE",
-    "OFFICE_AGENT_REAL_USER_DESKTOP",
-    "OFFICE_AGENT_REAL_USER_DOCUMENTS",
-    "OFFICE_AGENT_REAL_USER_DOWNLOADS",
-    "OFFICE_AGENT_REAL_USER_PICTURES",
-    "OFFICE_AGENT_REAL_USER_VIDEOS",
-    "OFFICE_AGENT_REAL_USER_MUSIC",
-    "OFFICE_AGENT_SANDBOX_PROFILE",
-    "OFFICE_AGENT_MANAGED_ROOT",
-    "OFFICE_AGENT_WORKSPACE",
-  ]);
+  copyEnvKeys(env, sessionEnv, OFFICE_AGENT_SANDBOX_ENV_KEYS);
+  copyEnvKeys(env, commandEnv, OFFICE_AGENT_SANDBOX_ENV_KEYS);
 
   const pathEntries = uniquePaths([
     ...(shellConfig.runtimeDir ? [join(shellConfig.runtimeDir, "bin"), join(shellConfig.runtimeDir, "usr", "bin")] : []),
@@ -1520,6 +1681,10 @@ function getMutableToolPathEntries(
   shellConfig: OfficeAgentSandboxShellConfig,
 ): string[] {
   const entries: string[] = [];
+  const virtualEnv = env.OFFICE_AGENT_PYTHON_ENV ?? env.VIRTUAL_ENV;
+  if (virtualEnv) {
+    entries.push(join(virtualEnv, "Scripts"));
+  }
   const pythonUserBase = env.PYTHONUSERBASE;
   if (pythonUserBase) {
     const pythonVersionTag = getPythonWindowsUserScriptsVersionTag(shellConfig.pythonRuntime?.version);
@@ -1549,6 +1714,14 @@ function getPythonWindowsUserScriptsVersionTag(version: string | undefined): str
     return undefined;
   }
   return `Python${match[1]}${match[2]}`;
+}
+
+function getOfficeAgentSandboxPathExt(): string {
+  const inherited = firstDefined(getEnvCaseInsensitive(process.env, "PATHEXT"), ".COM;.EXE;.BAT;.CMD");
+  const entries = [".CMD", ...inherited.split(";")]
+    .map((entry) => entry.trim().toUpperCase())
+    .filter((entry) => entry.length > 0);
+  return [...new Set(entries)].join(";");
 }
 
 function copyEnvKeys(target: Record<string, string>, source: NodeJS.ProcessEnv | undefined, keys: readonly string[]): void {

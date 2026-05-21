@@ -18,3 +18,4 @@ apps/gui/desktop/build/runtime/python/*
 apps/gui/desktop/build/runtime/uv/*
 !apps/gui/desktop/build/runtime/uv/.gitkeep
 apps/gui/desktop/build/runtime-cache/
+apps/gui/desktop/build/legal/

@@ -17,6 +17,12 @@ extraResources:
     to: windows-sandbox-helper
     filter:
       - "*.exe"
+  - from: desktop/build/runtime/python
+    to: runtime/python
+  - from: desktop/build/runtime/uv
+    to: runtime/uv
+  - from: desktop/build/legal
+    to: legal
 extraFiles:
   - from: desktop/deployment/windows/setup-sandbox.ps1
     to: setup-sandbox.ps1
@@ -36,6 +42,7 @@ win:
   signAndEditExecutable: false
   target:
     - dir
+    - zip
     - nsis
 nsis:
   artifactName: ${productName} Setup ${version}-${arch}.${ext}

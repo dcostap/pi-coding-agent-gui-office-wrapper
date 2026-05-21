@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "python": {
+    "enabled": true,
+    "source": "python-build-standalone",
+    "runtimeId": "cpython-3.12.13-pbs-20260510-win-x64-officeagent-r1",
+    "pythonVersion": "3.12.13",
+    "release": "20260510",
+    "targetTriple": "x86_64-pc-windows-msvc",
+    "variant": "install_only",
+    "archiveName": "cpython-3.12.13+20260510-x86_64-pc-windows-msvc-install_only.tar.gz",
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260510/cpython-3.12.13%2B20260510-x86_64-pc-windows-msvc-install_only.tar.gz",
+    "sha256": "346dfbcb95171dd6d1275e6f8cb2e656cc15cb054c399ae54db57bfad4b1a60f",
+    "size": 45962574
+  },
+  "uv": {
+    "enabled": true,
+    "source": "astral-sh/uv",
+    "runtimeId": "uv-0.11.15-win-x64-officeagent-r1",
+    "version": "0.11.15",
+    "targetTriple": "x86_64-pc-windows-msvc",
+    "archiveName": "uv-x86_64-pc-windows-msvc.zip",
+    "url": "https://github.com/astral-sh/uv/releases/download/0.11.15/uv-x86_64-pc-windows-msvc.zip",
+    "sha256": "04b98d414a9000e25e5e0e7c9f53749e66b790cdaffc582829e6f58c544ee11c",
+    "size": 7961334
+  }
+}

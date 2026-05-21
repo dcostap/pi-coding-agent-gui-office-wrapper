@@ -30,6 +30,8 @@ export {
   normalizeOfficeAgentModelSelection,
   resolveOfficeAgentEnabledModelSelection,
 };
+import { expandOfficeAgentPathPlaceholders } from "../../../packages/pi-sdk-driver/src/office-agent-path-placeholders.ts";
+import { createCopyFileIntoWorkspaceToolDefinition } from "../../../packages/pi-sdk-driver/src/office-agent-workspace-tools.ts";
 import {
   createOfficeAgentSandboxBashOperations,
   ensureOfficeAgentSandboxShellConfig,
@@ -64,7 +66,10 @@ export async function prepareOfficeAgentDesktopRuntime(): Promise<{
   const managedRootDir = getOfficeAgentManagedRootDir();
   const projectsDir = getOfficeAgentProjectsDir(managedRootDir);
 
-  Object.assign(process.env, getOfficeAgentManagedEnv(process.env, { agentDir, clientKind: "gui" }));
+  Object.assign(
+    process.env,
+    getOfficeAgentManagedEnv(process.env, { agentDir, clientKind: "gui" }),
+  );
   process.env.HOWCODE_REPO_ROOT = process.env.HOWCODE_REPO_ROOT?.trim() || projectsDir;
   defaultWindowsSandboxBackendToV2();
   setSandboxHelperEnvIfPresent();
@@ -139,29 +144,42 @@ export async function createOfficeAgentManagedCustomTools(options: {
     "Run commands with OfficeAgent's write-contained Windows execution model for this managed project.",
     "Commands may modify only the OfficeAgent managed project/root; reads outside may succeed or fail according to Windows permissions.",
   ].join(" ");
-  sandboxCommandTool.promptSnippet = "Execute Windows commands with OfficeAgent write containment for the current project.";
+  sandboxCommandTool.promptSnippet =
+    "Execute Windows commands with OfficeAgent write containment for the current project.";
   sandboxCommandTool.promptGuidelines = [
     shellPromptContext,
     "Prefer commands that operate inside the current managed project.",
+    "Before modifying, transforming, deeply inspecting, or running tools against a real user file, call copy_file_into_workspace and work on the returned workspace copy.",
+    "Use %OFFICE_AGENT_SCRATCH% for temporary scripts/intermediate files; keep %OFFICE_AGENT_WORKSPACE% for user-facing files and final outputs.",
+    "Use normal python, py, pip, python -m pip, and uv pip commands. OfficeAgent routes them to a hidden managed Python environment automatically; do not create pylibs or .venv folders in the visible workspace.",
     "Writes outside the OfficeAgent managed root should fail.",
   ];
 
-  return [
+  const readTool = withOfficeAgentPathPlaceholderExpansion(
     options.pi.createReadToolDefinition(cwd),
-    sandboxCommandTool,
+    sessionEnv,
+  );
+  const editTool = withOfficeAgentPathPlaceholderExpansion(
     options.pi.createEditToolDefinition(cwd, {
       operations: {
         access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
-        readFile: (absolutePath: string) => readFile(assertManagedPath(managedRootDir, absolutePath)),
+        readFile: (absolutePath: string) =>
+          readFile(assertManagedPath(managedRootDir, absolutePath)),
         writeFile: async (absolutePath: string, content: string) => {
           const target = assertManagedPath(managedRootDir, absolutePath);
-          await writeFileWithOfficeAgentSandbox(managedRootDir, target, content, { createParentDirs: true });
+          await writeFileWithOfficeAgentSandbox(managedRootDir, target, content, {
+            createParentDirs: true,
+          });
         },
       },
     }),
+    sessionEnv,
+  );
+  const writeTool = withOfficeAgentPathPlaceholderExpansion(
     options.pi.createWriteToolDefinition(cwd, {
       operations: {
-        mkdir: (dir: string) => mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
+        mkdir: (dir: string) =>
+          mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
         writeFile: (absolutePath: string, content: string) =>
           writeFileWithOfficeAgentSandbox(
             managedRootDir,
@@ -170,21 +188,35 @@ export async function createOfficeAgentManagedCustomTools(options: {
           ),
       },
     }),
+    sessionEnv,
+  );
+
+  return [
+    readTool,
+    createCopyFileIntoWorkspaceToolDefinition({ cwd, managedRootDir, env: sessionEnv }),
+    sandboxCommandTool,
+    editTool,
+    writeTool,
   ] as NonNullable<CreateAgentSessionOptions["customTools"]>;
 }
 
-function getOfficeAgentSessionWritablePathsForSetup(paths: Awaited<ReturnType<typeof ensureOfficeAgentManagedSessionLayout>>): string[] {
+function getOfficeAgentSessionWritablePathsForSetup(
+  paths: Awaited<ReturnType<typeof ensureOfficeAgentManagedSessionLayout>>,
+): string[] {
   return [
     paths.sessionDir,
     paths.profileDir,
     paths.appDataDir,
     paths.localAppDataDir,
     paths.tempDir,
+    paths.scratchDir,
     paths.logsDir,
   ];
 }
 
-function getOfficeAgentProjectStateWritablePathsForSetup(paths: Awaited<ReturnType<typeof ensureOfficeAgentManagedProjectStateLayout>>): string[] {
+function getOfficeAgentProjectStateWritablePathsForSetup(
+  paths: Awaited<ReturnType<typeof ensureOfficeAgentManagedProjectStateLayout>>,
+): string[] {
   return [
     paths.projectStateDir,
     paths.cacheDir,
@@ -192,16 +224,54 @@ function getOfficeAgentProjectStateWritablePathsForSetup(paths: Awaited<ReturnTy
     paths.dataDir,
     paths.toolsDir,
     paths.binDir,
+    paths.scratchDir,
     paths.npmCacheDir,
     paths.npmPrefixDir,
     paths.pipCacheDir,
+    paths.pipConfigPath,
     paths.pythonUserBaseDir,
+    paths.pythonEnvDir,
     paths.uvCacheDir,
     paths.uvToolDir,
     paths.uvToolBinDir,
     paths.uvPythonInstallDir,
     paths.uvPythonBinDir,
   ];
+}
+
+type ToolWithPrepareArguments = {
+  prepareArguments?: (args: unknown) => unknown;
+};
+
+function withOfficeAgentPathPlaceholderExpansion<TTool>(
+  tool: TTool,
+  env: NodeJS.ProcessEnv,
+): TTool {
+  const mutableTool = tool as ToolWithPrepareArguments;
+  const previousPrepareArguments = mutableTool.prepareArguments;
+  mutableTool.prepareArguments = (args: unknown) => {
+    const preparedArgs = previousPrepareArguments ? previousPrepareArguments(args) : args;
+    return expandToolPathArguments(preparedArgs, env);
+  };
+  return tool;
+}
+
+function expandToolPathArguments(args: unknown, env: NodeJS.ProcessEnv): unknown {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    return args;
+  }
+  const mutableArgs = { ...(args as Record<string, unknown>) };
+  const rawPath =
+    typeof mutableArgs.path === "string"
+      ? mutableArgs.path
+      : typeof mutableArgs.file_path === "string"
+        ? mutableArgs.file_path
+        : undefined;
+  if (rawPath !== undefined) {
+    mutableArgs.path = expandOfficeAgentPathPlaceholders(rawPath, env);
+    mutableArgs.file_path = undefined;
+  }
+  return mutableArgs;
 }
 
 export function assertManagedPath(managedRootDir: string, pathValue: string): string {
@@ -255,7 +325,13 @@ function setSandboxHelperEnvIfPresent(): void {
     "windows-sandbox-helper",
     fileName,
   ];
-  const nativeReleaseHelperPath = ["native", "windows-sandbox-helper", "target", "release", fileName];
+  const nativeReleaseHelperPath = [
+    "native",
+    "windows-sandbox-helper",
+    "target",
+    "release",
+    fileName,
+  ];
   const nativeDebugHelperPath = ["native", "windows-sandbox-helper", "target", "debug", fileName];
   const candidates = [
     ...(resourcesPath ? [join(resourcesPath, "windows-sandbox-helper", fileName)] : []),
