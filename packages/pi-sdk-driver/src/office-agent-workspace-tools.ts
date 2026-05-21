@@ -1,7 +1,6 @@
 import { copyFile, realpath, stat } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, parse, relative, resolve } from "node:path";
 import { getOfficeAgentRealUserFolders } from "@office-agent/runtime";
-import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { expandOfficeAgentPathPlaceholders } from "./office-agent-path-placeholders.js";
 
@@ -41,7 +40,7 @@ export function createCopyFileIntoWorkspaceToolDefinition(options: {
   const env = options.env ?? process.env;
   const workspaceRoot = assertPathWithin(resolve(options.managedRootDir), resolve(options.cwd), "workspace");
 
-  return defineTool({
+  return {
     name: "copy_file_into_workspace",
     label: "Copy file into workspace",
     description:
@@ -53,7 +52,7 @@ export function createCopyFileIntoWorkspaceToolDefinition(options: {
       "copy_file_into_workspace creates a copy in OFFICE_AGENT_WORKSPACE/the current project; the original user file is left untouched.",
     ],
     parameters: COPY_FILE_INTO_WORKSPACE_PARAMS,
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId: string, params: CopyFileIntoWorkspaceParams) {
       const sourcePath = resolve(expandOfficeAgentPathPlaceholders(params.sourcePath, env));
       const sourceStats = await stat(sourcePath).catch((error: unknown) => {
         throw new Error(`Source file is not accessible: ${sourcePath}. ${formatUnknownError(error)}`);
@@ -115,7 +114,7 @@ export function createCopyFileIntoWorkspaceToolDefinition(options: {
         details,
       };
     },
-  });
+  };
 }
 
 function createCopyDetails(input: {
