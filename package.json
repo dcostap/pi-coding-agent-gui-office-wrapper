@@ -19,7 +19,8 @@
     "gui:build": "npm run build --workspace apps/gui",
     "gui:typecheck": "npm run typecheck --workspace apps/gui",
     "gui:test": "npm run test --workspace apps/gui",
-    "gui:package": "npm run build:release --workspace apps/gui",
+    "gui:package": "npm run gui:package:users",
+    "gui:package:users": "cargo build --release --manifest-path native/windows-sandbox-helper/Cargo.toml && npm run build:release --workspace apps/gui",
     "gui:package:dir": "npm run build --workspace apps/gui"
   },
   "devDependencies": {
