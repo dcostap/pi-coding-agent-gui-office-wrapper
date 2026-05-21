@@ -10,6 +10,7 @@ import { Sidebar } from "../components/sidebar/Sidebar";
 import { TerminalPanel } from "../components/workspace/TerminalPanel";
 import { ProjectFileBrowserPanel } from "../components/workspace/project-files/ProjectFileBrowserPanel";
 import { defaultDiffBaseline } from "../components/workspace/composer/diff-baseline";
+import { cleanUserErrorMessage } from "../desktop/error-messages";
 import type { ProjectDiffBaseline, ProjectDiffRenderMode } from "../desktop/types";
 import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
 import { showGlobalToast } from "../hooks/useToast";
@@ -27,6 +28,14 @@ const PROJECT_FILES_DOCKED_MIN_WIDTH = 1180;
 
 let automaticWindowsSandboxSetupStarted = false;
 
+function formatAutomaticSandboxSetupFailure(error: string | null | undefined) {
+  const message = cleanUserErrorMessage(
+    error,
+    "No se pudo configurar el sandbox de Windows.",
+  );
+  return `${message} La app volverá a intentarlo al abrirse de nuevo; también puedes configurarlo desde Ajustes.`;
+}
+
 function startAutomaticWindowsSandboxSetupIfNeeded() {
   if (automaticWindowsSandboxSetupStarted) {
     return;
@@ -40,7 +49,15 @@ function startAutomaticWindowsSandboxSetupIfNeeded() {
 
   void (async () => {
     const status = await desktopApi.getWindowsSandboxSetupStatus?.();
-    if (!status?.available || status.ready) {
+    if (!status || status.ready) {
+      return;
+    }
+    if (!status.available) {
+      showGlobalToast({
+        message: formatAutomaticSandboxSetupFailure(status.error),
+        tone: "error",
+        timeoutMs: 9000,
+      });
       return;
     }
 
@@ -59,17 +76,27 @@ function startAutomaticWindowsSandboxSetupIfNeeded() {
     }
     if (result?.ok === false) {
       showGlobalToast({
-        message: result.error ?? "No se pudo configurar el sandbox de Windows.",
+        message: formatAutomaticSandboxSetupFailure(result.error),
         tone: "error",
+        timeoutMs: 9000,
+      });
+      return;
+    }
+    if (result?.readyAfterRun !== true) {
+      showGlobalToast({
+        message:
+          "La configuración del sandbox no se completó. La app volverá a intentarlo al abrirse de nuevo; también puedes configurarlo desde Ajustes.",
+        tone: "warning",
+        timeoutMs: 9000,
       });
     }
   })().catch((error) => {
     showGlobalToast({
-      message:
-        error instanceof Error
-          ? error.message
-          : "No se pudo iniciar la configuración automática del sandbox.",
+      message: formatAutomaticSandboxSetupFailure(
+        error instanceof Error ? error.message : undefined,
+      ),
       tone: "error",
+      timeoutMs: 9000,
     });
   });
 }

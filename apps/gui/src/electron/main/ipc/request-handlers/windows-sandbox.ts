@@ -157,8 +157,14 @@ exit $exitCode
     launched: true,
     exitCode,
     readyAfterRun,
-    ...(exitCode !== 0 && !readyAfterRun
-      ? { ok: false, error: `Windows sandbox setup exited with code ${exitCode}.` }
+    ...(!readyAfterRun
+      ? {
+          ok: false,
+          error:
+            exitCode === 0
+              ? "Windows sandbox setup did not complete. Please accept the administrator prompt and try again."
+              : `Windows sandbox setup exited with code ${exitCode}.`,
+        }
       : {}),
   };
 }
