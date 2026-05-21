@@ -12,6 +12,7 @@ import { ProjectFileBrowserPanel } from "../components/workspace/project-files/P
 import { defaultDiffBaseline } from "../components/workspace/composer/diff-baseline";
 import type { ProjectDiffBaseline, ProjectDiffRenderMode } from "../desktop/types";
 import { useAnimatedPresence } from "../hooks/useAnimatedPresence";
+import { showGlobalToast } from "../hooks/useToast";
 import { cn } from "../utils/cn";
 import { AppShellOverlays } from "./AppShellOverlays";
 import { AppShellWorkspace } from "./AppShellWorkspace";
@@ -23,6 +24,55 @@ import { useAppShellLayoutState } from "./useAppShellLayoutState";
 const TERMINAL_DRAWER_WIDTH = "min(28rem, calc(100% - 2.5rem))";
 const PROJECT_FILES_DOCK_WIDTH = 360;
 const PROJECT_FILES_DOCKED_MIN_WIDTH = 1180;
+
+let automaticWindowsSandboxSetupStarted = false;
+
+function startAutomaticWindowsSandboxSetupIfNeeded() {
+  if (automaticWindowsSandboxSetupStarted) {
+    return;
+  }
+  automaticWindowsSandboxSetupStarted = true;
+
+  const desktopApi = window.piDesktop;
+  if (!desktopApi?.getWindowsSandboxSetupStatus || !desktopApi.runWindowsSandboxSetup) {
+    return;
+  }
+
+  void (async () => {
+    const status = await desktopApi.getWindowsSandboxSetupStatus?.();
+    if (!status?.available || status.ready) {
+      return;
+    }
+
+    showGlobalToast({
+      message:
+        "El sandbox de Windows necesita una configuración inicial. Se solicitarán permisos de administrador…",
+      tone: "info",
+    });
+    const result = await desktopApi.runWindowsSandboxSetup?.("setup");
+    if (result?.readyAfterRun) {
+      showGlobalToast({
+        message: "Sandbox configurado correctamente. Ya puedes ejecutar comandos.",
+        tone: "success",
+      });
+      return;
+    }
+    if (result?.ok === false) {
+      showGlobalToast({
+        message: result.error ?? "No se pudo configurar el sandbox de Windows.",
+        tone: "error",
+      });
+    }
+  })().catch((error) => {
+    showGlobalToast({
+      message:
+        error instanceof Error
+          ? error.message
+          : "No se pudo iniciar la configuración automática del sandbox.",
+      tone: "error",
+    });
+  });
+}
 
 function useProjectFilesDockedMode() {
   const [docked, setDocked] = useState(() =>
@@ -211,6 +261,11 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
     renderMode: "stacked",
     source: "init",
   });
+
+  useEffect(() => {
+    startAutomaticWindowsSandboxSetupIfNeeded();
+  }, []);
+
   useEffect(() => {
     if (projectFilesDocked) {
       setProjectFilesOverlayOpen(false);
