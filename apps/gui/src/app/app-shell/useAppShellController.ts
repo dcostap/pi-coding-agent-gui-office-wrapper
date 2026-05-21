@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   createLocalThreadDraft,
   getLocalDraftChatGroupId,
@@ -45,6 +45,11 @@ export function useAppShellController() {
   const [threadRefreshKey, setThreadRefreshKey] = useState(0);
   const [threadHistoryCompactions, setThreadHistoryCompactions] = useState(0);
   const [selectedChatGroupId, setSelectedChatGroupId] = useState<string | null>(null);
+  const composerFocusRequestCounterRef = useRef(0);
+  const [composerFocusRequest, setComposerFocusRequest] = useState<{
+    id: number;
+    sessionPath: string | null;
+  } | null>(null);
   const [chatSidebarState, setChatSidebarState] =
     useState<Awaited<ReturnType<typeof getChatSidebarStateQuery>>>(null);
   const [localDraftProjects, setLocalDraftProjects] = useState<Project[]>([]);
@@ -174,6 +179,16 @@ export function useAppShellController() {
     },
     [selectedChatGroupId],
   );
+  const requestComposerFocus = useCallback((sessionPath: string | null) => {
+    composerFocusRequestCounterRef.current += 1;
+    setComposerFocusRequest({
+      id: composerFocusRequestCounterRef.current,
+      sessionPath,
+    });
+  }, []);
+  const handleComposerFocusRequestHandled = useCallback((requestId: number) => {
+    setComposerFocusRequest((current) => (current?.id === requestId ? null : current));
+  }, []);
   const handleCreateChatGroup = async (name: string) => {
     const nextState = await createChatGroupQuery(name);
     setChatSidebarState(nextState);
@@ -295,16 +310,21 @@ export function useAppShellController() {
       token,
       chatGroupId = null,
       composerMode = "code",
+      focusComposer = false,
     }: {
       projectId: string;
       projectName: string;
       token?: string;
       chatGroupId?: string | null;
       composerMode?: "chat" | "code";
+      focusComposer?: boolean;
     }) => {
       const currentDraftProjectId = getLocalDraftProjectId(state.selectedSessionPath);
       if (currentDraftProjectId === projectId) {
         dispatch({ type: "show-view", view: composerMode === "chat" ? "chat" : "thread" });
+        if (focusComposer) {
+          requestComposerFocus(state.selectedSessionPath);
+        }
         return;
       }
 
@@ -332,6 +352,9 @@ export function useAppShellController() {
           sessionPath: existingDraft.sessionPath,
           view: composerMode === "chat" ? "chat" : "thread",
         });
+        if (focusComposer) {
+          requestComposerFocus(existingDraft.sessionPath);
+        }
         return;
       }
 
@@ -366,6 +389,9 @@ export function useAppShellController() {
         threadId: draft.threadId,
         sessionPath: draft.sessionPath,
       });
+      if (focusComposer) {
+        requestComposerFocus(draft.sessionPath);
+      }
 
       void loadComposerState({ projectId, composerMode }).then((nextComposerState) => {
         if (nextComposerState) {
@@ -373,7 +399,14 @@ export function useAppShellController() {
         }
       });
     },
-    [dispatch, loadComposerState, localDraftProjects, shellProjects, state.selectedSessionPath],
+    [
+      dispatch,
+      loadComposerState,
+      localDraftProjects,
+      requestComposerFocus,
+      shellProjects,
+      state.selectedSessionPath,
+    ],
   );
 
   const handleStartProjectChat = useCallback(
@@ -381,7 +414,7 @@ export function useAppShellController() {
       const project = projects.find((candidate) => candidate.id === projectId);
       const resolvedProjectName = projectName?.trim() || project?.name || projectId.split(/[\\/]+/).pop() || projectId;
 
-      openLocalDraftThread({ projectId, projectName: resolvedProjectName });
+      openLocalDraftThread({ projectId, projectName: resolvedProjectName, focusComposer: true });
     },
     [openLocalDraftThread, projects],
   );
@@ -398,6 +431,7 @@ export function useAppShellController() {
       const currentDraftGroupId = getLocalDraftChatGroupId(state.selectedSessionPath);
       if (currentDraftProjectId === projectId && currentDraftGroupId === (groupId ?? null)) {
         dispatch({ type: "show-view", view: "chat" });
+        requestComposerFocus(state.selectedSessionPath);
         return;
       }
 
@@ -406,9 +440,18 @@ export function useAppShellController() {
         projectName: "Chat",
         chatGroupId: groupId,
         composerMode: "chat",
+        focusComposer: true,
       });
     },
-    [composerProjectId, dispatch, openLocalDraftThread, shellState?.cwd, showToast, state.selectedSessionPath],
+    [
+      composerProjectId,
+      dispatch,
+      openLocalDraftThread,
+      requestComposerFocus,
+      shellState?.cwd,
+      showToast,
+      state.selectedSessionPath,
+    ],
   );
 
   const handleStartUnassignedChat = useCallback(() => {
@@ -421,6 +464,7 @@ export function useAppShellController() {
     const currentDraftProjectId = getLocalDraftProjectId(state.selectedSessionPath);
     if (currentDraftProjectId && isUnassignedChatProjectId(currentDraftProjectId)) {
       dispatch({ type: "show-view", view: "thread" });
+      requestComposerFocus(state.selectedSessionPath);
       return;
     }
 
@@ -445,6 +489,7 @@ export function useAppShellController() {
         threadId: existingUnassignedThread.id,
         sessionPath: existingUnassignedThread.sessionPath,
       });
+      requestComposerFocus(existingUnassignedThread.sessionPath);
       return;
     }
 
@@ -453,8 +498,19 @@ export function useAppShellController() {
       projectId: createUnassignedChatProjectId(projectsRoot, token),
       projectName: UNASSIGNED_CHAT_PROJECT_NAME,
       token,
+      focusComposer: true,
     });
-  }, [dispatch, localDraftProjects, openLocalDraftThread, shellProjects, shellState?.appSettings.preferredProjectLocation, shellState?.cwd, showToast, state.selectedSessionPath]);
+  }, [
+    dispatch,
+    localDraftProjects,
+    openLocalDraftThread,
+    requestComposerFocus,
+    shellProjects,
+    shellState?.appSettings.preferredProjectLocation,
+    shellState?.cwd,
+    showToast,
+    state.selectedSessionPath,
+  ]);
 
   return {
     activeComposerState,
@@ -462,6 +518,7 @@ export function useAppShellController() {
     archivedThreads,
     collapsedProjectIds,
     composerProjectId,
+    composerFocusRequest,
     currentProjectName,
     currentTitle,
     handleAction,
@@ -488,6 +545,7 @@ export function useAppShellController() {
     chatSidebarState,
     selectedChatGroupId,
     handleCreateChatGroup,
+    handleComposerFocusRequestHandled,
     handleSelectChatGroup: setSelectedChatGroupId,
     handleStartUnassignedChat,
     handleStartProjectChat,

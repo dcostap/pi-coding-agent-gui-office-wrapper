@@ -223,17 +223,20 @@ export async function setComposerModel(
 ) {
   const persistedSessionPath = getPersistedSessionPath(request.sessionPath);
   if (!persistedSessionPath) {
-    const { AuthStorage, ModelRegistry, SettingsManager, getAgentDir } = await getPiModule();
+    const { SettingsManager, getAgentDir } = await getPiModule();
     const cwd = request.projectId ?? getDesktopWorkingDirectory();
     const agentDir = getAgentDir();
-    const authStorage = AuthStorage.create();
-    const modelRegistry = ModelRegistry.create(authStorage, `${agentDir}/models.json`);
     const enabledSelection = normalizeEnabledModelSelection(provider, modelId);
-    const model = modelRegistry.find(enabledSelection.provider, enabledSelection.modelId);
-    if (!model) throw new Error(`Unknown Pi model: ${enabledSelection.provider}/${enabledSelection.modelId}`);
+    const catalogModel = getOfficeAgentEnabledModel(
+      enabledSelection.provider,
+      enabledSelection.modelId,
+    );
+    if (!catalogModel) throw new Error(`Model is not enabled: ${provider}/${modelId}`);
     const settingsManager = SettingsManager.create(cwd, agentDir);
     settingsManager.setDefaultModelAndProvider(enabledSelection.provider, enabledSelection.modelId);
-    settingsManager.setDefaultThinkingLevel(getDefaultThinkingLevelForModel(model));
+    settingsManager.setDefaultThinkingLevel(
+      catalogModel.defaultThinkingLevel as ComposerThinkingLevel,
+    );
     await emitComposerUpdate({ ...request, sessionPath: null });
     return { ok: true as const };
   }
@@ -245,7 +248,13 @@ export async function setComposerModel(
       chatGroupId: request.chatGroupId ?? null,
     });
     const enabledSelection = normalizeEnabledModelSelection(provider, modelId);
-    const model = runtime.session.modelRegistry.find(enabledSelection.provider, enabledSelection.modelId);
+    const model =
+      runtime.session.modelRegistry.find(enabledSelection.provider, enabledSelection.modelId) ??
+      (await runtime.session.modelRegistry.getAvailable()).find(
+        (availableModel) =>
+          availableModel.provider === enabledSelection.provider &&
+          availableModel.id === enabledSelection.modelId,
+      );
     if (!model) throw new Error(`Unknown Pi model: ${enabledSelection.provider}/${enabledSelection.modelId}`);
     await runtime.session.setModel(model);
     runtime.session.setThinkingLevel(getDefaultThinkingLevelForModel(model));

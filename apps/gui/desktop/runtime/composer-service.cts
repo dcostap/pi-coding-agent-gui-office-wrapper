@@ -175,21 +175,24 @@ async function promptAndReturnAfterPreflight({
 }
 
 async function setDraftComposerModel(cwd: string, provider: string, modelId: string) {
-  const { AuthStorage, ModelRegistry, SettingsManager, getAgentDir } = await getPiModule();
+  const { SettingsManager, getAgentDir } = await getPiModule();
   const agentDir = getAgentDir();
-  const authStorage = AuthStorage.create();
-  const modelRegistry = ModelRegistry.create(authStorage, `${agentDir}/models.json`);
   const enabledSelection = normalizeEnabledModelSelection(provider, modelId);
-  const model = modelRegistry.find(enabledSelection.provider, enabledSelection.modelId);
+  const catalogModel = getOfficeAgentEnabledModel(
+    enabledSelection.provider,
+    enabledSelection.modelId,
+  );
 
-  if (!model) {
-    throw new Error(`Unknown Pi model: ${enabledSelection.provider}/${enabledSelection.modelId}`);
+  if (!catalogModel) {
+    throw new Error(`Model is not enabled: ${provider}/${modelId}`);
   }
 
   const settingsManager = SettingsManager.create(cwd, agentDir);
 
   settingsManager.setDefaultModelAndProvider(enabledSelection.provider, enabledSelection.modelId);
-  settingsManager.setDefaultThinkingLevel(getDefaultThinkingLevelForModel(model));
+  settingsManager.setDefaultThinkingLevel(
+    catalogModel.defaultThinkingLevel as ComposerThinkingLevel,
+  );
 }
 
 async function setDraftComposerThinkingLevel(cwd: string, level: ComposerThinkingLevel) {
@@ -246,7 +249,13 @@ export async function setComposerModel(
       chatGroupId: request.chatGroupId ?? null,
     });
     const enabledSelection = normalizeEnabledModelSelection(provider, modelId);
-    const model = runtime.session.modelRegistry.find(enabledSelection.provider, enabledSelection.modelId);
+    const model =
+      runtime.session.modelRegistry.find(enabledSelection.provider, enabledSelection.modelId) ??
+      (await runtime.session.modelRegistry.getAvailable()).find(
+        (availableModel) =>
+          availableModel.provider === enabledSelection.provider &&
+          availableModel.id === enabledSelection.modelId,
+      );
 
     if (!model) {
       throw new Error(`Unknown Pi model: ${enabledSelection.provider}/${enabledSelection.modelId}`);

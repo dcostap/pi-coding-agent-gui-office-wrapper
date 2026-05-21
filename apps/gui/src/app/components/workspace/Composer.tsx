@@ -28,6 +28,8 @@ export type ComposerProps = {
   streamingBehaviorPreference: ComposerStreamingBehavior;
   availableThinkingLevels: ComposerThinkingLevel[];
   projectId: string;
+  composerFocusRequest?: { id: number; sessionPath: string | null } | null;
+  onComposerFocusRequestHandled?: (requestId: number) => void;
   chatGroupId?: string | null;
   projectGitState: ProjectGitState | null;
   diffBaseline: ProjectDiffBaseline;

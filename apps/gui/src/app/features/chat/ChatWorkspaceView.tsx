@@ -200,6 +200,8 @@ export function ChatWorkspaceView({
                   }
                   availableThinkingLevels={activeComposerState?.availableThinkingLevels ?? ["off"]}
                   projectId={composerProjectId}
+                  composerFocusRequest={controller.composerFocusRequest}
+                  onComposerFocusRequestHandled={controller.handleComposerFocusRequestHandled}
                   chatGroupId={
                     hasPersistedChatSession
                       ? null

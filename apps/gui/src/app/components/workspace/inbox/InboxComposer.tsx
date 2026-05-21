@@ -633,6 +633,15 @@ export function InboxComposer({
               panelRef={modelMenuRef}
               thinkingLevelLabels={thinkingLevelLabels}
               onSelectModel={(availableModel) => {
+                if (
+                  currentModel &&
+                  currentModel.provider === availableModel.provider &&
+                  currentModel.id === availableModel.id
+                ) {
+                  setOpenMenu(null);
+                  return;
+                }
+
                 void updateComposerOption("composer.model", {
                   provider: availableModel.provider,
                   modelId: availableModel.id,
@@ -641,6 +650,11 @@ export function InboxComposer({
                 });
               }}
               onSelectThinkingLevel={(level) => {
+                if (level === currentThinkingLevel) {
+                  setOpenMenu(null);
+                  return;
+                }
+
                 void updateComposerOption("composer.thinking", {
                   level,
                   projectId: thread.projectId,

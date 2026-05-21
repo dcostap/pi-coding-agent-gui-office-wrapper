@@ -2,6 +2,7 @@ import {
   type ClipboardEvent,
   type KeyboardEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -22,6 +23,8 @@ type ComposerTextFieldProps = {
   reservedLineCount?: number;
   trailingAdornment?: ReactNode;
   readOnly?: boolean;
+  focusRequestKey?: number;
+  onFocusRequestHandled?: (requestId: number) => void;
   onHeightChange?: (height: number) => void;
   onChange: (value: string) => void;
   onInput?: () => void;
@@ -45,6 +48,8 @@ export function ComposerTextField({
   reservedLineCount = 4,
   trailingAdornment = null,
   readOnly = false,
+  focusRequestKey = 0,
+  onFocusRequestHandled,
   onHeightChange,
   onChange,
   onInput,
@@ -64,8 +69,9 @@ export function ComposerTextField({
   } | null>(null);
   const [trailingContainerHeight, setTrailingContainerHeight] = useState<number | null>(null);
   const lineHeightRef = useRef(20);
+  const lastAppliedFocusRequestKeyRef = useRef(0);
 
-  const focusTextareaAtEnd = () => {
+  const focusTextareaAtEnd = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea) {
       return;
@@ -74,7 +80,20 @@ export function ComposerTextField({
     textarea.focus();
     const cursorPosition = textarea.value.length;
     textarea.setSelectionRange(cursorPosition, cursorPosition);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!focusRequestKey || lastAppliedFocusRequestKeyRef.current === focusRequestKey) {
+      return;
+    }
+
+    lastAppliedFocusRequestKeyRef.current = focusRequestKey;
+    const animationFrame = window.requestAnimationFrame(() => {
+      focusTextareaAtEnd();
+      onFocusRequestHandled?.(focusRequestKey);
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [focusRequestKey, focusTextareaAtEnd, onFocusRequestHandled]);
 
   useEffect(() => {
     const textarea = textareaRef.current;

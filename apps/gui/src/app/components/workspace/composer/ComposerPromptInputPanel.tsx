@@ -24,6 +24,8 @@ type ComposerPromptInputPanelProps = {
   errorMessage: string | null;
   extensionRunning: boolean;
   inputLocked: boolean;
+  focusRequestKey?: number;
+  onFocusRequestHandled?: (requestId: number) => void;
   canSubmit: boolean;
   canStop: boolean;
   placeholderText: string;
@@ -50,6 +52,8 @@ export function ComposerPromptInputPanel({
   errorMessage,
   extensionRunning,
   inputLocked,
+  focusRequestKey,
+  onFocusRequestHandled,
   canSubmit,
   canStop,
   placeholderText,
@@ -188,6 +192,8 @@ export function ComposerPromptInputPanel({
                 ariaActiveDescendant={slashCommands.activeDescendantId}
                 ariaControls={slashCommands.open ? slashCommands.listboxId : undefined}
                 ariaExpanded={slashCommands.open}
+                focusRequestKey={focusRequestKey}
+                onFocusRequestHandled={onFocusRequestHandled}
                 placeholder={placeholderText}
                 readOnly={inputLocked}
                 placeholderTone={errorMessage ? "error" : "muted"}

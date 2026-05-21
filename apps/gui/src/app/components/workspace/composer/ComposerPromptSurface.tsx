@@ -35,6 +35,8 @@ export function ComposerPromptSurface({
   streamingBehaviorPreference,
   availableThinkingLevels,
   projectId,
+  composerFocusRequest,
+  onComposerFocusRequestHandled,
   chatGroupId,
   projectGitState,
   diffBaseline,
@@ -321,6 +323,10 @@ export function ComposerPromptSurface({
   const placeholderText =
     errorMessage ?? "Escribe aquí · Enter para enviar · Shift + Enter para nueva línea";
   const canStopComposer = (composerIsStreaming || extensionRunning) && !isSending && !!sessionPath;
+  const activeFocusRequest =
+    composerFocusRequest && composerFocusRequest.sessionPath === sessionPath
+      ? composerFocusRequest
+      : null;
 
   return (
     <div className="relative left-1/2 grid w-[calc(100%-1rem)] -translate-x-1/2 grid-cols-[minmax(0,1fr)] items-end overflow-visible">
@@ -351,6 +357,8 @@ export function ComposerPromptSurface({
             errorMessage={errorMessage}
             extensionRunning={extensionRunning}
             inputLocked={inputLocked}
+            focusRequestKey={activeFocusRequest?.id ?? 0}
+            onFocusRequestHandled={onComposerFocusRequestHandled}
             canSubmit={canSend}
             canStop={canStopComposer}
             placeholderText={placeholderText}
@@ -390,6 +398,11 @@ export function ComposerPromptSurface({
           onOpenTakeoverTerminal={onOpenTakeoverTerminal}
           onSelectBaseline={onSetDiffBaseline}
           onSelectModel={(availableModel) => {
+            if (model && model.provider === availableModel.provider && model.id === availableModel.id) {
+              setOpenMenu(null);
+              return;
+            }
+
             if (activeView === "chat" || activeView === "thread") {
               void runComposerAction(
                 "settings.update",
@@ -415,6 +428,11 @@ export function ComposerPromptSurface({
             );
           }}
           onSelectThinkingLevel={(level) => {
+            if (level === thinkingLevel) {
+              setOpenMenu(null);
+              return;
+            }
+
             if (activeView === "chat" || activeView === "thread") {
               void runComposerAction("settings.update", {
                 key: composerMode === "chat" ? "chatThinkingLevel" : "codeThinkingLevel",

@@ -474,6 +474,8 @@ export function CodeWorkspaceView({
                           activeComposerState?.availableThinkingLevels ?? ["off"]
                         }
                         projectId={composerProjectId}
+                        composerFocusRequest={controller.composerFocusRequest}
+                        onComposerFocusRequestHandled={controller.handleComposerFocusRequestHandled}
                         projectGitState={projectGitState}
                         diffBaseline={diffBaseline}
                         sessionPath={terminalSessionPath}
