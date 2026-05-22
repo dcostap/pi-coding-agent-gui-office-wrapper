@@ -10,8 +10,11 @@ import { installDevWebDesktopBridge } from "./app/dev-web-bridge";
 import { queryClient } from "./app/query/query-client";
 
 if (import.meta.env.DEV) {
-  void import("react-grab");
   installDevWebDesktopBridge();
+
+  if (import.meta.env.VITE_ENABLE_REACT_GRAB === "true") {
+    void import("react-grab");
+  }
 }
 
 try {

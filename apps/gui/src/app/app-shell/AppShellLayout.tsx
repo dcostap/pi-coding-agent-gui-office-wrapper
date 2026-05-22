@@ -606,7 +606,7 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
         />
-        <div className="flex min-h-0 flex-1 overflow-hidden bg-[color:var(--sidebar)] backdrop-blur-[34px] backdrop-saturate-[160%]">
+        <div className="app-shell-chrome flex min-h-0 flex-1 overflow-hidden bg-[color:var(--sidebar)]">
           <ShellSideDock side="left" collapsed={sidebarCollapsed} width={300}>
             <Sidebar
               projects={projects}
