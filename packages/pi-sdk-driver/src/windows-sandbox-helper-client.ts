@@ -901,8 +901,7 @@ function findBundledGitBashRuntimeDir(): string | undefined {
     return undefined;
   }
   const override = process.env.OFFICE_AGENT_BUNDLED_GIT_BASH_DIR?.trim();
-  const resourcesPathValue = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  const resourcesPath = typeof resourcesPathValue === "string" ? resourcesPathValue : undefined;
+  const resourcesPath = getElectronResourcesPath();
   const candidates = [
     ...(override ? [override] : []),
     ...(resourcesPath ? [join(resourcesPath, "runtime", "git-bash", "v1")] : []),
@@ -916,8 +915,7 @@ function findBundledGitBashRuntimeDir(): string | undefined {
 function candidateHelperPaths(): string[] {
   const fileName = "officeagent-windows-sandbox-helper.exe";
   const override = process.env.OFFICE_AGENT_WINDOWS_SANDBOX_HELPER?.trim();
-  const resourcesPathValue = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  const resourcesPath = typeof resourcesPathValue === "string" ? resourcesPathValue : undefined;
+  const resourcesPath = getElectronResourcesPath();
   return [
     ...(override ? [override] : []),
     ...(resourcesPath ? [join(resourcesPath, "windows-sandbox-helper", fileName)] : []),
@@ -1406,8 +1404,7 @@ async function findBundledToolRuntimeDir(
 }
 
 function bundledRuntimeRootCandidates(runtimeName: "python" | "uv"): string[] {
-  const resourcesPathValue = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  const resourcesPath = typeof resourcesPathValue === "string" ? resourcesPathValue : undefined;
+  const resourcesPath = getElectronResourcesPath();
   return uniquePaths([
     ...(resourcesPath ? [join(resourcesPath, "runtime", runtimeName)] : []),
     join(process.cwd(), "build", "runtime", runtimeName),
@@ -1415,6 +1412,21 @@ function bundledRuntimeRootCandidates(runtimeName: "python" | "uv"): string[] {
     join(process.cwd(), "apps", "gui", "desktop", "build", "runtime", runtimeName),
     resolve("apps", "gui", "desktop", "build", "runtime", runtimeName),
   ]);
+}
+
+function getElectronResourcesPath(): string | undefined {
+  // Runtime-host workers are plain Node child processes, so Electron's
+  // process.resourcesPath is not available there. The Electron parent passes
+  // this env var so packaged resources/runtime/* can still be discovered.
+  const envResourcesPath = process.env.HOWCODE_ELECTRON_RESOURCES_PATH?.trim();
+  if (envResourcesPath) {
+    return envResourcesPath;
+  }
+
+  const resourcesPathValue = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  return typeof resourcesPathValue === "string" && resourcesPathValue.trim().length > 0
+    ? resourcesPathValue
+    : undefined;
 }
 
 async function readToolRuntimeManifest(sourceDir: string, manifestName: string): Promise<OfficeAgentBundledRuntimeManifest> {
