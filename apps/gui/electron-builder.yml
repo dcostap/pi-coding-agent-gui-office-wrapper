@@ -1,6 +1,7 @@
 appId: castrosua.ia.desktop
 productName: Castrosua IA
 icon: public/howcode-icon.png
+afterPack: scripts/after-pack.cjs
 directories:
   output: artifacts/electron
 files:
@@ -39,6 +40,7 @@ linux:
     - dir
     - AppImage
 win:
+  icon: public/howcode-icon.ico
   signAndEditExecutable: false
   target:
     - dir

@@ -12,7 +12,7 @@ if (process.platform !== "win32") {
 }
 
 const exePath = path.join(appDir, "artifacts", "electron", "win-unpacked", "Castrosua IA.exe");
-const iconPath = path.join(appDir, "artifacts", "electron", ".icon-ico", "icon.ico");
+const iconPath = path.join(appDir, "public", "howcode-icon.ico");
 
 const rceditCandidates = [
   path.join(appDir, "node_modules", "electron-winstaller", "vendor", "rcedit.exe"),
