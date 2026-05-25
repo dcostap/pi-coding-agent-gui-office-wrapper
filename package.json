@@ -13,6 +13,7 @@
     "gateway:bootstrap-auth": "npm run bootstrap-auth --workspace @office-agent/gateway",
     "gateway:probe-auth": "npm run probe-auth --workspace @office-agent/gateway",
     "gateway:smoke:analytics": "npm run smoke:analytics --workspace @office-agent/gateway",
+    "gateway:smoke:vfs": "npm run smoke:vfs --workspace @office-agent/gateway",
     "pi:managed": "npm run tui --workspace @office-agent/tui",
     "tui": "npm run tui --workspace @office-agent/tui",
     "gui:dev": "npm run dev --workspace apps/gui",

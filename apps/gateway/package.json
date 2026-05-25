@@ -9,6 +9,7 @@
     "dev": "node src/server.mjs",
     "start": "node src/server.mjs",
     "smoke:analytics": "node scripts/smoke-analytics.mjs",
+    "smoke:vfs": "node scripts/smoke-vfs.mjs",
     "bootstrap-auth": "node scripts/bootstrap-auth.mjs",
     "probe-auth": "node scripts/probe-pi-auth.mjs"
   },

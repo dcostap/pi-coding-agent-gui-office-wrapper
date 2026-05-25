@@ -9,6 +9,9 @@ import {
 import {
   createBashToolDefinition,
   createEditToolDefinition,
+  createFindToolDefinition,
+  createGrepToolDefinition,
+  createLsToolDefinition,
   createReadToolDefinition,
   createWriteToolDefinition,
   SettingsManager,
@@ -23,6 +26,21 @@ import {
 import { getOfficeAgentAppPromptContext } from "./office-agent-prompt-context.js";
 import { expandOfficeAgentPathPlaceholders } from "./office-agent-path-placeholders.js";
 import { createCopyFileIntoWorkspaceToolDefinition } from "./office-agent-workspace-tools.js";
+import {
+  createOfficeAgentVirtualFsClient,
+  getOfficeAgentVirtualFsPromptContext,
+  OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS,
+} from "./office-agent-virtual-fs.js";
+import {
+  assertNoReservedOfficeAgentToolNames,
+  createOfficeAgentVirtualFindTool,
+  createOfficeAgentVirtualGrepTool,
+  createOfficeAgentVirtualLsTool,
+  createOfficeAgentVirtualReadTool,
+  withOfficeAgentVirtualBashAdvisory,
+  withOfficeAgentVirtualEditGuard,
+  withOfficeAgentVirtualWriteGuard,
+} from "./office-agent-virtual-fs-tools.js";
 import {
   createOfficeAgentSandboxBashOperations,
   ensureOfficeAgentSandboxShellConfig,
@@ -132,7 +150,9 @@ async function createOfficeAgentManagedRuntimeOptions(options: {
   const shellConfig = await ensureOfficeAgentSandboxShellConfig(managedRootDir);
   const appPromptContext = getOfficeAgentAppPromptContext({ cwd, managedRootDir, sessionId });
   const shellPromptContext = getOfficeAgentSandboxShellPromptContext(shellConfig);
-  const promptContexts = [appPromptContext, shellPromptContext];
+  const virtualRoots = OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS;
+  const virtualFsPromptContext = getOfficeAgentVirtualFsPromptContext(virtualRoots);
+  const promptContexts = [appPromptContext, shellPromptContext, virtualFsPromptContext];
   const settingsManager =
     options.providedSettingsManager && resolve(options.initialCwd) === cwd
       ? options.providedSettingsManager
@@ -142,6 +162,8 @@ async function createOfficeAgentManagedRuntimeOptions(options: {
     activeProjectDir: cwd,
     agentDir,
   });
+
+  assertNoReservedOfficeAgentToolNames(options.baseCustomTools);
 
   const sandboxCommandTool = createBashToolDefinition(cwd, {
     operations: createOfficeAgentSandboxBashOperations({
@@ -179,8 +201,28 @@ async function createOfficeAgentManagedRuntimeOptions(options: {
     "Host tools on PATH may be tried when available. Prefer npm scripts, node, python, pip, uv, git, cargo, dotnet, and other project-local/staged tools over host-specific assumptions.",
   ];
 
-  const readTool = withOfficeAgentPathPlaceholderExpansion(createReadToolDefinition(cwd), sessionEnv);
-  const editTool = withOfficeAgentPathPlaceholderExpansion(createEditToolDefinition(cwd, {
+  const virtualFsClient = createOfficeAgentVirtualFsClient({ env: sessionEnv });
+  const readTool = withOfficeAgentPathPlaceholderExpansion(createOfficeAgentVirtualReadTool(createReadToolDefinition, {
+    cwd,
+    roots: virtualRoots,
+    client: virtualFsClient,
+  }), sessionEnv);
+  const lsTool = withOfficeAgentPathPlaceholderExpansion(createOfficeAgentVirtualLsTool(createLsToolDefinition, {
+    cwd,
+    roots: virtualRoots,
+    client: virtualFsClient,
+  }), sessionEnv);
+  const findTool = withOfficeAgentPathPlaceholderExpansion(createOfficeAgentVirtualFindTool(createFindToolDefinition, {
+    cwd,
+    roots: virtualRoots,
+    client: virtualFsClient,
+  }), sessionEnv);
+  const grepTool = withOfficeAgentPathPlaceholderExpansion(createOfficeAgentVirtualGrepTool(createGrepToolDefinition, {
+    cwd,
+    roots: virtualRoots,
+    client: virtualFsClient,
+  }), sessionEnv);
+  const editTool = withOfficeAgentPathPlaceholderExpansion(withOfficeAgentVirtualEditGuard(createEditToolDefinition(cwd, {
     operations: {
       access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
       readFile: (absolutePath: string) => readFile(assertManagedPath(managedRootDir, absolutePath)),
@@ -189,19 +231,22 @@ async function createOfficeAgentManagedRuntimeOptions(options: {
         await writeFileWithOfficeAgentSandbox(managedRootDir, target, content, { createParentDirs: true });
       },
     },
-  }), sessionEnv);
-  const writeTool = withOfficeAgentPathPlaceholderExpansion(createWriteToolDefinition(cwd, {
+  }), virtualRoots), sessionEnv);
+  const writeTool = withOfficeAgentPathPlaceholderExpansion(withOfficeAgentVirtualWriteGuard(createWriteToolDefinition(cwd, {
     operations: {
       mkdir: (dir: string) => mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
       writeFile: (absolutePath: string, content: string) =>
         writeFileWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, absolutePath), content),
     },
-  }), sessionEnv);
+  }), virtualRoots), sessionEnv);
 
   const customTools = [
     readTool,
+    lsTool,
+    findTool,
+    grepTool,
     createCopyFileIntoWorkspaceToolDefinition({ cwd, managedRootDir, env: sessionEnv }),
-    sandboxCommandTool,
+    withOfficeAgentVirtualBashAdvisory(sandboxCommandTool, virtualRoots),
     editTool,
     writeTool,
     ...(options.baseCustomTools ?? []),

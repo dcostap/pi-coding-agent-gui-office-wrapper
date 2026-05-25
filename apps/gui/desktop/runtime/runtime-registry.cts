@@ -4,6 +4,11 @@ import path from "node:path";
 import { getPiModule } from "../pi-module.cts";
 import { createArtifact, editArtifact, getArtifact, listArtifacts } from "../artifact-state-db.cts";
 import {
+  createOfficeAgentManagedCustomTools,
+  getOfficeAgentVirtualFsPromptContext,
+  OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS,
+} from "../office-agent-runtime.cts";
+import {
   createIsolatedRuntimeResourceLoader,
   createRuntimeSettingsManager,
 } from "./isolated-settings-manager.cts";
@@ -154,6 +159,13 @@ async function createRuntime(options: {
     DefaultResourceLoader,
     createAgentSessionFromServices,
     createAgentSessionServices,
+    createBashToolDefinition,
+    createEditToolDefinition,
+    createFindToolDefinition,
+    createGrepToolDefinition,
+    createLsToolDefinition,
+    createReadToolDefinition,
+    createWriteToolDefinition,
     getAgentDir,
   } = await getPiModule();
   const agentDir = getAgentDir();
@@ -174,6 +186,27 @@ async function createRuntime(options: {
     settingsManager,
   });
   const sessionManager = options.sessionManager ?? SessionManager.create(options.cwd, sessionDir);
+  const customTools = options.settingsCwd
+    ? createArtifactTools({
+        createArtifact,
+        editArtifact,
+        getArtifact: ({ conversationId, slug }) => getArtifact(slug, conversationId),
+        listArtifacts,
+      })
+    : await createOfficeAgentManagedCustomTools({
+        cwd: options.cwd,
+        sessionId: sessionManager.getSessionId(),
+        agentDir,
+        pi: {
+          createBashToolDefinition,
+          createEditToolDefinition,
+          createFindToolDefinition,
+          createGrepToolDefinition,
+          createLsToolDefinition,
+          createReadToolDefinition,
+          createWriteToolDefinition,
+        },
+      });
   const services = resourceLoader
     ? createServicesFromLoadedResourceLoader({
         cwd: options.cwd,
@@ -189,21 +222,18 @@ async function createRuntime(options: {
         authStorage,
         modelRegistry,
         settingsManager,
+        resourceLoaderOptions: {
+          appendSystemPromptOverride: (base) => [
+            ...base,
+            getOfficeAgentVirtualFsPromptContext(OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS),
+          ],
+        },
       });
   const { session } = await createAgentSessionFromServices({
     services,
     sessionManager,
-    ...(options.settingsCwd
-      ? {
-          noTools: "builtin" as const,
-          customTools: createArtifactTools({
-            createArtifact,
-            editArtifact,
-            getArtifact: ({ conversationId, slug }) => getArtifact(slug, conversationId),
-            listArtifacts,
-          }),
-        }
-      : {}),
+    noTools: "builtin" as const,
+    customTools,
   });
   const runtime = {
     cwd: options.cwd,

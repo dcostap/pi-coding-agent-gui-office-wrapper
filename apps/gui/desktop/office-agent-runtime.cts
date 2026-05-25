@@ -29,9 +29,25 @@ export {
   getOfficeAgentEnabledModel,
   normalizeOfficeAgentModelSelection,
   resolveOfficeAgentEnabledModelSelection,
+  getOfficeAgentVirtualFsPromptContext,
+  OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS,
 };
 import { expandOfficeAgentPathPlaceholders } from "../../../packages/pi-sdk-driver/src/office-agent-path-placeholders.ts";
 import { createCopyFileIntoWorkspaceToolDefinition } from "../../../packages/pi-sdk-driver/src/office-agent-workspace-tools.ts";
+import {
+  createOfficeAgentVirtualFsClient,
+  getOfficeAgentVirtualFsPromptContext,
+  OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS,
+} from "../../../packages/pi-sdk-driver/src/office-agent-virtual-fs.ts";
+import {
+  createOfficeAgentVirtualFindTool,
+  createOfficeAgentVirtualGrepTool,
+  createOfficeAgentVirtualLsTool,
+  createOfficeAgentVirtualReadTool,
+  withOfficeAgentVirtualBashAdvisory,
+  withOfficeAgentVirtualEditGuard,
+  withOfficeAgentVirtualWriteGuard,
+} from "../../../packages/pi-sdk-driver/src/office-agent-virtual-fs-tools.ts";
 import {
   createOfficeAgentSandboxBashOperations,
   ensureOfficeAgentSandboxShellConfig,
@@ -88,6 +104,9 @@ export async function createOfficeAgentManagedCustomTools(options: {
     PiModule,
     | "createBashToolDefinition"
     | "createEditToolDefinition"
+    | "createFindToolDefinition"
+    | "createGrepToolDefinition"
+    | "createLsToolDefinition"
     | "createReadToolDefinition"
     | "createWriteToolDefinition"
   >;
@@ -155,12 +174,42 @@ export async function createOfficeAgentManagedCustomTools(options: {
     "Writes outside the OfficeAgent managed root should fail.",
   ];
 
+  const virtualRoots = OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS;
+  const virtualFsClient = createOfficeAgentVirtualFsClient({ env: sessionEnv });
   const readTool = withOfficeAgentPathPlaceholderExpansion(
-    options.pi.createReadToolDefinition(cwd),
+    createOfficeAgentVirtualReadTool(options.pi.createReadToolDefinition, {
+      cwd,
+      roots: virtualRoots,
+      client: virtualFsClient,
+    }),
+    sessionEnv,
+  );
+  const lsTool = withOfficeAgentPathPlaceholderExpansion(
+    createOfficeAgentVirtualLsTool(options.pi.createLsToolDefinition, {
+      cwd,
+      roots: virtualRoots,
+      client: virtualFsClient,
+    }),
+    sessionEnv,
+  );
+  const findTool = withOfficeAgentPathPlaceholderExpansion(
+    createOfficeAgentVirtualFindTool(options.pi.createFindToolDefinition, {
+      cwd,
+      roots: virtualRoots,
+      client: virtualFsClient,
+    }),
+    sessionEnv,
+  );
+  const grepTool = withOfficeAgentPathPlaceholderExpansion(
+    createOfficeAgentVirtualGrepTool(options.pi.createGrepToolDefinition, {
+      cwd,
+      roots: virtualRoots,
+      client: virtualFsClient,
+    }),
     sessionEnv,
   );
   const editTool = withOfficeAgentPathPlaceholderExpansion(
-    options.pi.createEditToolDefinition(cwd, {
+    withOfficeAgentVirtualEditGuard(options.pi.createEditToolDefinition(cwd, {
       operations: {
         access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
         readFile: (absolutePath: string) =>
@@ -172,11 +221,11 @@ export async function createOfficeAgentManagedCustomTools(options: {
           });
         },
       },
-    }),
+    }), virtualRoots),
     sessionEnv,
   );
   const writeTool = withOfficeAgentPathPlaceholderExpansion(
-    options.pi.createWriteToolDefinition(cwd, {
+    withOfficeAgentVirtualWriteGuard(options.pi.createWriteToolDefinition(cwd, {
       operations: {
         mkdir: (dir: string) =>
           mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
@@ -187,14 +236,17 @@ export async function createOfficeAgentManagedCustomTools(options: {
             content,
           ),
       },
-    }),
+    }), virtualRoots),
     sessionEnv,
   );
 
   return [
     readTool,
+    lsTool,
+    findTool,
+    grepTool,
     createCopyFileIntoWorkspaceToolDefinition({ cwd, managedRootDir, env: sessionEnv }),
-    sandboxCommandTool,
+    withOfficeAgentVirtualBashAdvisory(sandboxCommandTool, virtualRoots),
     editTool,
     writeTool,
   ] as NonNullable<CreateAgentSessionOptions["customTools"]>;

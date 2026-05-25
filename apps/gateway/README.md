@@ -10,6 +10,11 @@ This first version exposes:
 - `GET /analytics/summary?range=30m|24h|7d|all`
 - `GET /v1/models`
 - `POST /v1/chat/completions`
+- `GET /v1/vfs/roots`
+- `POST /v1/vfs/read`
+- `POST /v1/vfs/list`
+- `POST /v1/vfs/find`
+- `POST /v1/vfs/grep`
 
 It accepts abstract models such as `assistant` and `gpt-5.5`, routes them to configured upstream Pi models, and writes practical request analytics to an append-only JSONL ledger. The dashboard focuses on request volume, estimated input/output tokens, processing time, users, models, and tools; health/latency are present but secondary.
 
@@ -25,6 +30,8 @@ It accepts abstract models such as `assistant` and `gpt-5.5`, routes them to con
 - `GATEWAY_UPSTREAM_PROVIDER` - default `openai-codex`
 - `GATEWAY_UPSTREAM_MODEL` - default `gpt-5.3-codex-spark` for `assistant`
 - `GATEWAY_GPT55_UPSTREAM_MODEL` / `GATEWAY_GPT_5_5_UPSTREAM_MODEL` - default `gpt-5.4` for abstract `gpt-5.5`
+- `OFFICE_AGENT_VFS_ROOT_ISO_DOCS` - optional server filesystem root exposed to clients as `virtual://server_iso_docs`
+- `OFFICE_AGENT_VFS_TIMEOUT_MS` - default `30000`
 
 ## Start
 
@@ -39,6 +46,14 @@ npm run gateway:smoke:analytics
 ```
 
 This starts the gateway in mock mode, sends one streamed request, and verifies the analytics summary includes requests, estimated tokens, users, models, tools, buckets, and deltas.
+
+## VFS smoke
+
+```bash
+npm run gateway:smoke:vfs
+```
+
+This starts the gateway in mock mode with a temporary `OFFICE_AGENT_VFS_ROOT_ISO_DOCS`, then verifies `roots`, `list`, `read`, `find`, and `grep` VFS endpoints.
 
 ## Pi-auth-backed bootstrap
 

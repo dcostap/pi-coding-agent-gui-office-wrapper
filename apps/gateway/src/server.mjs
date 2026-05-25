@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { appendFile, lstat, mkdir, readFile, readdir, realpath } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -20,6 +21,13 @@ const ANALYTICS_RANGES = {
 const MAX_ANALYTICS_EVENTS = 5000;
 const MAX_ANALYTICS_RECENT_EVENTS = 40;
 const MAX_ANALYTICS_ERROR_MESSAGE_CHARS = 240;
+const MAX_JSON_BODY_BYTES = 1024 * 1024;
+const VFS_DEFAULT_READ_LIMIT = 2000;
+const VFS_DEFAULT_LIST_LIMIT = 500;
+const VFS_DEFAULT_FIND_LIMIT = 1000;
+const VFS_DEFAULT_GREP_LIMIT = 100;
+const VFS_MAX_OUTPUT_BYTES = 1024 * 1024;
+const VFS_TIMEOUT_MS = Number(process.env.OFFICE_AGENT_VFS_TIMEOUT_MS || 30_000);
 
 const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 const authPath =
@@ -236,9 +244,17 @@ function getBearer(req) {
   return header.slice("Bearer ".length);
 }
 
-async function readJson(req) {
+async function readJson(req, options = {}) {
+  const maxBytes = options.maxBytes ?? Number.POSITIVE_INFINITY;
   const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
+  let totalBytes = 0;
+  for await (const chunk of req) {
+    totalBytes += chunk.length;
+    if (totalBytes > maxBytes) {
+      throw new Error(`JSON request body exceeds ${maxBytes} bytes`);
+    }
+    chunks.push(chunk);
+  }
   const raw = Buffer.concat(chunks).toString("utf8");
   return raw ? JSON.parse(raw) : {};
 }
@@ -680,6 +696,269 @@ async function streamViaPiAuth(res, body) {
       baseUrl: model.baseUrl,
     },
   };
+}
+
+function getConfiguredVfsRoots() {
+  const roots = {
+    iso_docs: process.env.OFFICE_AGENT_VFS_ROOT_ISO_DOCS,
+  };
+  return Object.fromEntries(
+    Object.entries(roots)
+      .filter(([, rootPath]) => typeof rootPath === "string" && rootPath.trim())
+      .map(([rootId, rootPath]) => [rootId, path.resolve(rootPath)]),
+  );
+}
+
+function requireVfsAuth(req, res) {
+  const token = getBearer(req);
+  if (token !== GATEWAY_TOKEN) {
+    unauthorized(res);
+    return false;
+  }
+  return true;
+}
+
+async function handleVfsRequest(req, res, operation) {
+  if (!requireVfsAuth(req, res)) return;
+  try {
+    const body = await readJson(req, { maxBytes: MAX_JSON_BODY_BYTES });
+    const roots = getConfiguredVfsRoots();
+    const result = await operation(body, roots, getClientIdentity(req));
+    return sendJson(res, 200, result);
+  } catch (error) {
+    const status = error?.statusCode || 400;
+    return sendJson(res, status, {
+      ok: false,
+      error: {
+        code: error?.code || "vfs_error",
+        message: sanitizeVfsErrorMessage(String(error?.message || error)),
+      },
+    });
+  }
+}
+
+async function handleVfsRoots(_body, roots) {
+  return {
+    ok: true,
+    roots: Object.keys(roots).map((rootId) => ({ rootId })),
+  };
+}
+
+async function handleVfsRead(body, roots) {
+  const { rootRealPath, virtualPath } = await resolveVfsPath(body, roots, { mustExist: true });
+  const stats = await lstat(rootRealPath);
+  if (!stats.isFile()) throw createVfsError("not_file", "Virtual path is not a file.");
+  const buffer = await readFile(rootRealPath);
+  if (buffer.includes(0)) throw createVfsError("binary_file", "Virtual path is not a UTF-8 text file.");
+  const text = buffer.toString("utf8");
+  if (text.includes("�")) throw createVfsError("binary_file", "Virtual path is not a UTF-8 text file.");
+  const lines = text.split("\n");
+  const totalLines = lines.length;
+  const offset = clampInteger(body.offset, 1, Number.MAX_SAFE_INTEGER, 1);
+  const limit = clampInteger(body.limit, 1, 10_000, VFS_DEFAULT_READ_LIMIT);
+  if (offset > totalLines) throw createVfsError("offset_out_of_range", `Offset ${offset} is beyond end of file.`);
+  const startIndex = offset - 1;
+  const endIndex = Math.min(startIndex + limit, lines.length);
+  const selected = lines.slice(startIndex, endIndex).join("\n");
+  return {
+    ok: true,
+    path: virtualPath,
+    text: selected,
+    startLine: offset,
+    endLine: endIndex,
+    totalLines,
+    truncated: endIndex < lines.length,
+    ...(endIndex < lines.length ? { nextOffset: endIndex + 1 } : {}),
+  };
+}
+
+async function handleVfsList(body, roots) {
+  const { rootRealPath } = await resolveVfsPath(body, roots, { mustExist: true });
+  const stats = await lstat(rootRealPath);
+  if (!stats.isDirectory()) throw createVfsError("not_directory", "Virtual path is not a directory.");
+  const limit = clampInteger(body.limit, 1, 5000, VFS_DEFAULT_LIST_LIMIT);
+  const names = (await readdir(rootRealPath)).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  const entries = [];
+  let limitReached = false;
+  for (const name of names) {
+    if (entries.length >= limit) {
+      limitReached = true;
+      break;
+    }
+    if (name === "." || name === "..") continue;
+    const fullPath = path.join(rootRealPath, name);
+    const entryStats = await lstat(fullPath).catch(() => undefined);
+    if (!entryStats || entryStats.isSymbolicLink()) continue;
+    entries.push({ name, isDirectory: entryStats.isDirectory() });
+  }
+  return { ok: true, entries, limitReached };
+}
+
+async function handleVfsFind(body, roots) {
+  const { rootRealPath, virtualPath } = await resolveVfsPath(body, roots, { mustExist: true });
+  const stats = await lstat(rootRealPath);
+  if (!stats.isDirectory()) throw createVfsError("not_directory", "Virtual path is not a directory.");
+  const pattern = requireString(body.pattern, "pattern");
+  const limit = clampInteger(body.limit, 1, 10_000, VFS_DEFAULT_FIND_LIMIT);
+  const { stdout, killedDueToLimit } = await runCommand("rg", [
+    "--files",
+    "--hidden",
+    "--no-require-git",
+    "--glob",
+    pattern,
+    "--glob",
+    "!**/.git/**",
+    "--glob",
+    "!**/node_modules/**",
+  ], { cwd: rootRealPath, maxBytes: VFS_MAX_OUTPUT_BYTES, allowExitOne: true });
+  const paths = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim().replaceAll("\\", "/"))
+    .filter(Boolean)
+    .filter((line) => !line.split("/").includes(".."))
+    .slice(0, limit)
+    .map((line) => joinVfsRelativePath(virtualPath, line));
+  return { ok: true, paths, limitReached: killedDueToLimit || paths.length >= limit };
+}
+
+async function handleVfsGrep(body, roots) {
+  const { rootRealPath, virtualPath } = await resolveVfsPath(body, roots, { mustExist: true });
+  const stats = await lstat(rootRealPath);
+  if (!stats.isDirectory() && !stats.isFile()) throw createVfsError("invalid_path", "Virtual grep path is not searchable.");
+  const pattern = requireString(body.pattern, "pattern");
+  const limit = clampInteger(body.limit, 1, 5000, VFS_DEFAULT_GREP_LIMIT);
+  const context = clampInteger(body.context, 0, 20, 0);
+  const args = ["--json", "--line-number", "--color=never", "--hidden", "--no-require-git", "--max-filesize", "2M"];
+  const searchCwd = stats.isFile() ? path.dirname(rootRealPath) : rootRealPath;
+  const searchTarget = stats.isFile() ? path.basename(rootRealPath) : ".";
+  const virtualBasePath = stats.isFile() ? path.posix.dirname(virtualPath) : virtualPath;
+  if (body.ignoreCase) args.push("--ignore-case");
+  if (body.literal) args.push("--fixed-strings");
+  if (typeof body.glob === "string" && body.glob.trim()) args.push("--glob", body.glob.trim());
+  if (context > 0) args.push("--context", String(context));
+  args.push("--", pattern, searchTarget);
+  const { stdout, killedDueToLimit } = await runCommand("rg", args, { cwd: searchCwd, maxBytes: VFS_MAX_OUTPUT_BYTES, allowExitOne: true });
+  const matches = [];
+  let linesTruncated = false;
+  for (const line of stdout.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    let event;
+    try { event = JSON.parse(line); } catch { continue; }
+    if (event?.type !== "match" && event?.type !== "context") continue;
+    const rawPath = event.data?.path?.text;
+    const lineNumber = event.data?.line_number;
+    const text = String(event.data?.lines?.text ?? "").replace(/\r?\n$/, "");
+    if (typeof rawPath !== "string" || typeof lineNumber !== "number") continue;
+    if (matches.length >= limit) break;
+    const trimmedText = text.length > 500 ? `${text.slice(0, 500)}…` : text;
+    if (trimmedText !== text) linesTruncated = true;
+    matches.push({
+      path: joinVfsRelativePath(virtualBasePath, rawPath.replace(/^[.][\\/]/, "").replaceAll("\\", "/")),
+      line: lineNumber,
+      text: trimmedText,
+      context: event.type === "context",
+    });
+  }
+  return { ok: true, matches, limitReached: killedDueToLimit || matches.length >= limit, linesTruncated };
+}
+
+async function resolveVfsPath(body, roots, options = {}) {
+  const rootId = requireString(body.rootId, "rootId");
+  const rootPath = roots[rootId];
+  if (!rootPath) throw createVfsError("unknown_root", `Unknown virtual root: ${rootId}`, 404);
+  const rootReal = await realpath(rootPath).catch(() => {
+    throw createVfsError("root_unavailable", `Virtual root is not configured: ${rootId}`, 503);
+  });
+  const virtualPath = normalizeVfsPath(body.path ?? "/");
+  const candidate = path.resolve(rootReal, `.${virtualPath}`);
+  const existing = await realpath(candidate).catch((error) => {
+    if (options.mustExist) throw createVfsError("not_found", `Virtual path not found: ${virtualPath}`, 404);
+    throw error;
+  });
+  if (!isPathWithin(rootReal, existing)) throw createVfsError("forbidden", "Virtual path escapes its root.", 403);
+  return { rootRealPath: existing, rootRealRoot: rootReal, virtualPath };
+}
+
+function normalizeVfsPath(value) {
+  if (typeof value !== "string") throw createVfsError("invalid_path", "path must be a string");
+  if (value.includes("\0") || value.includes("\\") || /^[A-Za-z]:/.test(value) || value.startsWith("//")) {
+    throw createVfsError("invalid_path", "Invalid virtual path.");
+  }
+  const rawSegments = value.split("/").filter(Boolean);
+  if (rawSegments.some((segment) => segment === "." || segment === "..")) {
+    throw createVfsError("invalid_path", "Virtual path traversal is not allowed.");
+  }
+  const normalized = path.posix.normalize(value.startsWith("/") ? value : `/${value}`);
+  if (normalized === "/") return "/";
+  const segments = normalized.split("/").filter(Boolean);
+  return `/${segments.join("/")}`;
+}
+
+function joinVfsRelativePath(baseVirtualPath, relativePath) {
+  const cleanRelative = String(relativePath || "").replace(/^\/+/, "");
+  const base = baseVirtualPath === "/" ? "" : baseVirtualPath.replace(/^\/+/, "").replace(/\/+$/, "");
+  const joined = [base, cleanRelative].filter(Boolean).join("/");
+  return joined ? `/${joined}` : "/";
+}
+
+function isPathWithin(parentPath, candidatePath) {
+  const rel = path.relative(parentPath, candidatePath);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+function requireString(value, name) {
+  if (typeof value !== "string" || !value.trim()) throw createVfsError("invalid_request", `${name} is required`);
+  return value.trim();
+}
+
+function clampInteger(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(number)));
+}
+
+function createVfsError(code, message, statusCode = 400) {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = statusCode;
+  return error;
+}
+
+function sanitizeVfsErrorMessage(message) {
+  return String(message).replace(/[A-Za-z]:\\[^\s]+/g, "<path>").replace(/\/[^\s]*officeagent[^\s]*/gi, "<path>").slice(0, 500);
+}
+
+function runCommand(command, args, options) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd: options.cwd, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    let killedDueToLimit = false;
+    const timeout = setTimeout(() => {
+      killedDueToLimit = true;
+      child.kill();
+    }, VFS_TIMEOUT_MS);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+      if (Buffer.byteLength(stdout, "utf8") > options.maxBytes) {
+        killedDueToLimit = true;
+        child.kill();
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(createVfsError("command_failed", `${command} failed to start: ${sanitizeVfsErrorMessage(error.message)}`, 500));
+    });
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      if (killedDueToLimit) return resolve({ stdout, killedDueToLimit: true });
+      if (code === 0 || (options.allowExitOne && code === 1)) return resolve({ stdout, killedDueToLimit: false });
+      reject(createVfsError("command_failed", `${command} failed: ${sanitizeVfsErrorMessage(stderr || `exit code ${code}`)}`, 500));
+    });
+  });
 }
 
 async function handleChatCompletions(req, res) {
@@ -1334,6 +1613,27 @@ const server = http.createServer(async (req, res) => {
           },
         ],
       });
+    }
+
+    if (req.method === "POST" && url.pathname === "/v1/vfs/read") {
+      return handleVfsRequest(req, res, handleVfsRead);
+    }
+
+    if (req.method === "POST" && url.pathname === "/v1/vfs/list") {
+      return handleVfsRequest(req, res, handleVfsList);
+    }
+
+    if (req.method === "POST" && url.pathname === "/v1/vfs/find") {
+      return handleVfsRequest(req, res, handleVfsFind);
+    }
+
+    if (req.method === "POST" && url.pathname === "/v1/vfs/grep") {
+      return handleVfsRequest(req, res, handleVfsGrep);
+    }
+
+    if (req.method === "GET" && url.pathname === "/v1/vfs/roots") {
+      if (!requireVfsAuth(req, res)) return;
+      return sendJson(res, 200, await handleVfsRoots({}, getConfiguredVfsRoots()));
     }
 
     if (req.method === "POST" && url.pathname === "/v1/chat/completions") {

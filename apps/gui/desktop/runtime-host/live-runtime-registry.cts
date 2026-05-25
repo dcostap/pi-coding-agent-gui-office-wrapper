@@ -13,7 +13,11 @@ import {
   createServicesFromLoadedResourceLoader,
   disposeAgentSessionGracefully,
 } from "../runtime/pi-session-services.cts";
-import { createOfficeAgentManagedCustomTools } from "../office-agent-runtime.cts";
+import {
+  createOfficeAgentManagedCustomTools,
+  getOfficeAgentVirtualFsPromptContext,
+  OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS,
+} from "../office-agent-runtime.cts";
 import { invokeMainRequest } from "./main-request-client.cts";
 import {
   createIsolatedRuntimeResourceLoader,
@@ -129,6 +133,9 @@ async function createRuntime(options: {
     createAgentSessionServices,
     createBashToolDefinition,
     createEditToolDefinition,
+    createFindToolDefinition,
+    createGrepToolDefinition,
+    createLsToolDefinition,
     createReadToolDefinition,
     createWriteToolDefinition,
     getAgentDir,
@@ -166,6 +173,9 @@ async function createRuntime(options: {
         pi: {
           createBashToolDefinition,
           createEditToolDefinition,
+          createFindToolDefinition,
+          createGrepToolDefinition,
+          createLsToolDefinition,
           createReadToolDefinition,
           createWriteToolDefinition,
         },
@@ -185,6 +195,12 @@ async function createRuntime(options: {
         authStorage,
         modelRegistry,
         settingsManager,
+        resourceLoaderOptions: {
+          appendSystemPromptOverride: (base) => [
+            ...base,
+            getOfficeAgentVirtualFsPromptContext(OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS),
+          ],
+        },
       });
   const { session } = await createAgentSessionFromServices({
     services,
