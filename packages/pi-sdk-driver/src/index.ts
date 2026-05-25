@@ -10,6 +10,19 @@ export { createPiSdkDriver, PiSdkDriver } from "./pi-sdk-driver.js";
 export { RuntimeSupervisor } from "./runtime-supervisor.js";
 export { createOfficeAgentManagedSessionRuntime } from "./office-agent-managed-runtime.js";
 export {
+  createOfficeAgentVirtualFsClient,
+  getOfficeAgentVirtualFsPromptContext,
+  getOfficeAgentVirtualUriBashAdvisory,
+  OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS,
+  OFFICE_AGENT_VFS_URL_ENV_NAME,
+  parseOfficeAgentVirtualUri,
+} from "./office-agent-virtual-fs.js";
+export type {
+  OfficeAgentVirtualFsClient,
+  OfficeAgentVirtualRoot,
+  ParsedOfficeAgentVirtualUri,
+} from "./office-agent-virtual-fs.js";
+export {
   checkOfficeAgentWindowsSandboxSetup,
   ensureOfficeAgentWindowsSandboxV2Ready,
   prepareOfficeAgentWindowsSandboxReset,

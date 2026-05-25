@@ -156,9 +156,17 @@ export function parseOfficeAgentVirtualUri(
     throw new Error(`Unknown OfficeAgent virtual root: ${parsed.hostname}`);
   }
 
-  const decodedPath = decodeURIComponent(parsed.pathname || "/");
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(parsed.pathname || "/");
+  } catch {
+    throw new Error(`Malformed virtual path: ${value}`);
+  }
   if (!decodedPath.startsWith("/")) {
     throw new Error(`Malformed virtual path: ${value}`);
+  }
+  if (decodedPath.includes("\\")) {
+    throw new Error("Virtual paths must use '/' separators, not backslashes.");
   }
   if (/[A-Za-z]:/.test(decodedPath) || decodedPath.startsWith("//")) {
     throw new Error(`Virtual path contains a host filesystem path fragment: ${value}`);
