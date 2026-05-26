@@ -14,8 +14,8 @@ import {
   disposeAgentSessionGracefully,
 } from "../runtime/pi-session-services.cts";
 import {
+  getOfficeAgentDefaultVirtualFsPromptContext,
   createOfficeAgentManagedCustomTools,
-  getOfficeAgentVirtualFsPromptContextForEnv,
 } from "../office-agent-runtime.cts";
 import { invokeMainRequest } from "./main-request-client.cts";
 import {
@@ -150,7 +150,7 @@ async function createRuntime(options: {
   });
   const sessionDir = options.sessionDir ?? settingsManager.getSessionDir() ?? undefined;
   const sessionManager = options.sessionManager ?? SessionManager.create(options.cwd, sessionDir);
-  const virtualFsPromptContext = await getOfficeAgentVirtualFsPromptContextForEnv(process.env);
+  const virtualFsPromptContext = getOfficeAgentDefaultVirtualFsPromptContext();
   const resourceLoader = await createIsolatedRuntimeResourceLoader({
     DefaultResourceLoader,
     cwd: options.cwd,

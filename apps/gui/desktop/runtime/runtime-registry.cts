@@ -4,8 +4,8 @@ import path from "node:path";
 import { getPiModule } from "../pi-module.cts";
 import { createArtifact, editArtifact, getArtifact, listArtifacts } from "../artifact-state-db.cts";
 import {
+  getOfficeAgentDefaultVirtualFsPromptContext,
   createOfficeAgentManagedCustomTools,
-  getOfficeAgentVirtualFsPromptContextForEnv,
 } from "../office-agent-runtime.cts";
 import {
   createIsolatedRuntimeResourceLoader,
@@ -177,7 +177,7 @@ async function createRuntime(options: {
     settingsCwd: options.settingsCwd,
   });
   const sessionDir = options.sessionDir ?? settingsManager.getSessionDir() ?? undefined;
-  const virtualFsPromptContext = await getOfficeAgentVirtualFsPromptContextForEnv(process.env);
+  const virtualFsPromptContext = getOfficeAgentDefaultVirtualFsPromptContext();
   const resourceLoader = await createIsolatedRuntimeResourceLoader({
     DefaultResourceLoader,
     cwd: options.cwd,

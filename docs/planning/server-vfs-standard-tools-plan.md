@@ -248,7 +248,7 @@ Optional override:
 OFFICE_AGENT_VFS_BASE_DIR=/srv/officeagent/vfs
 ```
 
-Root definitions include the root ID, folder name, display name, and system-prompt description in code. For the Castrosua ISO docs:
+Root definitions include the root ID, folder name, display name, and system-prompt description in shared code (`packages/office-agent-runtime/src/office-agent-vfs-roots.ts`). For the Castrosua ISO docs:
 
 ```txt
 rootId castrosua_iso -> /srv/officeagent/vfs/castrosua_iso -> virtual://castrosua_iso

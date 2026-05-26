@@ -32,7 +32,7 @@ It accepts abstract models such as `assistant` and `gpt-5.5`, routes them to con
 - `GATEWAY_GPT55_UPSTREAM_MODEL` / `GATEWAY_GPT_5_5_UPSTREAM_MODEL` - default `gpt-5.4` for abstract `gpt-5.5`
 - `OFFICE_AGENT_VFS_BASE_DIR` - optional parent directory for hardcoded virtual roots; default `/srv/officeagent/vfs`. Root `castrosua_iso` maps to `/srv/officeagent/vfs/castrosua_iso` and is exposed as `virtual://castrosua_iso`.
 
-Virtual roots, display names, and prompt descriptions are hardcoded in `apps/gateway/src/server.mjs` and `packages/pi-sdk-driver/src/office-agent-virtual-fs.ts` so they are versioned and deployed with the app.
+Virtual roots, display names, and prompt descriptions are defined once in `packages/office-agent-runtime/src/office-agent-vfs-roots.ts` so gateway and client use the same versioned registry.
 - `OFFICE_AGENT_VFS_TIMEOUT_MS` - default `30000`
 
 ## Start

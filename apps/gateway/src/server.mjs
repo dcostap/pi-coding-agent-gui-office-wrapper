@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { streamSimple as piStreamSimple } from "@earendil-works/pi-ai";
+import { OFFICE_AGENT_VFS_ROOTS } from "@office-agent/runtime";
 
 const PORT = Number(process.env.OFFICE_AGENT_GATEWAY_PORT || process.env.PORT || 8082);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -30,15 +31,6 @@ const VFS_MAX_OUTPUT_BYTES = 1024 * 1024;
 const VFS_TIMEOUT_MS = Number(process.env.OFFICE_AGENT_VFS_TIMEOUT_MS || 30_000);
 const VFS_BASE_DIR = process.env.OFFICE_AGENT_VFS_BASE_DIR || "/srv/officeagent/vfs";
 const VFS_ROOT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
-const OFFICE_AGENT_VFS_ROOT_DEFINITIONS = [
-  {
-    rootId: "castrosua_iso",
-    folderName: "castrosua_iso",
-    displayName: "Castrosua ISO docs",
-    description: "Use this virtual folder when the user asks about Castrosua ISO documentation, quality procedures, audits, compliance, manuals, revisions, processes, or related internal documentation.",
-    readOnly: true,
-  },
-];
 
 const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 const authPath =
@@ -711,7 +703,7 @@ async function streamViaPiAuth(res, body) {
 
 async function getConfiguredVfsRoots() {
   return Object.fromEntries(
-    OFFICE_AGENT_VFS_ROOT_DEFINITIONS.map((root) => [root.rootId, {
+    OFFICE_AGENT_VFS_ROOTS.map((root) => [root.rootId, {
       ...root,
       rootRealPath: path.resolve(VFS_BASE_DIR, root.folderName),
     }]),

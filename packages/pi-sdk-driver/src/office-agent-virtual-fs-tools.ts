@@ -69,9 +69,8 @@ export function createOfficeAgentVirtualLsTool(
     ],
     async execute(toolCallId: string, params: { path?: string; limit?: number } = {}, signal?: AbortSignal, onUpdate?: unknown, ctx?: unknown) {
       if (isOfficeAgentVirtualRootNamespacePath(params.path)) {
-        const rootsResult = await options.client.roots(signal ? { signal } : undefined).catch(() => ({ roots: options.roots }));
         return {
-          content: [{ type: "text" as const, text: formatVirtualRootListing(rootsResult.roots) || "No OfficeAgent virtual roots are currently available." }],
+          content: [{ type: "text" as const, text: formatVirtualRootListing(options.roots) || "No OfficeAgent virtual roots are currently configured." }],
         };
       }
 
@@ -91,8 +90,7 @@ export function createOfficeAgentVirtualLsTool(
 
       const localResult = await localTool.execute(toolCallId, params, signal, onUpdate, ctx);
       if (params.path === undefined || params.path === "" || params.path === ".") {
-        const rootsResult = await options.client.roots(signal ? { signal } : undefined).catch(() => ({ roots: options.roots }));
-        const virtualRootListing = formatVirtualRootListing(rootsResult.roots);
+        const virtualRootListing = formatVirtualRootListing(options.roots);
         return virtualRootListing ? appendTextToToolResult(localResult, virtualRootListing) : localResult;
       }
       return localResult;

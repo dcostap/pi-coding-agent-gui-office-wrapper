@@ -7,9 +7,12 @@ import {
   OFFICE_AGENT_WINDOWS_DOMAIN_ENV_NAME,
   OFFICE_AGENT_WINDOWS_HOST_ENV_NAME,
   OFFICE_AGENT_WINDOWS_USER_ENV_NAME,
+  OFFICE_AGENT_VIRTUAL_FS_SCHEME,
+  OFFICE_AGENT_VFS_ROOTS,
 } from "@office-agent/runtime";
 
-export const OFFICE_AGENT_VIRTUAL_FS_SCHEME = "virtual";
+export { OFFICE_AGENT_VIRTUAL_FS_SCHEME };
+
 export const OFFICE_AGENT_VFS_URL_ENV_NAME = "OFFICE_AGENT_VFS_URL";
 export const OFFICE_AGENT_VIRTUAL_ROOT_NAME_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 
@@ -23,17 +26,7 @@ export interface OfficeAgentVirtualRoot {
   readonly readOnly: boolean;
 }
 
-export const OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS: readonly OfficeAgentVirtualRoot[] = [
-  {
-    scheme: OFFICE_AGENT_VIRTUAL_FS_SCHEME,
-    authority: "castrosua_iso",
-    uriPrefix: "virtual://castrosua_iso",
-    rootId: "castrosua_iso",
-    displayName: "Castrosua ISO docs",
-    description: "Use this virtual folder when the user asks about Castrosua ISO documentation, quality procedures, audits, compliance, manuals, revisions, processes, or related internal documentation.",
-    readOnly: true,
-  },
-];
+export const OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS: readonly OfficeAgentVirtualRoot[] = OFFICE_AGENT_VFS_ROOTS;
 
 export interface ParsedOfficeAgentVirtualUri {
   readonly scheme: typeof OFFICE_AGENT_VIRTUAL_FS_SCHEME;
