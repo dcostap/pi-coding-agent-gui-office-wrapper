@@ -38,7 +38,7 @@ try {
   await waitForServer(port);
 
   const roots = await get("/v1/vfs/roots");
-  assert(roots.roots?.some((root) => root.rootId === "castrosua_iso" && root.uriPrefix === "virtual://castrosua_iso" && root.displayName === "Castrosua ISO docs" && root.description?.includes("quality procedures")), "roots includes hardcoded castrosua_iso metadata");
+  assert(roots.roots?.some((root) => root.rootId === "castrosua_iso" && root.uriPrefix === "virtual://castrosua_iso" && root.displayName === "Castrosua ISO docs" && root.description?.includes("Castrosua")), "roots includes hardcoded castrosua_iso metadata");
 
   const list = await post("/v1/vfs/list", { rootId: "castrosua_iso", path: "/" });
   assert(list.entries?.some((entry) => entry.name === "policies" && entry.isDirectory), "list returns policies directory");

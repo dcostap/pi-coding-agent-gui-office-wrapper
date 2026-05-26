@@ -19,7 +19,7 @@ export const OFFICE_AGENT_VFS_ROOTS = [
     rootId: "castrosua_iso",
     folderName: "castrosua_iso",
     displayName: "Castrosua ISO docs",
-    description: "Use this virtual folder when the user asks about Castrosua ISO documentation, quality procedures, audits, compliance, manuals, revisions, processes, or related internal documentation.",
+    description: "Usa esta carpeta cuando el usuario pregunte algo sobre 'documentación ISO de Castrosua', 'documentación ISO', 'Sistema de Gestión de la Calidad', 'Gestión Ambiental', 'Gestión de la Seguridad y Salud en el Trabajo (SST)', 'Gestión de la Ciberseguridad (CSMS)', o en general cuando parezcan preguntar sobre documentación interna de la empresa Castrosua.",
     readOnly: true,
   },
 ] as const satisfies readonly OfficeAgentVfsRootDefinition[];
