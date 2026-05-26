@@ -232,9 +232,9 @@ officeagent-vfs://castrosua_iso/path/to/file.md
 
 `virtual://castrosua_iso/...` is the preferred MVP format because it is self-explanatory while still URI-like. `vfs://...` is shorter but more jargon-heavy; `officeagent-vfs://...` is explicit but too long for frequent agent use.
 
-### Dynamic root registry
+### Hardcoded root registry
 
-The gateway exposes every direct child directory under a fixed VFS base directory as a virtual root.
+The gateway exposes hardcoded virtual roots under a fixed VFS base directory.
 
 Default base directory:
 
@@ -248,36 +248,13 @@ Optional override:
 OFFICE_AGENT_VFS_BASE_DIR=/srv/officeagent/vfs
 ```
 
-Mapping rule:
+Root definitions include the root ID, folder name, display name, and system-prompt description in code. For the Castrosua ISO docs:
 
 ```txt
-/srv/officeagent/vfs/<root_name> -> virtual://<root_name> -> rootId <root_name>
+rootId castrosua_iso -> /srv/officeagent/vfs/castrosua_iso -> virtual://castrosua_iso
 ```
 
-For the Castrosua ISO docs:
-
-```txt
-/srv/officeagent/vfs/castrosua_iso -> virtual://castrosua_iso -> rootId castrosua_iso
-```
-
-The client parser accepts valid `virtual://<root_name>/...` URIs and lets the gateway decide whether that root exists. `GET /v1/vfs/roots` discovers configured roots from the server.
-
-Each root may define prompt metadata in a JSON file inside the root:
-
-```txt
-/srv/officeagent/vfs/<root_name>/.officeagent-vfs.json
-```
-
-Example:
-
-```json
-{
-  "displayName": "Castrosua ISO docs",
-  "description": "Use this root for Castrosua ISO, quality, audit, procedure, and compliance questions."
-}
-```
-
-The gateway returns this metadata from `/v1/vfs/roots`, and OfficeAgent injects it into the system prompt for every session so agents know when and why to probe each virtual folder.
+The client parser accepts valid `virtual://<root_name>/...` URIs and lets the gateway decide whether that hardcoded root exists. `GET /v1/vfs/roots` returns the hardcoded roots and their prompt metadata from the server. OfficeAgent injects this metadata into the system prompt for every session so agents know when and why to probe each virtual folder.
 
 ### Accepted path spellings
 
@@ -569,7 +546,7 @@ With `OFFICE_AGENT_GATEWAY_URL=http://host:8082/v1`, the client appends path seg
 
 If VFS is deployed as a separate service, introduce an explicit `OFFICE_AGENT_VFS_URL` and do not infer it by stripping or rewriting `/v1` from `OFFICE_AGENT_GATEWAY_URL`.
 
-`GET /v1/vfs/roots` discovers direct child folders under `OFFICE_AGENT_VFS_BASE_DIR`.
+`GET /v1/vfs/roots` returns the hardcoded virtual root registry, with real paths resolved under `OFFICE_AGENT_VFS_BASE_DIR`.
 
 For the current gateway implementation, add routes in `apps/gateway/src/server.mjs`. Use bounded JSON body reads for VFS requests so a malformed client cannot submit unbounded request bodies.
 
@@ -760,7 +737,7 @@ packages/pi-sdk-driver/src/office-agent-virtual-fs.ts
 Responsibilities:
 
 - virtual root/result types
-- dynamic `virtual://<root_name> -> rootId <root_name>` parsing
+- hardcoded virtual root registry and `virtual://<root_name> -> rootId <root_name>` parsing
 - endpoint URL resolution with explicit `/v1/vfs` behavior or `OFFICE_AGENT_VFS_URL`
 - virtual URI parser for `virtual://authority/path` strings
 - path prefix guard helpers
@@ -892,7 +869,7 @@ Recommended endpoint namespace:
 
 Server implementation must:
 
-- map direct child folders under `OFFICE_AGENT_VFS_BASE_DIR` to virtual roots, e.g. `/srv/officeagent/vfs/castrosua_iso` -> `virtual://castrosua_iso`
+- map hardcoded roots under `OFFICE_AGENT_VFS_BASE_DIR`, e.g. `castrosua_iso` -> `/srv/officeagent/vfs/castrosua_iso` -> `virtual://castrosua_iso`
 - run `rg` for grep
 - return structured read/list/find/grep results that the client formats with virtual prefixes
 - enforce path containment and limits
@@ -958,7 +935,7 @@ Recommended tests:
    - Recommended: `/v1/vfs/*` under `OFFICE_AGENT_GATEWAY_URL` when it already points at `/v1`.
    - Alternative: explicit `OFFICE_AGENT_VFS_URL`.
 2. Whether virtual roots are static client config or dynamically discovered from backend.
-   - Decision: dynamic roots. The gateway lists direct child directories under `OFFICE_AGENT_VFS_BASE_DIR`.
+   - Decision: hardcoded root registry in code. The gateway returns only declared roots under `OFFICE_AGENT_VFS_BASE_DIR`.
 3. Whether backend returns fully Pi-formatted text or structured results formatted by client.
    - Recommended MVP: structured backend results formatted by the client, so virtual prefix ownership stays client-side.
 4. Whether `ls .` should always display virtual roots or only display them when backend is reachable.
@@ -973,7 +950,7 @@ Recommended tests:
 ## Recommended MVP checklist
 
 - [ ] Choose endpoint placement: `/v1/vfs/*` or `OFFICE_AGENT_VFS_URL`.
-- [ ] Add dynamic virtual root mapping for `virtual://<root_name> -> /srv/officeagent/vfs/<root_name>`.
+- [ ] Add hardcoded virtual root mapping for `virtual://castrosua_iso -> /srv/officeagent/vfs/castrosua_iso`.
 - [ ] Add VFS client and strict virtual URI parser.
 - [ ] Add same-name dispatcher tools for `read`, `ls`, `find`, and `grep`.
 - [ ] Add reserved-prefix guards for `edit` and `write`, including edit render/preview guard.

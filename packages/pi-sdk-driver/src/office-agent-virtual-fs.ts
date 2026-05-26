@@ -23,7 +23,17 @@ export interface OfficeAgentVirtualRoot {
   readonly readOnly: boolean;
 }
 
-export const OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS: readonly OfficeAgentVirtualRoot[] = [];
+export const OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS: readonly OfficeAgentVirtualRoot[] = [
+  {
+    scheme: OFFICE_AGENT_VIRTUAL_FS_SCHEME,
+    authority: "castrosua_iso",
+    uriPrefix: "virtual://castrosua_iso",
+    rootId: "castrosua_iso",
+    displayName: "Castrosua ISO docs",
+    description: "Use this virtual folder when the user asks about Castrosua ISO documentation, quality procedures, audits, compliance, manuals, revisions, processes, or related internal documentation.",
+    readOnly: true,
+  },
+];
 
 export interface ParsedOfficeAgentVirtualUri {
   readonly scheme: typeof OFFICE_AGENT_VIRTUAL_FS_SCHEME;
@@ -218,7 +228,7 @@ export function getOfficeAgentVirtualUriBashAdvisory(
 export function getOfficeAgentVirtualFsPromptContext(roots: readonly OfficeAgentVirtualRoot[] = OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS): string {
   const rootLines = roots.length > 0
     ? roots.map(formatVirtualRootPromptLine).join("\n")
-    : "- virtual://<root>/: any direct child folder of the OfficeAgent server VFS base directory.";
+    : "- No OfficeAgent virtual folders are currently configured.";
   const rootRefs = roots.length > 0 ? roots.map((root) => root.uriPrefix).join(", ") : "virtual://<root>";
   return [
     "OfficeAgent exposes read-only server virtual folders through normal read-only tools.",

@@ -30,8 +30,15 @@ const VFS_MAX_OUTPUT_BYTES = 1024 * 1024;
 const VFS_TIMEOUT_MS = Number(process.env.OFFICE_AGENT_VFS_TIMEOUT_MS || 30_000);
 const VFS_BASE_DIR = process.env.OFFICE_AGENT_VFS_BASE_DIR || "/srv/officeagent/vfs";
 const VFS_ROOT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
-const VFS_ROOT_METADATA_FILE = ".officeagent-vfs.json";
-const VFS_ROOT_DESCRIPTION_MAX_CHARS = 4000;
+const OFFICE_AGENT_VFS_ROOT_DEFINITIONS = [
+  {
+    rootId: "castrosua_iso",
+    folderName: "castrosua_iso",
+    displayName: "Castrosua ISO docs",
+    description: "Use this virtual folder when the user asks about Castrosua ISO documentation, quality procedures, audits, compliance, manuals, revisions, processes, or related internal documentation.",
+    readOnly: true,
+  },
+];
 
 const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 const authPath =
@@ -703,49 +710,12 @@ async function streamViaPiAuth(res, body) {
 }
 
 async function getConfiguredVfsRoots() {
-  const baseRealPath = await realpath(VFS_BASE_DIR).catch(() => undefined);
-  if (!baseRealPath) return {};
-  const entries = await readdir(baseRealPath, { withFileTypes: true }).catch(() => []);
-  const roots = {};
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !VFS_ROOT_ID_PATTERN.test(entry.name)) continue;
-    const candidate = path.join(baseRealPath, entry.name);
-    const resolved = await realpath(candidate).catch(() => undefined);
-    if (resolved && isPathWithin(baseRealPath, resolved)) {
-      roots[entry.name] = {
-        rootId: entry.name,
-        rootRealPath: resolved,
-        ...(await readVfsRootMetadata(resolved, entry.name)),
-      };
-    }
-  }
-  return roots;
-}
-
-async function readVfsRootMetadata(rootRealPath, rootId) {
-  const metadataPath = path.join(rootRealPath, VFS_ROOT_METADATA_FILE);
-  const raw = await readFile(metadataPath, "utf8").catch(() => undefined);
-  if (!raw) return { displayName: rootId };
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { displayName: rootId };
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { displayName: rootId };
-  const displayName = sanitizeVfsMetadataString(parsed.displayName, 120) || rootId;
-  const description = sanitizeVfsMetadataString(parsed.description, VFS_ROOT_DESCRIPTION_MAX_CHARS);
-  return {
-    displayName,
-    ...(description ? { description } : {}),
-  };
-}
-
-function sanitizeVfsMetadataString(value, maxChars) {
-  if (typeof value !== "string") return undefined;
-  const normalized = value.replace(/\0/g, "").replace(/\r\n/g, "\n").trim();
-  if (!normalized) return undefined;
-  return normalized.length > maxChars ? `${normalized.slice(0, maxChars)}…` : normalized;
+  return Object.fromEntries(
+    OFFICE_AGENT_VFS_ROOT_DEFINITIONS.map((root) => [root.rootId, {
+      ...root,
+      rootRealPath: path.resolve(VFS_BASE_DIR, root.folderName),
+    }]),
+  );
 }
 
 function requireVfsAuth(req, res) {
@@ -832,7 +802,7 @@ async function handleVfsList(body, roots) {
       limitReached = true;
       break;
     }
-    if (name === "." || name === ".." || name === VFS_ROOT_METADATA_FILE) continue;
+    if (name === "." || name === "..") continue;
     const fullPath = path.join(rootRealPath, name);
     const entryStats = await lstat(fullPath).catch(() => undefined);
     if (!entryStats || entryStats.isSymbolicLink()) continue;
@@ -853,10 +823,6 @@ async function handleVfsFind(body, roots) {
     "--no-require-git",
     "--glob",
     pattern,
-    "--glob",
-    `!${VFS_ROOT_METADATA_FILE}`,
-    "--glob",
-    `!**/${VFS_ROOT_METADATA_FILE}`,
     "--glob",
     "!**/.git/**",
     "--glob",
@@ -879,7 +845,7 @@ async function handleVfsGrep(body, roots) {
   const pattern = requireString(body.pattern, "pattern");
   const limit = clampInteger(body.limit, 1, 5000, VFS_DEFAULT_GREP_LIMIT);
   const context = clampInteger(body.context, 0, 20, 0);
-  const args = ["--json", "--line-number", "--color=never", "--hidden", "--no-require-git", "--max-filesize", "2M", "--glob", `!${VFS_ROOT_METADATA_FILE}`, "--glob", `!**/${VFS_ROOT_METADATA_FILE}`];
+  const args = ["--json", "--line-number", "--color=never", "--hidden", "--no-require-git", "--max-filesize", "2M"];
   const searchCwd = stats.isFile() ? path.dirname(rootRealPath) : rootRealPath;
   const searchTarget = stats.isFile() ? path.basename(rootRealPath) : ".";
   const virtualBasePath = stats.isFile() ? path.posix.dirname(virtualPath) : virtualPath;
