@@ -83,7 +83,9 @@ export function createOfficeAgentVirtualLsTool(
 
       const localResult = await localTool.execute(toolCallId, params, signal, onUpdate, ctx);
       if (params.path === undefined || params.path === "" || params.path === ".") {
-        return appendTextToToolResult(localResult, formatVirtualRootListing(options.roots));
+        const rootsResult = await options.client.roots(signal ? { signal } : undefined).catch(() => ({ roots: options.roots }));
+        const virtualRootListing = formatVirtualRootListing(rootsResult.roots);
+        return virtualRootListing ? appendTextToToolResult(localResult, virtualRootListing) : localResult;
       }
       return localResult;
     },
@@ -264,7 +266,7 @@ function formatListResult(entries: readonly { name: string; isDirectory: boolean
 }
 
 function formatVirtualRootListing(roots: readonly OfficeAgentVirtualRoot[]): string {
-  return roots.map((root) => `${root.uriPrefix}/`).join("\n");
+  return roots.length > 0 ? roots.map((root) => `${root.uriPrefix}/`).join("\n") : "";
 }
 
 function appendTextToToolResult(result: any, text: string): any {
@@ -293,5 +295,5 @@ function toVirtualDisplayPath(uriPrefix: string, path: string): string {
 }
 
 function formatRootExamples(roots: readonly OfficeAgentVirtualRoot[]): string {
-  return roots.map((root) => root.uriPrefix).join(", ");
+  return roots.length > 0 ? roots.map((root) => root.uriPrefix).join(", ") : "virtual://<root>";
 }

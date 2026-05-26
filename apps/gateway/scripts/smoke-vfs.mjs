@@ -6,7 +6,8 @@ import { spawn } from "node:child_process";
 const port = Number(process.env.OFFICE_AGENT_GATEWAY_VFS_SMOKE_PORT || 18083);
 const token = "officeagent-vfs-smoke";
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), "officeagent-vfs-smoke-"));
-const isoRoot = path.join(tempRoot, "iso_docs");
+const vfsBase = path.join(tempRoot, "vfs");
+const isoRoot = path.join(vfsBase, "castrosua_iso");
 await mkdir(path.join(isoRoot, "policies"), { recursive: true });
 await writeFile(path.join(isoRoot, "policies", "quality.md"), [
   "# Quality Policy",
@@ -23,7 +24,7 @@ const server = spawn(process.execPath, ["src/server.mjs"], {
     HOST: "127.0.0.1",
     MOCK_MODE: "1",
     GATEWAY_TOKEN: token,
-    OFFICE_AGENT_VFS_ROOT_ISO_DOCS: isoRoot,
+    OFFICE_AGENT_VFS_BASE_DIR: vfsBase,
     OFFICE_AGENT_GATEWAY_ANALYTICS_DIR: path.join(tempRoot, "analytics"),
   },
   stdio: ["ignore", "pipe", "pipe"],
@@ -37,19 +38,19 @@ try {
   await waitForServer(port);
 
   const roots = await get("/v1/vfs/roots");
-  assert(roots.roots?.some((root) => root.rootId === "iso_docs"), "roots includes iso_docs");
+  assert(roots.roots?.some((root) => root.rootId === "castrosua_iso" && root.uriPrefix === "virtual://castrosua_iso"), "roots includes castrosua_iso");
 
-  const list = await post("/v1/vfs/list", { rootId: "iso_docs", path: "/" });
+  const list = await post("/v1/vfs/list", { rootId: "castrosua_iso", path: "/" });
   assert(list.entries?.some((entry) => entry.name === "policies" && entry.isDirectory), "list returns policies directory");
 
-  const read = await post("/v1/vfs/read", { rootId: "iso_docs", path: "/policies/quality.md", offset: 2, limit: 1 });
+  const read = await post("/v1/vfs/read", { rootId: "castrosua_iso", path: "/policies/quality.md", offset: 2, limit: 1 });
   assert(read.text.includes("Risk assessment"), "read returns selected line");
   assert(read.truncated === true && read.nextOffset === 3, "read returns continuation metadata");
 
-  const find = await post("/v1/vfs/find", { rootId: "iso_docs", path: "/", pattern: "**/*.md" });
+  const find = await post("/v1/vfs/find", { rootId: "castrosua_iso", path: "/", pattern: "**/*.md" });
   assert(find.paths?.includes("/policies/quality.md"), "find returns markdown file");
 
-  const grep = await post("/v1/vfs/grep", { rootId: "iso_docs", path: "/", pattern: "risk", ignoreCase: true });
+  const grep = await post("/v1/vfs/grep", { rootId: "castrosua_iso", path: "/", pattern: "risk", ignoreCase: true });
   assert(grep.matches?.some((match) => match.path === "/policies/quality.md" && match.line === 2), "grep returns match");
 
   console.log("[gateway:vfs-smoke] ok");

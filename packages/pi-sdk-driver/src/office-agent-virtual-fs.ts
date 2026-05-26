@@ -11,6 +11,7 @@ import {
 
 export const OFFICE_AGENT_VIRTUAL_FS_SCHEME = "virtual";
 export const OFFICE_AGENT_VFS_URL_ENV_NAME = "OFFICE_AGENT_VFS_URL";
+export const OFFICE_AGENT_VIRTUAL_ROOT_NAME_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 
 export interface OfficeAgentVirtualRoot {
   readonly scheme: typeof OFFICE_AGENT_VIRTUAL_FS_SCHEME;
@@ -21,16 +22,7 @@ export interface OfficeAgentVirtualRoot {
   readonly readOnly: boolean;
 }
 
-export const OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS: readonly OfficeAgentVirtualRoot[] = [
-  {
-    scheme: OFFICE_AGENT_VIRTUAL_FS_SCHEME,
-    authority: "server_iso_docs",
-    uriPrefix: "virtual://server_iso_docs",
-    rootId: "iso_docs",
-    displayName: "ISO documentation",
-    readOnly: true,
-  },
-];
+export const OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS: readonly OfficeAgentVirtualRoot[] = [];
 
 export interface ParsedOfficeAgentVirtualUri {
   readonly scheme: typeof OFFICE_AGENT_VIRTUAL_FS_SCHEME;
@@ -78,7 +70,12 @@ export interface OfficeAgentVirtualFsGrepResult {
   readonly linesTruncated?: boolean;
 }
 
+export interface OfficeAgentVirtualFsRootsResult {
+  readonly roots: readonly OfficeAgentVirtualRoot[];
+}
+
 export interface OfficeAgentVirtualFsClient {
+  roots(input?: { readonly signal?: AbortSignal }): Promise<OfficeAgentVirtualFsRootsResult>;
   read(input: {
     readonly rootId: string;
     readonly path: string;
@@ -151,7 +148,14 @@ export function parseOfficeAgentVirtualUri(
   if (!parsed.hostname || parsed.username || parsed.password || parsed.port || parsed.search || parsed.hash) {
     throw new Error(`Malformed virtual path: ${value}`);
   }
-  const root = roots.find((entry) => entry.authority === parsed.hostname);
+  if (!OFFICE_AGENT_VIRTUAL_ROOT_NAME_PATTERN.test(parsed.hostname)) {
+    throw new Error(`Invalid OfficeAgent virtual root name: ${parsed.hostname}`);
+  }
+  const root = roots.find((entry) => entry.authority === parsed.hostname) ?? (
+    roots.length === 0
+      ? createVirtualRootFromAuthority(parsed.hostname)
+      : undefined
+  );
   if (!root) {
     throw new Error(`Unknown OfficeAgent virtual root: ${parsed.hostname}`);
   }
@@ -187,6 +191,7 @@ export function parseOfficeAgentVirtualUri(
 }
 
 export function containsOfficeAgentVirtualUri(value: string, roots: readonly OfficeAgentVirtualRoot[] = OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS): boolean {
+  if (roots.length === 0) return /\bvirtual:\/\/[a-z0-9][a-z0-9_-]*/.test(value);
   return roots.some((root) => value.includes(root.uriPrefix));
 }
 
@@ -195,16 +200,19 @@ export function getOfficeAgentVirtualUriBashAdvisory(
   roots: readonly OfficeAgentVirtualRoot[] = OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS,
 ): string | undefined {
   const root = roots.find((entry) => value.includes(entry.uriPrefix));
-  if (!root) return undefined;
-  return `NOTE: ${root.uriPrefix} is an OfficeAgent virtual filesystem URI, not a local folder. Bash cannot access it. Use read, ls, find, or grep with that virtual path instead.`;
+  const uriPrefix = root?.uriPrefix ?? /\b(virtual:\/\/[a-z0-9][a-z0-9_-]*)/.exec(value)?.[1];
+  if (!uriPrefix) return undefined;
+  return `NOTE: ${uriPrefix} is an OfficeAgent virtual filesystem URI, not a local folder. Bash cannot access it. Use read, ls, find, or grep with that virtual path instead.`;
 }
 
 export function getOfficeAgentVirtualFsPromptContext(roots: readonly OfficeAgentVirtualRoot[] = OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS): string {
-  const rootLines = roots.map((root) => `- ${root.uriPrefix}/: ${root.displayName} hosted on the OfficeAgent server.`).join("\n");
-  const rootRefs = roots.map((root) => root.uriPrefix).join(", ");
+  const rootLines = roots.length > 0
+    ? roots.map((root) => `- ${root.uriPrefix}/: ${root.displayName} hosted on the OfficeAgent server.`).join("\n")
+    : "- virtual://<root>/: any direct child folder of the OfficeAgent server VFS base directory.";
+  const rootRefs = roots.length > 0 ? roots.map((root) => root.uriPrefix).join(", ") : "virtual://<root>";
   return [
     "OfficeAgent exposes read-only server virtual folders through normal read-only tools.",
-    "Available virtual folders:",
+    "Available virtual folders use URI paths:",
     rootLines,
     "",
     `Use read, ls, find, and grep with paths under ${rootRefs} to inspect this content.`,
@@ -260,6 +268,7 @@ export function createOfficeAgentVirtualFsClient(options: {
   }
 
   return {
+    roots: (input = {}) => post("roots", {}, input.signal),
     read: (input) => {
       const { signal, ...body } = input;
       return post("read", body, signal);
@@ -276,6 +285,17 @@ export function createOfficeAgentVirtualFsClient(options: {
       const { signal, ...body } = input;
       return post("grep", body, signal);
     },
+  };
+}
+
+function createVirtualRootFromAuthority(authority: string): OfficeAgentVirtualRoot {
+  return {
+    scheme: OFFICE_AGENT_VIRTUAL_FS_SCHEME,
+    authority,
+    uriPrefix: `${OFFICE_AGENT_VIRTUAL_FS_SCHEME}://${authority}`,
+    rootId: authority,
+    displayName: authority,
+    readOnly: true,
   };
 }
 

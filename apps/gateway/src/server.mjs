@@ -28,6 +28,8 @@ const VFS_DEFAULT_FIND_LIMIT = 1000;
 const VFS_DEFAULT_GREP_LIMIT = 100;
 const VFS_MAX_OUTPUT_BYTES = 1024 * 1024;
 const VFS_TIMEOUT_MS = Number(process.env.OFFICE_AGENT_VFS_TIMEOUT_MS || 30_000);
+const VFS_BASE_DIR = process.env.OFFICE_AGENT_VFS_BASE_DIR || "/srv/officeagent/vfs";
+const VFS_ROOT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 
 const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 const authPath =
@@ -698,15 +700,20 @@ async function streamViaPiAuth(res, body) {
   };
 }
 
-function getConfiguredVfsRoots() {
-  const roots = {
-    iso_docs: process.env.OFFICE_AGENT_VFS_ROOT_ISO_DOCS,
-  };
-  return Object.fromEntries(
-    Object.entries(roots)
-      .filter(([, rootPath]) => typeof rootPath === "string" && rootPath.trim())
-      .map(([rootId, rootPath]) => [rootId, path.resolve(rootPath)]),
-  );
+async function getConfiguredVfsRoots() {
+  const baseRealPath = await realpath(VFS_BASE_DIR).catch(() => undefined);
+  if (!baseRealPath) return {};
+  const entries = await readdir(baseRealPath, { withFileTypes: true }).catch(() => []);
+  const roots = {};
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !VFS_ROOT_ID_PATTERN.test(entry.name)) continue;
+    const candidate = path.join(baseRealPath, entry.name);
+    const resolved = await realpath(candidate).catch(() => undefined);
+    if (resolved && isPathWithin(baseRealPath, resolved)) {
+      roots[entry.name] = resolved;
+    }
+  }
+  return roots;
 }
 
 function requireVfsAuth(req, res) {
@@ -722,7 +729,7 @@ async function handleVfsRequest(req, res, operation) {
   if (!requireVfsAuth(req, res)) return;
   try {
     const body = await readJson(req, { maxBytes: MAX_JSON_BODY_BYTES });
-    const roots = getConfiguredVfsRoots();
+    const roots = await getConfiguredVfsRoots();
     const result = await operation(body, roots, getClientIdentity(req));
     return sendJson(res, 200, result);
   } catch (error) {
@@ -740,7 +747,14 @@ async function handleVfsRequest(req, res, operation) {
 async function handleVfsRoots(_body, roots) {
   return {
     ok: true,
-    roots: Object.keys(roots).map((rootId) => ({ rootId })),
+    roots: Object.keys(roots).sort().map((rootId) => ({
+      scheme: "virtual",
+      authority: rootId,
+      uriPrefix: `virtual://${rootId}`,
+      rootId,
+      displayName: rootId,
+      readOnly: true,
+    })),
   };
 }
 
@@ -864,6 +878,7 @@ async function handleVfsGrep(body, roots) {
 
 async function resolveVfsPath(body, roots, options = {}) {
   const rootId = requireString(body.rootId, "rootId");
+  if (!VFS_ROOT_ID_PATTERN.test(rootId)) throw createVfsError("invalid_root", `Invalid virtual root: ${rootId}`, 400);
   const rootPath = roots[rootId];
   if (!rootPath) throw createVfsError("unknown_root", `Unknown virtual root: ${rootId}`, 404);
   const rootReal = await realpath(rootPath).catch(() => {
@@ -1633,7 +1648,11 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/v1/vfs/roots") {
       if (!requireVfsAuth(req, res)) return;
-      return sendJson(res, 200, await handleVfsRoots({}, getConfiguredVfsRoots()));
+      return sendJson(res, 200, await handleVfsRoots({}, await getConfiguredVfsRoots()));
+    }
+
+    if (req.method === "POST" && url.pathname === "/v1/vfs/roots") {
+      return handleVfsRequest(req, res, handleVfsRoots);
     }
 
     if (req.method === "POST" && url.pathname === "/v1/chat/completions") {
