@@ -262,6 +262,23 @@ For the Castrosua ISO docs:
 
 The client parser accepts valid `virtual://<root_name>/...` URIs and lets the gateway decide whether that root exists. `GET /v1/vfs/roots` discovers configured roots from the server.
 
+Each root may define prompt metadata in a JSON file inside the root:
+
+```txt
+/srv/officeagent/vfs/<root_name>/.officeagent-vfs.json
+```
+
+Example:
+
+```json
+{
+  "displayName": "Castrosua ISO docs",
+  "description": "Use this root for Castrosua ISO, quality, audit, procedure, and compliance questions."
+}
+```
+
+The gateway returns this metadata from `/v1/vfs/roots`, and OfficeAgent injects it into the system prompt for every session so agents know when and why to probe each virtual folder.
+
 ### Accepted path spellings
 
 The dispatcher should recognize only canonical virtual URI spellings for MVP:

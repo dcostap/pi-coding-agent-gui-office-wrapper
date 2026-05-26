@@ -31,6 +31,15 @@ It accepts abstract models such as `assistant` and `gpt-5.5`, routes them to con
 - `GATEWAY_UPSTREAM_MODEL` - default `gpt-5.3-codex-spark` for `assistant`
 - `GATEWAY_GPT55_UPSTREAM_MODEL` / `GATEWAY_GPT_5_5_UPSTREAM_MODEL` - default `gpt-5.4` for abstract `gpt-5.5`
 - `OFFICE_AGENT_VFS_BASE_DIR` - optional parent directory for virtual roots; default `/srv/officeagent/vfs`. Each direct child folder is exposed as `virtual://<folder_name>`.
+
+Virtual root metadata is optional. Add `.officeagent-vfs.json` inside a virtual root folder to control prompt text:
+
+```json
+{
+  "displayName": "Castrosua ISO docs",
+  "description": "Use this root for Castrosua ISO, quality, audit, procedure, and compliance questions."
+}
+```
 - `OFFICE_AGENT_VFS_TIMEOUT_MS` - default `30000`
 
 ## Start

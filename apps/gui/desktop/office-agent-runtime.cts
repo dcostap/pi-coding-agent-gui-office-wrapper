@@ -96,6 +96,15 @@ export async function prepareOfficeAgentDesktopRuntime(): Promise<{
   return { agentDir, managedRootDir, projectsDir };
 }
 
+export async function getOfficeAgentVirtualFsPromptContextForEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string> {
+  const client = createOfficeAgentVirtualFsClient({ env, timeoutMs: 3_000 });
+  const discoveredVirtualRoots = await client.roots().catch(() => ({ roots: OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS }));
+  const virtualRoots = discoveredVirtualRoots.roots.length > 0 ? discoveredVirtualRoots.roots : OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS;
+  return getOfficeAgentVirtualFsPromptContext(virtualRoots);
+}
+
 export async function createOfficeAgentManagedCustomTools(options: {
   readonly cwd: string;
   readonly sessionId: string;

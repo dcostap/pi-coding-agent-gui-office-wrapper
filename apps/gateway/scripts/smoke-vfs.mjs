@@ -15,6 +15,10 @@ await writeFile(path.join(isoRoot, "policies", "quality.md"), [
   "Audit evidence is retained.",
 ].join("\n"), "utf8");
 await writeFile(path.join(isoRoot, "readme.txt"), "ISO documentation root\n", "utf8");
+await writeFile(path.join(isoRoot, ".officeagent-vfs.json"), JSON.stringify({
+  displayName: "Castrosua ISO docs",
+  description: "Use this root for Castrosua ISO, quality, audit, procedure, and compliance questions.",
+}), "utf8");
 
 const server = spawn(process.execPath, ["src/server.mjs"], {
   cwd: path.resolve(import.meta.dirname, ".."),
@@ -38,7 +42,7 @@ try {
   await waitForServer(port);
 
   const roots = await get("/v1/vfs/roots");
-  assert(roots.roots?.some((root) => root.rootId === "castrosua_iso" && root.uriPrefix === "virtual://castrosua_iso"), "roots includes castrosua_iso");
+  assert(roots.roots?.some((root) => root.rootId === "castrosua_iso" && root.uriPrefix === "virtual://castrosua_iso" && root.displayName === "Castrosua ISO docs" && root.description?.includes("quality")), "roots includes castrosua_iso metadata");
 
   const list = await post("/v1/vfs/list", { rootId: "castrosua_iso", path: "/" });
   assert(list.entries?.some((entry) => entry.name === "policies" && entry.isDirectory), "list returns policies directory");

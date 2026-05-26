@@ -148,20 +148,22 @@ async function createOfficeAgentManagedRuntimeOptions(options: {
   });
 
   const shellConfig = await ensureOfficeAgentSandboxShellConfig(managedRootDir);
+  const sessionEnv = getOfficeAgentManagedSessionEnv(sessionId, process.env, {
+    managedRootDir,
+    activeProjectDir: cwd,
+    agentDir,
+  });
+  const virtualFsClient = createOfficeAgentVirtualFsClient({ env: sessionEnv, timeoutMs: 3_000 });
+  const discoveredVirtualRoots = await virtualFsClient.roots().catch(() => ({ roots: OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS }));
+  const virtualRoots = discoveredVirtualRoots.roots.length > 0 ? discoveredVirtualRoots.roots : OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS;
   const appPromptContext = getOfficeAgentAppPromptContext({ cwd, managedRootDir, sessionId });
   const shellPromptContext = getOfficeAgentSandboxShellPromptContext(shellConfig);
-  const virtualRoots = OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS;
   const virtualFsPromptContext = getOfficeAgentVirtualFsPromptContext(virtualRoots);
   const promptContexts = [appPromptContext, shellPromptContext, virtualFsPromptContext];
   const settingsManager =
     options.providedSettingsManager && resolve(options.initialCwd) === cwd
       ? options.providedSettingsManager
       : SettingsManager.create(cwd, agentDir);
-  const sessionEnv = getOfficeAgentManagedSessionEnv(sessionId, process.env, {
-    managedRootDir,
-    activeProjectDir: cwd,
-    agentDir,
-  });
 
   assertNoReservedOfficeAgentToolNames(options.baseCustomTools);
 
@@ -201,7 +203,6 @@ async function createOfficeAgentManagedRuntimeOptions(options: {
     "Host tools on PATH may be tried when available. Prefer npm scripts, node, python, pip, uv, git, cargo, dotnet, and other project-local/staged tools over host-specific assumptions.",
   ];
 
-  const virtualFsClient = createOfficeAgentVirtualFsClient({ env: sessionEnv });
   const readTool = withOfficeAgentPathPlaceholderExpansion(createOfficeAgentVirtualReadTool(createReadToolDefinition, {
     cwd,
     roots: virtualRoots,

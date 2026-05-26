@@ -56,11 +56,13 @@ export async function createIsolatedRuntimeResourceLoader(options: {
     settingsManager: SettingsManager;
     noSkills?: boolean;
     additionalSkillPaths?: string[];
+    appendSystemPromptOverride?: (base: string[]) => string[];
   }) => ResourceLoader;
   cwd: string;
   agentDir: string;
   settingsCwd?: string | null;
   settingsManager: SettingsManager;
+  appendSystemPromptOverride?: (base: string[]) => string[];
 }) {
   if (!options.settingsCwd) {
     return undefined;
@@ -75,6 +77,7 @@ export async function createIsolatedRuntimeResourceLoader(options: {
       path.join(options.settingsCwd, ".pi", "skills"),
       path.join(options.settingsCwd, ".agents", "skills"),
     ],
+    appendSystemPromptOverride: options.appendSystemPromptOverride,
   });
   await resourceLoader.reload();
   return resourceLoader;

@@ -19,6 +19,7 @@ export interface OfficeAgentVirtualRoot {
   readonly uriPrefix: string;
   readonly rootId: string;
   readonly displayName: string;
+  readonly description?: string;
   readonly readOnly: boolean;
 }
 
@@ -207,7 +208,7 @@ export function getOfficeAgentVirtualUriBashAdvisory(
 
 export function getOfficeAgentVirtualFsPromptContext(roots: readonly OfficeAgentVirtualRoot[] = OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS): string {
   const rootLines = roots.length > 0
-    ? roots.map((root) => `- ${root.uriPrefix}/: ${root.displayName} hosted on the OfficeAgent server.`).join("\n")
+    ? roots.map(formatVirtualRootPromptLine).join("\n")
     : "- virtual://<root>/: any direct child folder of the OfficeAgent server VFS base directory.";
   const rootRefs = roots.length > 0 ? roots.map((root) => root.uriPrefix).join(", ") : "virtual://<root>";
   return [
@@ -286,6 +287,13 @@ export function createOfficeAgentVirtualFsClient(options: {
       return post("grep", body, signal);
     },
   };
+}
+
+function formatVirtualRootPromptLine(root: OfficeAgentVirtualRoot): string {
+  const description = root.description?.trim();
+  return description
+    ? `- ${root.uriPrefix}/: ${root.displayName} hosted on the OfficeAgent server. Description: ${description}`
+    : `- ${root.uriPrefix}/: ${root.displayName} hosted on the OfficeAgent server.`;
 }
 
 function createVirtualRootFromAuthority(authority: string): OfficeAgentVirtualRoot {
