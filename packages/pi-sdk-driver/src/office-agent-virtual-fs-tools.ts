@@ -1,5 +1,6 @@
 import {
   getOfficeAgentVirtualUriBashAdvisory,
+  isOfficeAgentVirtualRootNamespacePath,
   parseOfficeAgentVirtualUri,
   type OfficeAgentVirtualFsClient,
   type OfficeAgentVirtualRoot,
@@ -67,6 +68,13 @@ export function createOfficeAgentVirtualLsTool(
       `Use ls with ${formatRootExamples(options.roots)} to discover OfficeAgent server virtual filesystem content.`,
     ],
     async execute(toolCallId: string, params: { path?: string; limit?: number } = {}, signal?: AbortSignal, onUpdate?: unknown, ctx?: unknown) {
+      if (isOfficeAgentVirtualRootNamespacePath(params.path)) {
+        const rootsResult = await options.client.roots(signal ? { signal } : undefined).catch(() => ({ roots: options.roots }));
+        return {
+          content: [{ type: "text" as const, text: formatVirtualRootListing(rootsResult.roots) || "No OfficeAgent virtual roots are currently available." }],
+        };
+      }
+
       const virtual = parseOfficeAgentVirtualUri(params.path, options.roots);
       if (virtual) {
         const result = await options.client.list({
@@ -266,7 +274,13 @@ function formatListResult(entries: readonly { name: string; isDirectory: boolean
 }
 
 function formatVirtualRootListing(roots: readonly OfficeAgentVirtualRoot[]): string {
-  return roots.length > 0 ? roots.map((root) => `${root.uriPrefix}/`).join("\n") : "";
+  return roots.length > 0 ? roots.map(formatVirtualRootListingEntry).join("\n") : "";
+}
+
+function formatVirtualRootListingEntry(root: OfficeAgentVirtualRoot): string {
+  const description = root.description?.trim();
+  const suffix = root.displayName && root.displayName !== root.rootId ? ` - ${root.displayName}` : "";
+  return description ? `${root.uriPrefix}/${suffix}\n  Description: ${description}` : `${root.uriPrefix}/${suffix}`;
 }
 
 function appendTextToToolResult(result: any, text: string): any {

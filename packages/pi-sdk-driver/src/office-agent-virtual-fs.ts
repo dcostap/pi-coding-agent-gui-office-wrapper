@@ -110,6 +110,12 @@ export interface OfficeAgentVirtualFsClient {
   }): Promise<OfficeAgentVirtualFsGrepResult>;
 }
 
+export function isOfficeAgentVirtualRootNamespacePath(input: unknown): boolean {
+  if (typeof input !== "string") return false;
+  const value = input.trim();
+  return value === `${OFFICE_AGENT_VIRTUAL_FS_SCHEME}://` || value === `${OFFICE_AGENT_VIRTUAL_FS_SCHEME}:///`;
+}
+
 export function parseOfficeAgentVirtualUri(
   input: unknown,
   roots: readonly OfficeAgentVirtualRoot[] = OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS,
@@ -133,8 +139,11 @@ export function parseOfficeAgentVirtualUri(
 
   const authorityMatch = /^virtual:\/\/([^/?#]*)(?:[/?#]|$)/.exec(value);
   const rawAuthority = authorityMatch?.[1] ?? "";
-  if (!rawAuthority || rawAuthority !== rawAuthority.toLowerCase()) {
-    throw new Error(`Virtual root names are case-sensitive: ${rawAuthority || value}`);
+  if (!rawAuthority) {
+    throw new Error(`Virtual root name is required: ${value}. Use ls with virtual:// to list available roots, or use virtual://<root>/...`);
+  }
+  if (rawAuthority !== rawAuthority.toLowerCase()) {
+    throw new Error(`Virtual root names are case-sensitive: ${rawAuthority}`);
   }
 
   let parsed: URL;
