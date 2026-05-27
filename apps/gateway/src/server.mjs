@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { appendFile, lstat, mkdir, readFile, readdir, realpath } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
@@ -8,6 +9,32 @@ import { fileURLToPath } from "node:url";
 import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { streamSimple as piStreamSimple } from "@earendil-works/pi-ai";
 import { OFFICE_AGENT_VFS_ROOTS } from "@office-agent/runtime";
+
+const serverDir = path.dirname(fileURLToPath(import.meta.url));
+const gatewayRoot = path.resolve(serverDir, "..");
+
+function loadLocalEnv() {
+  for (const fileName of [".env", ".env.local"]) {
+    const filePath = path.join(gatewayRoot, fileName);
+    if (!existsSync(filePath)) continue;
+
+    for (const line of readFileSync(filePath, "utf8").split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+
+      const separatorIndex = trimmed.indexOf("=");
+      if (separatorIndex <= 0) continue;
+
+      const key = trimmed.slice(0, separatorIndex).trim();
+      const rawValue = trimmed.slice(separatorIndex + 1).trim();
+      if (!key || process.env[key] != null) continue;
+
+      process.env[key] = rawValue.replace(/^(["'])(.*)\1$/, "$2");
+    }
+  }
+}
+
+loadLocalEnv();
 
 const PORT = Number(process.env.OFFICE_AGENT_GATEWAY_PORT || process.env.PORT || 8082);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -214,8 +241,7 @@ class GatewayAnalyticsStore {
 const analyticsStore = new GatewayAnalyticsStore(analyticsEventsPath);
 await analyticsStore.load();
 
-const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const dashboardTemplatePath = path.join(currentDir, "dashboard.html");
+const dashboardTemplatePath = path.join(serverDir, "dashboard.html");
 const dashboardTemplate = await readFile(dashboardTemplatePath, "utf8");
 
 function sendJson(res, status, body) {

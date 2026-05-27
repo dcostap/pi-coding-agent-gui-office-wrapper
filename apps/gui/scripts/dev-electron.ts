@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, unwatchFile, watchFile } from "node:fs";
+import { existsSync, readFileSync, unwatchFile, watchFile } from "node:fs";
 import path from "node:path";
 import { ensureElectronBinary } from "./electron-binary";
 
@@ -18,6 +18,29 @@ const watchedFiles = [
 
 let electronProcess: ChildProcess | null = null;
 let restartTimer: NodeJS.Timeout | null = null;
+
+function loadLocalEnv() {
+  for (const fileName of [".env", ".env.local"]) {
+    const filePath = path.join(projectRoot, fileName);
+    if (!existsSync(filePath)) continue;
+
+    for (const line of readFileSync(filePath, "utf8").split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+
+      const separatorIndex = trimmed.indexOf("=");
+      if (separatorIndex <= 0) continue;
+
+      const key = trimmed.slice(0, separatorIndex).trim();
+      const rawValue = trimmed.slice(separatorIndex + 1).trim();
+      if (!key || process.env[key] != null) continue;
+
+      process.env[key] = rawValue.replace(/^(["'])(.*)\1$/, "$2");
+    }
+  }
+}
+
+loadLocalEnv();
 
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
