@@ -1,5 +1,5 @@
 import { Check, ChevronRight } from "lucide-react";
-import { type RefObject, useMemo } from "react";
+import type { RefObject } from "react";
 import type { ComposerModel, ComposerThinkingLevel } from "../../../desktop/types";
 import { popoverPanelClass } from "../../../ui/classes";
 import { cn } from "../../../utils/cn";
@@ -36,19 +36,6 @@ export function ComposerModelPopover({
   onSelectModel,
   onSelectThinkingLevel,
 }: ComposerModelPopoverProps) {
-  const sortedModels = useMemo(
-    () =>
-      [...availableModels].sort((left, right) => {
-        const leftSelected =
-          currentModel?.provider === left.provider && currentModel.id === left.id ? -1 : 0;
-        const rightSelected =
-          currentModel?.provider === right.provider && currentModel.id === right.id ? -1 : 0;
-
-        return leftSelected - rightSelected || left.name.localeCompare(right.name);
-      }),
-    [availableModels, currentModel?.id, currentModel?.provider],
-  );
-
   return (
     <SurfacePanel
       ref={panelRef}
@@ -62,7 +49,7 @@ export function ComposerModelPopover({
       <div className="grid gap-1 overflow-hidden">
         <div className="px-1.5 text-[11px] font-medium text-[color:var(--muted)]">Modelo</div>
         <div className="grid max-h-64 gap-1 overflow-y-auto pr-0.5">
-          {sortedModels.map((model) => {
+          {availableModels.map((model) => {
             const selected = currentModel?.provider === model.provider && currentModel.id === model.id;
 
             return (
