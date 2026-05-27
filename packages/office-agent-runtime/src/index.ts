@@ -7,7 +7,7 @@ import path from "node:path";
 
 export const OFFICE_AGENT_APP_NAME = "OfficeAgent";
 export const OFFICE_AGENT_PROVIDER_ID = "CastrosuaIA";
-export const OFFICE_AGENT_PROVIDER_LABEL = "Castrosua IA";
+export const OFFICE_AGENT_PROVIDER_LABEL = "Codex Sub";
 export const OFFICE_AGENT_LEGACY_PROVIDER_IDS = ["corp"] as const;
 export const OFFICE_AGENT_SPARK_MODEL_ID = "assistant";
 // Keep the gateway-facing model id as gpt-5.5 for compatibility with the current
@@ -17,6 +17,11 @@ export const OFFICE_AGENT_MODEL_ID = "gpt-5.5";
 export const OFFICE_AGENT_MODEL_LABEL = "GPT-5.4";
 export const OFFICE_AGENT_GATEWAY_URL_ENV_NAME = "OFFICE_AGENT_GATEWAY_URL";
 export const OFFICE_AGENT_GATEWAY_TOKEN_ENV_NAME = "OFFICE_AGENT_GATEWAY_TOKEN";
+export const OFFICE_AGENT_REQUESTY_PROVIDER_ID = "requesty";
+export const OFFICE_AGENT_REQUESTY_PROVIDER_LABEL = "Castrosua IA";
+export const OFFICE_AGENT_REQUESTY_API_KEY_ENV_NAME = "REQUESTY_API_KEY";
+export const OFFICE_AGENT_REQUESTY_BASE_URL_ENV_NAME = "REQUESTY_BASE_URL";
+export const OFFICE_AGENT_REQUESTY_DEFAULT_BASE_URL = "https://router.eu.requesty.ai/v1";
 export const OFFICE_AGENT_CLIENT_KIND_ENV_NAME = "OFFICE_AGENT_CLIENT_KIND";
 export const OFFICE_AGENT_WINDOWS_USER_ENV_NAME = "OFFICE_AGENT_WINDOWS_USER";
 export const OFFICE_AGENT_WINDOWS_DOMAIN_ENV_NAME = "OFFICE_AGENT_WINDOWS_DOMAIN";
@@ -110,6 +115,19 @@ export const OFFICE_AGENT_ENABLED_MODELS = [
     defaultThinkingLevel: "medium",
     enabledFor: ["chat", "code", "gitCommit", "skillCreator"],
   },
+  {
+    catalogId: "requesty/azure-gpt-5.4-swedencentral",
+    provider: OFFICE_AGENT_REQUESTY_PROVIDER_ID,
+    providerLabel: OFFICE_AGENT_REQUESTY_PROVIDER_LABEL,
+    modelId: "azure/gpt-5.4@swedencentral",
+    label: "GPT-5.4",
+    reasoning: true,
+    input: ["text", "image"],
+    contextWindow: 128000,
+    maxTokens: 16384,
+    defaultThinkingLevel: "medium",
+    enabledFor: ["chat", "code", "gitCommit", "skillCreator"],
+  },
 ] as const satisfies readonly OfficeAgentEnabledModel[];
 
 export function getOfficeAgentEnabledModelByCatalogId(catalogId: string): OfficeAgentEnabledModel | null {
@@ -188,8 +206,15 @@ function toProviderModelDefinition(model: OfficeAgentEnabledModel) {
     input: model.input,
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens,
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    cost:
+      model.provider === OFFICE_AGENT_REQUESTY_PROVIDER_ID
+        ? { input: 2.5, output: 15, cacheRead: 0.25, cacheWrite: 2.5 }
+        : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   };
+}
+
+function getProviderModelDefinitions(provider: string) {
+  return OFFICE_AGENT_ENABLED_MODELS.filter((model) => model.provider === provider).map(toProviderModelDefinition);
 }
 
 export interface OfficeAgentManagedSessionPaths {
@@ -244,6 +269,8 @@ const OFFICE_AGENT_PROVIDER_EXTENSION_SOURCE = `import type { ExtensionAPI } fro
 
 const gatewayUrl = process.env.${OFFICE_AGENT_GATEWAY_URL_ENV_NAME} || "${OFFICE_AGENT_DEFAULT_GATEWAY_URL}";
 const gatewayToken = process.env.${OFFICE_AGENT_GATEWAY_TOKEN_ENV_NAME} || "${OFFICE_AGENT_DEFAULT_GATEWAY_TOKEN}";
+const requestyBaseUrl = process.env.${OFFICE_AGENT_REQUESTY_BASE_URL_ENV_NAME} || "${OFFICE_AGENT_REQUESTY_DEFAULT_BASE_URL}";
+const requestyApiKey = process.env.${OFFICE_AGENT_REQUESTY_API_KEY_ENV_NAME} || "${OFFICE_AGENT_REQUESTY_API_KEY_ENV_NAME}";
 const clientKind = process.env.${OFFICE_AGENT_CLIENT_KIND_ENV_NAME} || "unknown";
 const windowsUser = process.env.${OFFICE_AGENT_WINDOWS_USER_ENV_NAME} || process.env.USERNAME || process.env.USER || "unknown-user";
 const windowsDomain = process.env.${OFFICE_AGENT_WINDOWS_DOMAIN_ENV_NAME} || process.env.USERDOMAIN || "";
@@ -263,7 +290,23 @@ export default function (pi: ExtensionAPI) {
       "X-OfficeAgent-Host": windowsHost,
       "X-OfficeAgent-Identity": identity,
     },
-    models: ${JSON.stringify(OFFICE_AGENT_ENABLED_MODELS.map(toProviderModelDefinition), null, 6)},
+    models: ${JSON.stringify(getProviderModelDefinitions(OFFICE_AGENT_PROVIDER_ID), null, 6)},
+  });
+
+  pi.registerProvider("${OFFICE_AGENT_REQUESTY_PROVIDER_ID}", {
+    name: "${OFFICE_AGENT_REQUESTY_PROVIDER_LABEL}",
+    baseUrl: requestyBaseUrl,
+    api: "openai-completions",
+    apiKey: requestyApiKey,
+    authHeader: true,
+    headers: {
+      "X-OfficeAgent-Client": clientKind,
+      "X-OfficeAgent-User": windowsUser,
+      "X-OfficeAgent-Domain": windowsDomain,
+      "X-OfficeAgent-Host": windowsHost,
+      "X-OfficeAgent-Identity": identity,
+    },
+    models: ${JSON.stringify(getProviderModelDefinitions(OFFICE_AGENT_REQUESTY_PROVIDER_ID), null, 6)},
   });
 }
 `;

@@ -829,6 +829,7 @@ const DESKTOP_API_KEY_PROVIDER_IDS = new Set([
   "opencode",
   "opencode-go",
   "openrouter",
+  "requesty",
   "vercel-ai-gateway",
   "xai",
   "zai",
