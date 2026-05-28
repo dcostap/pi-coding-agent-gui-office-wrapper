@@ -268,6 +268,8 @@ export const OFFICE_AGENT_MANAGED_SETTINGS = {
   enabledModels: OFFICE_AGENT_ENABLED_MODELS.map(toOfficeAgentModelPattern),
 } as const;
 
+const OFFICE_AGENT_SQLSERVER_READONLY_CONTEXT = '# Mapa de bases de datos para la IA\n\nEste documento sirve para orientar a la IA sobre **qué base de datos consultar según el sistema mencionado por el usuario**.\n\nPara acceder a la base de datos SQL Server de Castrosua desde Castrosua IA, usa siempre la herramienta Pi **`castrosua_sql_read_only`**. Esta herramienta es de solo lectura y permite inspeccionar metadatos y ejecutar consultas `SELECT` / `WITH` seguras contra el SQL Server corporativo.\n\n## Herramienta de acceso\n\n### `castrosua_sql_read_only`\nUsar esta herramienta para:\n- comprobar la conexión (`action: "info"`)\n- listar tablas y vistas (`action: "list_tables"`)\n- describir columnas de una tabla o vista (`action: "describe"`)\n- obtener una muestra limitada de filas (`action: "sample"`)\n- ejecutar consultas SQL de solo lectura (`action: "query"`)\n\nAntes de construir consultas complejas, usa `castrosua_sql_read_only` para listar/describir tablas cuando no conozcas con seguridad el esquema. En consultas amplias, usa `TOP`, filtros y proyecciones concretas para limitar resultados.\n\n## Supernivel: bases de datos por sistema\n\n### `LOGIC`\nUsar esta base de datos cuando el usuario pregunte por:\n- **Sage**\n- **Logic**\n- **ERP**\n- **albaranes de proveedor**\n- **proveedores**\n- **artículos**\n- procesos de compras o recepción de mercancía en el ERP\n\nPara consultar datos de `LOGIC`, usa la herramienta **`castrosua_sql_read_only`** con consultas SQL de solo lectura. Si es necesario, referencia explícitamente la base de datos/esquema en la consulta.\n\n#### Empresas\n- **1**: Castrosua\n- **2**: Carsa\n- **3**: Insucar\n- **5**: Cidsa\n\n#### Tablas principales descritas actualmente\n\n##### `CabeceraAlbaranProveedor`\nGuarda la **cabecera del albarán de proveedor**, es decir, los datos generales del documento: fecha, proveedor, importes, estados, forma de pago, observaciones y otra información administrativa.\n\n**Clave funcional del albarán:**\n- `CodigoEmpresa`\n- `EjercicioAlbaran`\n- `SerieAlbaran`\n- `NumeroAlbaran`\n\n##### `LineasAlbaranProveedor`\nGuarda el **detalle de líneas del albarán de proveedor**, es decir, los artículos recibidos en cada documento: artículo, descripción, cantidades, precios, descuentos, IVA, almacén e importes por línea.\n\n**Relación con `CabeceraAlbaranProveedor`:**\n- `CodigoEmpresa`\n- `EjercicioAlbaran`\n- `SerieAlbaran`\n- `NumeroAlbaran`\n\nNormalmente existe **una cabecera** y **varias líneas** para el mismo albarán.\n\n##### `Proveedores`\nContiene los **datos maestros de proveedores**: razón social, CIF/NIF, direcciones, contactos, condiciones de pago, datos bancarios y otros atributos administrativos.\n\n**Clave:**\n- `CodigoEmpresa`\n- `CodigoProveedor`\n\n**Relación habitual con albaranes de proveedor:**\n- `CabeceraAlbaranProveedor.CodigoEmpresa = Proveedores.CodigoEmpresa`\n- `CabeceraAlbaranProveedor.CodigoProveedor = Proveedores.CodigoProveedor`\n\n##### `Articulos`\nContiene los **datos maestros de artículos**: código, descripción, familia, subfamilia, precios, unidades, stock y otros atributos del artículo.\n\n**Clave:**\n- `CodigoEmpresa`\n- `CodigoArticulo`\n\n**Relación habitual con líneas de albarán:**\n- `LineasAlbaranProveedor.CodigoArticulo = Articulos.CodigoArticulo`\n\n#### Regla importante para artículos\nAunque la tabla `Articulos` incluye `CodigoEmpresa`, **solo se deben tener en cuenta los artículos de la empresa 1**, porque sus artículos **aplican a todas las empresas**.\n\nPor tanto, al relacionar artículos:\n- usar `Articulos.CodigoEmpresa = 1`\n- relacionar por `LineasAlbaranProveedor.CodigoArticulo = Articulos.CodigoArticulo`\n\n#### Resumen de relaciones\n- **Cabecera ↔ Líneas de albarán** por:\n  - `CodigoEmpresa`\n  - `EjercicioAlbaran`\n  - `SerieAlbaran`\n  - `NumeroAlbaran`\n\n- **Cabecera ↔ Proveedores** por:\n  - `CodigoEmpresa`\n  - `CodigoProveedor`\n\n- **Líneas ↔ Artículos** por:\n  - `CodigoArticulo`\n  - filtrando siempre `Articulos.CodigoEmpresa = 1`\n\n---\n\n### `GLP4`\nUsar esta base de datos cuando el usuario pregunte por:\n- **APPi**\n\nPara consultar datos de `GLP4` / APPi, usa la herramienta **`castrosua_sql_read_only`**. Si no conoces la estructura, empieza con `list_tables`, `describe` y/o `sample` antes de construir la consulta final.\n\n> Pendiente de descripción funcional y técnica. Se completará más adelante.\n\n---\n\n## Instrucción general para la IA\nAntes de responder o construir una consulta, la IA debe identificar primero **qué sistema menciona el usuario**:\n\n- Si habla de **APPi**, consultar **GLP4** usando **`castrosua_sql_read_only`**.\n- Si habla de **Sage**, **Logic** o **ERP**, consultar la base de datos **ERP Logic / Sage** usando **`castrosua_sql_read_only`**.\n\nSi en el futuro se añaden más sistemas o bases de datos, deberán incorporarse como nuevos bloques de este mismo supernivel.\n';
+
 const OFFICE_AGENT_SQLSERVER_READONLY_EXTENSION_SOURCE = `import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { existsSync } from "node:fs";
@@ -276,6 +278,7 @@ import path from "node:path";
 const exeName = "${OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME}";
 const toolDirName = "${OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME}";
 const exeEnvName = "${OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME}";
+const sqlServerReadonlyContext = ${JSON.stringify(OFFICE_AGENT_SQLSERVER_READONLY_CONTEXT)};
 
 type SqlAction = "info" | "list_tables" | "describe" | "sample" | "query";
 
@@ -341,15 +344,19 @@ function summarize(action: SqlAction, payload: unknown): string {
 }
 
 export default function (pi: ExtensionAPI) {
+  pi.on("before_agent_start", async (event) => ({
+    systemPrompt: event.systemPrompt + "\\n\\n" + sqlServerReadonlyContext,
+  }));
+
   pi.registerTool({
-    name: "sqlserver_readonly",
-    label: "SQL Server Read-only",
+    name: "castrosua_sql_read_only",
+    label: "Castrosua SQL Read-only",
     description: "Read-only access to the Castrosua GLP4 SQL Server through the bundled CLI executable. Use for schema inspection and safe SELECT queries.",
     promptSnippet: "Inspect Castrosua GLP4 SQL Server metadata and run read-only SELECT/WITH queries through a bundled read-only CLI.",
     promptGuidelines: [
-      "Use sqlserver_readonly when the user asks about GLP4 SQL Server data, tables, views, schemas, samples, or read-only SQL query results.",
-      "sqlserver_readonly is read-only: use action=query only for SELECT or WITH queries, and prefer narrow projections, filters, and TOP clauses before broad exploration.",
-      "For unknown tables, call sqlserver_readonly list_tables and describe before writing a query.",
+      "Use castrosua_sql_read_only when the user asks about GLP4 SQL Server data, tables, views, schemas, samples, or read-only SQL query results.",
+      "castrosua_sql_read_only is read-only: use action=query only for SELECT or WITH queries, and prefer narrow projections, filters, and TOP clauses before broad exploration.",
+      "For unknown tables, call castrosua_sql_read_only list_tables and describe before writing a query.",
     ],
     parameters: Type.Object({
       action: Type.Union(
