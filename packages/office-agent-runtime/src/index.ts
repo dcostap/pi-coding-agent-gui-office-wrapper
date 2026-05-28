@@ -76,6 +76,9 @@ export const OFFICE_AGENT_PYTHON_ENV_ENV_NAME = "OFFICE_AGENT_PYTHON_ENV";
 export const OFFICE_AGENT_PROJECT_STATE_ENV_NAME = "OFFICE_AGENT_PROJECT_STATE";
 export const OFFICE_AGENT_PROJECT_CACHE_ENV_NAME = "OFFICE_AGENT_PROJECT_CACHE";
 export const OFFICE_AGENT_PROJECT_TOOLS_ENV_NAME = "OFFICE_AGENT_PROJECT_TOOLS";
+export const OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME = "OFFICE_AGENT_SQLSERVER_TOOL_EXE";
+export const OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME = "sqlserver-readonly";
+export const OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME = "castrosua-readonly-sqlserver.exe";
 
 export type OfficeAgentClientKind = "gui" | "tui" | "unknown";
 export type OfficeAgentThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
@@ -264,6 +267,142 @@ export const OFFICE_AGENT_MANAGED_SETTINGS = {
   defaultModel: OFFICE_AGENT_MODEL_ID,
   enabledModels: OFFICE_AGENT_ENABLED_MODELS.map(toOfficeAgentModelPattern),
 } as const;
+
+const OFFICE_AGENT_SQLSERVER_READONLY_EXTENSION_SOURCE = `import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
+import { existsSync } from "node:fs";
+import path from "node:path";
+
+const exeName = "${OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME}";
+const toolDirName = "${OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME}";
+const exeEnvName = "${OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME}";
+
+type SqlAction = "info" | "list_tables" | "describe" | "sample" | "query";
+
+function resolveToolExe(): string | undefined {
+  const configured = process.env[exeEnvName]?.trim();
+  if (configured && existsSync(configured)) return configured;
+
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  const candidates = [
+    ...(resourcesPath ? [path.join(resourcesPath, "resources", toolDirName, exeName)] : []),
+    path.resolve(process.cwd(), "resources", toolDirName, exeName),
+    path.resolve(process.cwd(), "apps", "gui", "desktop", "resources", toolDirName, exeName),
+    path.resolve(process.cwd(), "..", "..", "apps", "gui", "desktop", "resources", toolDirName, exeName),
+  ];
+  return candidates.find((candidate) => existsSync(candidate));
+}
+
+function buildArgs(params: {
+  action: SqlAction;
+  sql?: string;
+  schema?: string;
+  table?: string;
+  includeViews?: boolean;
+  limit?: number;
+}): string[] {
+  switch (params.action) {
+    case "info":
+      return ["info"];
+    case "list_tables": {
+      const args = ["list-tables"];
+      if (params.schema) args.push("--schema", params.schema);
+      if (params.includeViews) args.push("--include-views");
+      return args;
+    }
+    case "describe":
+      if (!params.table) throw new Error("describe requires table");
+      return ["describe", ...(params.schema ? ["--schema", params.schema] : []), "--table", params.table];
+    case "sample":
+      if (!params.table) throw new Error("sample requires table");
+      return [
+        "sample",
+        ...(params.schema ? ["--schema", params.schema] : []),
+        "--table",
+        params.table,
+        "--limit",
+        String(params.limit ?? 20),
+      ];
+    case "query": {
+      const sql = params.sql?.trim();
+      if (!sql) throw new Error("query requires sql");
+      return ["query", sql];
+    }
+  }
+}
+
+function summarize(action: SqlAction, payload: unknown): string {
+  const json = JSON.stringify(payload, null, 2);
+  return [
+    "SQL Server read-only tool completed action: " + action,
+    "",
+    json.length > 30000 ? json.slice(0, 30000) + "\\n... [truncated in display; full JSON is in details]" : json,
+  ].join("\\n");
+}
+
+export default function (pi: ExtensionAPI) {
+  pi.registerTool({
+    name: "sqlserver_readonly",
+    label: "SQL Server Read-only",
+    description: "Read-only access to the Castrosua GLP4 SQL Server through the bundled CLI executable. Use for schema inspection and safe SELECT queries.",
+    promptSnippet: "Inspect Castrosua GLP4 SQL Server metadata and run read-only SELECT/WITH queries through a bundled read-only CLI.",
+    promptGuidelines: [
+      "Use sqlserver_readonly when the user asks about GLP4 SQL Server data, tables, views, schemas, samples, or read-only SQL query results.",
+      "sqlserver_readonly is read-only: use action=query only for SELECT or WITH queries, and prefer narrow projections, filters, and TOP clauses before broad exploration.",
+      "For unknown tables, call sqlserver_readonly list_tables and describe before writing a query.",
+    ],
+    parameters: Type.Object({
+      action: Type.Union(
+        [Type.Literal("info"), Type.Literal("list_tables"), Type.Literal("describe"), Type.Literal("sample"), Type.Literal("query")],
+        { description: "Operation to run: connection info, list tables/views, describe a table, sample rows, or execute a read-only query." },
+      ),
+      sql: Type.Optional(Type.String({ description: "SQL text for action=query. Must be a read-only SELECT or WITH query." })),
+      schema: Type.Optional(Type.String({ description: "Schema name for list_tables, describe, or sample. Usually dbo." })),
+      table: Type.Optional(Type.String({ description: "Table or view name for describe or sample." })),
+      includeViews: Type.Optional(Type.Boolean({ description: "Include views for action=list_tables." })),
+      limit: Type.Optional(Type.Number({ description: "Maximum sample row count for action=sample. Default 20." })),
+    }),
+    async execute(_toolCallId, params, signal, onUpdate) {
+      const exe = resolveToolExe();
+      if (!exe) {
+        throw new Error("Bundled SQL Server CLI was not found. Set " + exeEnvName + " or reinstall Castrosua IA with the sqlserver-readonly resource.");
+      }
+      const action = params.action as SqlAction;
+      const args = buildArgs({
+        action,
+        sql: params.sql,
+        schema: params.schema,
+        table: params.table,
+        includeViews: params.includeViews,
+        limit: params.limit,
+      });
+      onUpdate?.({ content: [{ type: "text", text: "Running SQL Server read-only action: " + action }] });
+      const result = await pi.exec(exe, args, { signal, timeout: 120000 });
+      const stdout = result.stdout?.trim() ?? "";
+      const stderr = result.stderr?.trim() ?? "";
+      let payload: unknown = stdout;
+      if (stdout) {
+        try {
+          payload = JSON.parse(stdout);
+        } catch {
+          payload = { stdout };
+        }
+      }
+      if (result.code !== 0) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: stderr || stdout || "SQL Server read-only CLI failed with exit code " + result.code }],
+          details: { exe, args, exitCode: result.code, stderr, stdout: payload },
+        };
+      }
+      return {
+        content: [{ type: "text", text: summarize(action, payload) }],
+        details: { action, result: payload, stderr: stderr || undefined },
+      };
+    },
+  });
+}
+`;
 
 const OFFICE_AGENT_PROVIDER_EXTENSION_SOURCE = `import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
@@ -550,10 +689,12 @@ export async function ensureOfficeAgentManagedAgentDir(agentDir: string = getOff
   const extensionsDir = path.join(agentDir, "extensions");
   const settingsPath = path.join(agentDir, "settings.json");
   const extensionPath = path.join(extensionsDir, "castrosua-ia-provider.ts");
+  const sqlServerExtensionPath = path.join(extensionsDir, "castrosua-sqlserver-readonly.ts");
   const legacyExtensionPath = path.join(extensionsDir, "corp-provider.ts");
 
   await mkdir(extensionsDir, { recursive: true });
   await writeFileIfChanged(extensionPath, OFFICE_AGENT_PROVIDER_EXTENSION_SOURCE);
+  await writeFileIfChanged(sqlServerExtensionPath, OFFICE_AGENT_SQLSERVER_READONLY_EXTENSION_SOURCE);
   await rm(legacyExtensionPath, { force: true });
   await writeFileIfChanged(settingsPath, `${JSON.stringify(OFFICE_AGENT_MANAGED_SETTINGS, null, 2)}\n`);
 
