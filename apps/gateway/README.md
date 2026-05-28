@@ -30,9 +30,9 @@ It accepts abstract models such as `assistant` and `gpt-5.5`, routes them to con
 - `GATEWAY_UPSTREAM_PROVIDER` - default `openai-codex`
 - `GATEWAY_UPSTREAM_MODEL` - default `gpt-5.3-codex-spark` for `assistant`
 - `GATEWAY_GPT55_UPSTREAM_MODEL` / `GATEWAY_GPT_5_5_UPSTREAM_MODEL` - default `gpt-5.4` for abstract `gpt-5.5`
-- `OFFICE_AGENT_VFS_BASE_DIR` - optional parent directory for hardcoded virtual roots; default `/srv/officeagent/vfs`. Root `castrosua_iso` maps to `/srv/officeagent/vfs/castrosua_iso` and is exposed as `virtual://castrosua_iso`.
+- `OFFICE_AGENT_VFS_BASE_DIR` - optional parent directory for configured virtual root folders; default `/srv/officeagent/vfs`.
 
-Virtual roots, display names, and prompt descriptions are defined once in `packages/office-agent-runtime/src/office-agent-vfs-roots.ts` so gateway and client use the same versioned registry.
+Virtual root registry details live in `packages/office-agent-runtime/src/office-agent-vfs-roots.ts` so gateway and client use the same source of truth.
 - `OFFICE_AGENT_VFS_TIMEOUT_MS` - default `30000`
 
 ## Start
