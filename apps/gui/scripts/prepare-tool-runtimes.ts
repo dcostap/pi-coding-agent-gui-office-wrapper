@@ -19,6 +19,7 @@ interface RuntimeLock {
   readonly schemaVersion: number;
   readonly python?: PythonRuntimeLock;
   readonly uv?: UvRuntimeLock;
+  readonly ripgrep?: RipgrepRuntimeLock;
 }
 
 interface PythonRuntimeLock {
@@ -36,6 +37,18 @@ interface PythonRuntimeLock {
 }
 
 interface UvRuntimeLock {
+  readonly enabled: boolean;
+  readonly source: string;
+  readonly runtimeId: string;
+  readonly version: string;
+  readonly targetTriple: string;
+  readonly archiveName: string;
+  readonly url: string;
+  readonly sha256: string;
+  readonly size?: number;
+}
+
+interface RipgrepRuntimeLock {
   readonly enabled: boolean;
   readonly source: string;
   readonly runtimeId: string;
@@ -74,6 +87,9 @@ async function main() {
   if (lock.uv?.enabled) {
     await prepareUvRuntime(lock.uv);
   }
+  if (lock.ripgrep?.enabled) {
+    await prepareRipgrepRuntime(lock.ripgrep);
+  }
   await writeAggregateNotices(lock);
 }
 
@@ -95,6 +111,16 @@ async function checkPreparedRuntimes(lock: RuntimeLock): Promise<void> {
       "officeagent-uv-runtime.json",
     );
     await access(manifestPath);
+  }
+  if (lock.ripgrep?.enabled) {
+    const manifestPath = path.join(
+      runtimeBuildRoot,
+      "tools",
+      lock.ripgrep.runtimeId,
+      "officeagent-ripgrep-runtime.json",
+    );
+    await access(manifestPath);
+    await access(path.join(runtimeBuildRoot, "tools", lock.ripgrep.runtimeId, "rg.exe"));
   }
 }
 
@@ -167,6 +193,37 @@ async function prepareUvRuntime(config: UvRuntimeLock): Promise<void> {
   await smokeUv(path.join(stagedRuntimeDir, "uv.exe"), config.version);
   await finalizeRuntime(stagedRuntimeDir, targetDir);
   console.log(`Prepared uv runtime: ${targetDir}`);
+}
+
+async function prepareRipgrepRuntime(config: RipgrepRuntimeLock): Promise<void> {
+  const targetDir = path.join(runtimeBuildRoot, "tools", config.runtimeId);
+  const manifestPath = path.join(targetDir, "officeagent-ripgrep-runtime.json");
+  const rgExe = path.join(targetDir, "rg.exe");
+  if (!force && (await fileExists(manifestPath)) && (await fileExists(rgExe))) {
+    console.log(`ripgrep runtime already prepared: ${config.runtimeId}`);
+    return;
+  }
+
+  const archivePath = await downloadAndVerify(config.url, config.archiveName, config.sha256);
+  const stagingParent = path.join(runtimeBuildRoot, "tools", ".staging");
+  const stagingDir = path.join(stagingParent, `${config.runtimeId}-${process.pid}-${randomUUID()}`);
+  await rm(stagingDir, { recursive: true, force: true });
+  await mkdir(stagingDir, { recursive: true });
+
+  console.log(`Extracting ripgrep runtime ${config.runtimeId}...`);
+  await extractZip(archivePath, stagingDir);
+  const extractedRgExe = await findFile(stagingDir, "rg.exe");
+  if (!extractedRgExe) {
+    throw new Error(`ripgrep archive did not contain rg.exe: ${archivePath}`);
+  }
+
+  const stagedRuntimeDir = path.join(stagingDir, "runtime");
+  await mkdir(stagedRuntimeDir, { recursive: true });
+  await copyFile(extractedRgExe, path.join(stagedRuntimeDir, "rg.exe"));
+  await writeRipgrepRuntimeMetadata(stagedRuntimeDir, config);
+  await smokeRipgrep(path.join(stagedRuntimeDir, "rg.exe"), config.version);
+  await finalizeRuntime(stagedRuntimeDir, targetDir);
+  console.log(`Prepared ripgrep runtime: ${targetDir}`);
 }
 
 async function downloadAndVerify(
@@ -293,6 +350,43 @@ async function writeUvRuntimeMetadata(targetDir: string, config: UvRuntimeLock):
   await writeReadyMarker(targetDir, config.runtimeId);
 }
 
+async function writeRipgrepRuntimeMetadata(targetDir: string, config: RipgrepRuntimeLock): Promise<void> {
+  const licensesDir = path.join(targetDir, "licenses");
+  await mkdir(licensesDir, { recursive: true });
+  await writeFile(
+    path.join(licensesDir, "THIRD_PARTY_NOTICES.txt"),
+    createRipgrepNotice(config),
+    "utf8",
+  );
+  await writeFile(
+    path.join(targetDir, "officeagent-ripgrep-runtime.json"),
+    `${JSON.stringify(
+      {
+        kind: "officeagent-ripgrep-runtime",
+        schemaVersion: 1,
+        runtimeId: config.runtimeId,
+        source: {
+          name: config.source,
+          version: config.version,
+          archiveName: config.archiveName,
+          archiveSha256: config.sha256,
+          targetTriple: config.targetTriple,
+          url: config.url,
+        },
+        ripgrepVersion: config.version,
+        architecture: "x64",
+        platform: "win32",
+        executableRelativePath: "rg.exe",
+        licenseNoticeRelativePath: "licenses/THIRD_PARTY_NOTICES.txt",
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+  await writeReadyMarker(targetDir, config.runtimeId);
+}
+
 async function writeReadyMarker(targetDir: string, runtimeId: string): Promise<void> {
   await writeFile(
     path.join(targetDir, "READY.json"),
@@ -360,6 +454,19 @@ async function smokeUv(uvExe: string, expectedVersion: string): Promise<void> {
   if (!output.includes(expectedVersion)) {
     throw new Error(
       `uv smoke returned unexpected version. Expected ${expectedVersion}; output: ${output}`,
+    );
+  }
+}
+
+async function smokeRipgrep(rgExe: string, expectedVersion: string): Promise<void> {
+  if (process.platform !== "win32") {
+    console.warn(`Skipping ripgrep smoke on ${process.platform}; Windows runtime cannot execute here.`);
+    return;
+  }
+  const output = await run(rgExe, ["--version"]);
+  if (!output.includes(expectedVersion)) {
+    throw new Error(
+      `ripgrep smoke returned unexpected version. Expected ${expectedVersion}; output: ${output}`,
     );
   }
 }
@@ -515,6 +622,23 @@ function createUvNotice(config: UvRuntimeLock): string {
   ].join("\n");
 }
 
+function createRipgrepNotice(config: RipgrepRuntimeLock): string {
+  return [
+    "OfficeAgent bundled ripgrep runtime",
+    "====================================",
+    "",
+    `Runtime ID: ${config.runtimeId}`,
+    `Source: ${config.source}`,
+    `Version: ${config.version}`,
+    `Archive: ${config.archiveName}`,
+    `SHA256: ${config.sha256}`,
+    `URL: ${config.url}`,
+    "",
+    "ripgrep is dual-licensed under MIT or UNLICENSE. Include ripgrep license notices in product legal review before release.",
+    "",
+  ].join("\n");
+}
+
 async function writeAggregateNotices(lock: RuntimeLock): Promise<void> {
   await mkdir(legalBuildDir, { recursive: true });
   const notices = [
@@ -526,6 +650,7 @@ async function writeAggregateNotices(lock: RuntimeLock): Promise<void> {
     "",
     lock.python?.enabled ? createPythonNotice(lock.python, []) : "",
     lock.uv?.enabled ? createUvNotice(lock.uv) : "",
+    lock.ripgrep?.enabled ? createRipgrepNotice(lock.ripgrep) : "",
   ]
     .filter(Boolean)
     .join("\n");

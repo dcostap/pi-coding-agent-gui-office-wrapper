@@ -22,6 +22,8 @@ extraResources:
     to: runtime/python
   - from: desktop/build/runtime/uv
     to: runtime/uv
+  - from: desktop/build/runtime/tools
+    to: runtime/tools
   - from: desktop/build/legal
     to: legal
 extraFiles:

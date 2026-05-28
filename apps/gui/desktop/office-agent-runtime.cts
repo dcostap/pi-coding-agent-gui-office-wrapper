@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
-import { access, readFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { access, copyFile, mkdir, readFile } from "node:fs/promises";
+import { delimiter, isAbsolute, join, relative, resolve } from "node:path";
 import type { CreateAgentSessionOptions } from "@earendil-works/pi-coding-agent";
 import type { PiModule } from "./pi-module.cts";
 import {
@@ -60,6 +60,7 @@ import {
   writeFileWithOfficeAgentSandbox,
 } from "../../../packages/pi-sdk-driver/src/windows-sandbox-helper-client.ts";
 
+const bundledRipgrepRuntimeId = "ripgrep-14.1.1-win-x64-officeagent-r1";
 const defaultOfficeAgentModel = getDefaultOfficeAgentEnabledModel();
 
 export const officeAgentModelSelection = {
@@ -95,6 +96,7 @@ export async function prepareOfficeAgentDesktopRuntime(): Promise<{
   setSqlServerReadonlyToolEnvIfPresent();
 
   await ensureOfficeAgentManagedAgentDir(agentDir);
+  await stageBundledRipgrepForPi(agentDir);
   await ensureOfficeAgentManagedRoot(managedRootDir);
 
   return { agentDir, managedRootDir, projectsDir };
@@ -366,6 +368,42 @@ function defaultWindowsSandboxBackendToV2(): void {
   if (!process.env.OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND?.trim()) {
     process.env.OFFICE_AGENT_WINDOWS_SANDBOX_BACKEND = "codex-v2";
   }
+}
+
+async function stageBundledRipgrepForPi(agentDir: string): Promise<void> {
+  if (process.platform !== "win32") {
+    return;
+  }
+
+  const source = resolveBundledRipgrepPath();
+  if (!source) {
+    return;
+  }
+
+  const binDir = join(agentDir, "bin");
+  const target = join(binDir, "rg.exe");
+  await mkdir(binDir, { recursive: true });
+  await copyFile(source, target);
+
+  const currentPath = process.env.PATH ?? "";
+  const pathEntries = currentPath.split(delimiter).filter(Boolean);
+  if (!pathEntries.some((entry) => resolve(entry).toLowerCase() === resolve(binDir).toLowerCase())) {
+    process.env.PATH = [binDir, currentPath].filter(Boolean).join(delimiter);
+  }
+}
+
+function resolveBundledRipgrepPath(): string | undefined {
+  const resourcesPathValue = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  const resourcesPath = typeof resourcesPathValue === "string" ? resourcesPathValue : undefined;
+  const relativeRuntimePath = ["runtime", "tools", bundledRipgrepRuntimeId, "rg.exe"];
+  const buildRuntimePath = ["apps", "gui", "desktop", "build", ...relativeRuntimePath];
+  const candidates = [
+    ...(resourcesPath ? [join(resourcesPath, ...relativeRuntimePath)] : []),
+    resolve(process.cwd(), ...relativeRuntimePath),
+    resolve(process.cwd(), ...buildRuntimePath),
+    resolve(process.cwd(), "..", "..", ...buildRuntimePath),
+  ];
+  return candidates.find((candidate) => existsSync(candidate));
 }
 
 function setSqlServerReadonlyToolEnvIfPresent(): void {

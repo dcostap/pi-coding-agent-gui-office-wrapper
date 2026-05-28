@@ -886,7 +886,27 @@ async function handleVfsGrep(body, roots) {
   if (typeof body.glob === "string" && body.glob.trim()) args.push("--glob", body.glob.trim());
   if (context > 0) args.push("--context", String(context));
   args.push("--", pattern, searchTarget);
-  const { stdout, killedDueToLimit } = await runCommand("rg", args, { cwd: searchCwd, maxBytes: VFS_MAX_OUTPUT_BYTES, allowExitOne: true });
+  let stdout;
+  let killedDueToLimit;
+  try {
+    ({ stdout, killedDueToLimit } = await runCommand("rg", args, { cwd: searchCwd, maxBytes: VFS_MAX_OUTPUT_BYTES, allowExitOne: true }));
+  } catch (error) {
+    if (error?.code !== "command_failed" || !String(error?.message || "").includes("failed to start")) {
+      throw error;
+    }
+    return grepWithNodeFallback({
+      rootRealPath,
+      virtualBasePath,
+      searchCwd,
+      searchTarget,
+      pattern,
+      ignoreCase: Boolean(body.ignoreCase),
+      literal: Boolean(body.literal),
+      glob: typeof body.glob === "string" ? body.glob.trim() : "",
+      context,
+      limit,
+    });
+  }
   const matches = [];
   let linesTruncated = false;
   for (const line of stdout.split(/\r?\n/)) {
@@ -909,6 +929,99 @@ async function handleVfsGrep(body, roots) {
     });
   }
   return { ok: true, matches, limitReached: killedDueToLimit || matches.length >= limit, linesTruncated };
+}
+
+async function grepWithNodeFallback(options) {
+  const matcher = createTextMatcher(options.pattern, options.ignoreCase, options.literal);
+  const globMatcher = options.glob ? createGlobMatcher(options.glob) : undefined;
+  const files = [];
+  const startPath = path.resolve(options.searchCwd, options.searchTarget);
+  await collectGrepFiles(startPath, options.searchCwd, files, globMatcher);
+
+  const matches = [];
+  let linesTruncated = false;
+  let limitReached = false;
+  for (const filePath of files) {
+    if (matches.length >= options.limit) {
+      limitReached = true;
+      break;
+    }
+    const text = await readFile(filePath, "utf8").catch(() => undefined);
+    if (text === undefined) continue;
+    const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+    const matchedLines = [];
+    for (let index = 0; index < lines.length; index += 1) {
+      if (matcher(lines[index])) matchedLines.push(index + 1);
+    }
+    const emitted = new Set();
+    for (const lineNumber of matchedLines) {
+      const start = Math.max(1, lineNumber - options.context);
+      const end = Math.min(lines.length, lineNumber + options.context);
+      for (let current = start; current <= end; current += 1) {
+        if (matches.length >= options.limit) {
+          limitReached = true;
+          break;
+        }
+        const key = `${filePath}:${current}`;
+        if (emitted.has(key)) continue;
+        emitted.add(key);
+        const rawText = lines[current - 1] ?? "";
+        const trimmedText = rawText.length > 500 ? `${rawText.slice(0, 500)}…` : rawText;
+        if (trimmedText !== rawText) linesTruncated = true;
+        const relativePath = path.relative(options.searchCwd, filePath).replaceAll("\\", "/");
+        matches.push({
+          path: joinVfsRelativePath(options.virtualBasePath, relativePath),
+          line: current,
+          text: trimmedText,
+          context: current !== lineNumber,
+        });
+      }
+      if (limitReached) break;
+    }
+  }
+  return { ok: true, matches, limitReached, linesTruncated, fallback: "node" };
+}
+
+async function collectGrepFiles(candidate, baseDir, files, globMatcher) {
+  const stats = await lstat(candidate).catch(() => undefined);
+  if (!stats || stats.isSymbolicLink()) return;
+  if (stats.isFile()) {
+    if (stats.size > 2 * 1024 * 1024) return;
+    const relativePath = path.relative(baseDir, candidate).replaceAll("\\", "/");
+    if (!globMatcher || globMatcher(relativePath) || globMatcher(path.basename(candidate))) files.push(candidate);
+    return;
+  }
+  if (!stats.isDirectory()) return;
+  const baseName = path.basename(candidate);
+  if (baseName === ".git" || baseName === "node_modules") return;
+  const entries = await readdir(candidate).catch(() => []);
+  for (const entry of entries) {
+    await collectGrepFiles(path.join(candidate, entry), baseDir, files, globMatcher);
+  }
+}
+
+function createTextMatcher(pattern, ignoreCase, literal) {
+  if (literal) {
+    const needle = ignoreCase ? pattern.toLowerCase() : pattern;
+    return (line) => (ignoreCase ? line.toLowerCase() : line).includes(needle);
+  }
+  let regex;
+  try {
+    regex = new RegExp(pattern, ignoreCase ? "i" : "");
+  } catch {
+    throw createVfsError("invalid_request", "Invalid grep regex pattern.");
+  }
+  return (line) => regex.test(line);
+}
+
+function createGlobMatcher(glob) {
+  const normalized = glob.replaceAll("\\", "/");
+  const regexText = normalized
+    .split("*")
+    .map((part) => part.replace(/[|\\{}()[\]^$+?.]/g, "\\$&"))
+    .join(".*");
+  const regex = new RegExp(`^${regexText}$`);
+  return (value) => regex.test(value.replaceAll("\\", "/"));
 }
 
 async function resolveVfsPath(body, roots, options = {}) {
