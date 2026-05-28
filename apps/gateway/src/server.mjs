@@ -85,6 +85,17 @@ const gpt55Route = {
     // Route that abstract model to Pi's current upstream Codex model by default.
     "gpt-5.5",
 };
+const requestyAbstractModelId = process.env.GATEWAY_REQUESTY_ABSTRACT_MODEL || "azure/gpt-5.4@swedencentral";
+const requestyRoute = {
+  provider:
+    process.env.GATEWAY_REQUESTY_UPSTREAM_PROVIDER ||
+    process.env.GATEWAY_GPT54_REQUESTY_UPSTREAM_PROVIDER ||
+    "requesty",
+  modelId:
+    process.env.GATEWAY_REQUESTY_UPSTREAM_MODEL ||
+    process.env.GATEWAY_GPT54_REQUESTY_UPSTREAM_MODEL ||
+    "azure/gpt-5.4@swedencentral",
+};
 const routedProvider = sparkRoute.provider;
 const routedModelId = sparkRoute.modelId;
 
@@ -208,6 +219,7 @@ class GatewayAnalyticsStore {
         routes: {
           assistant: sparkRoute,
           "gpt-5.5": gpt55Route,
+          [requestyAbstractModelId]: requestyRoute,
         },
       },
       totals,
@@ -289,7 +301,9 @@ async function readJson(req, options = {}) {
 }
 
 function getAbstractModelRoute(abstractModel) {
-  return abstractModel === "gpt-5.5" ? gpt55Route : sparkRoute;
+  if (abstractModel === "gpt-5.5") return gpt55Route;
+  if (abstractModel === requestyAbstractModelId) return requestyRoute;
+  return sparkRoute;
 }
 
 function getRoutedModel(abstractModel = "assistant") {
@@ -1644,6 +1658,11 @@ const server = http.createServer(async (req, res) => {
             owned_by: "office-agent",
           },
           {
+            id: requestyAbstractModelId,
+            object: "model",
+            owned_by: "office-agent",
+          },
+          {
             id: "assistant",
             object: "model",
             owned_by: "office-agent",
@@ -1695,6 +1714,7 @@ server.listen(PORT, HOST, () => {
   console.log(`[gateway] listening on http://${HOST}:${PORT}`);
   console.log(`[gateway] abstract model assistant -> ${MOCK_MODE ? "mock" : `${sparkRoute.provider}/${sparkRoute.modelId}`}`);
   console.log(`[gateway] abstract model gpt-5.5 -> ${MOCK_MODE ? "mock" : `${gpt55Route.provider}/${gpt55Route.modelId}`}`);
+  console.log(`[gateway] abstract model ${requestyAbstractModelId} -> ${MOCK_MODE ? "mock" : `${requestyRoute.provider}/${requestyRoute.modelId}`}`);
   console.log(`[gateway] auth path: ${authPath}`);
   console.log(`[gateway] analytics dashboard: http://localhost:${PORT}/dashboard`);
   console.log(`[gateway] analytics log: ${analyticsEventsPath}`);

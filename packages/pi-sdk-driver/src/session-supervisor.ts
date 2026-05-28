@@ -4,6 +4,7 @@ import {
   ensureOfficeAgentManagedSessionLayout,
   findOfficeAgentManagedRootForPath,
   getOfficeAgentWorkspaceSessionFilesDir,
+  isOfficeAgentEnabledModel,
   OFFICE_AGENT_MODEL_ID,
   OFFICE_AGENT_PROVIDER_ID,
 } from "@office-agent/runtime";
@@ -1073,7 +1074,7 @@ export class SessionSupervisor {
     if (!findOfficeAgentManagedRootForPath(record.workspace.path)) {
       return selection;
     }
-    if (selection.provider === OFFICE_AGENT_PROVIDER_ID && selection.modelId === OFFICE_AGENT_MODEL_ID) {
+    if (isOfficeAgentEnabledModel(selection.provider, selection.modelId)) {
       return selection;
     }
     return { provider: OFFICE_AGENT_PROVIDER_ID, modelId: OFFICE_AGENT_MODEL_ID };
@@ -1083,7 +1084,7 @@ export class SessionSupervisor {
     if (!findOfficeAgentManagedRootForPath(record.workspace.path)) {
       return;
     }
-    if (session.model?.provider === OFFICE_AGENT_PROVIDER_ID && session.model?.id === OFFICE_AGENT_MODEL_ID) {
+    if (session.model && isOfficeAgentEnabledModel(session.model.provider, session.model.id)) {
       return;
     }
     const model = this.resolveModel(OFFICE_AGENT_PROVIDER_ID, OFFICE_AGENT_MODEL_ID);

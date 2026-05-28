@@ -118,6 +118,19 @@ export const OFFICE_AGENT_ENABLED_MODELS = [
     defaultThinkingLevel: "medium",
     enabledFor: ["chat", "code", "gitCommit", "skillCreator"],
   },
+  {
+    catalogId: "requesty/azure-gpt-5.4-swedencentral",
+    provider: OFFICE_AGENT_REQUESTY_PROVIDER_ID,
+    providerLabel: OFFICE_AGENT_REQUESTY_PROVIDER_LABEL,
+    modelId: "azure/gpt-5.4@swedencentral",
+    label: "GPT-5.4",
+    reasoning: true,
+    input: ["text", "image"],
+    contextWindow: 128000,
+    maxTokens: 16384,
+    defaultThinkingLevel: "medium",
+    enabledFor: ["chat", "code", "gitCommit", "skillCreator"],
+  },
 ] as const satisfies readonly OfficeAgentEnabledModel[];
 
 export function getOfficeAgentEnabledModelByCatalogId(catalogId: string): OfficeAgentEnabledModel | null {
@@ -422,6 +435,22 @@ export default function (pi: ExtensionAPI) {
       "X-OfficeAgent-Identity": identity,
     },
     models: ${JSON.stringify(getProviderModelDefinitions(OFFICE_AGENT_PROVIDER_ID), null, 6)},
+  });
+
+  pi.registerProvider("${OFFICE_AGENT_REQUESTY_PROVIDER_ID}", {
+    name: "${OFFICE_AGENT_REQUESTY_PROVIDER_LABEL}",
+    baseUrl: gatewayUrl,
+    api: "openai-completions",
+    apiKey: gatewayToken,
+    authHeader: true,
+    headers: {
+      "X-OfficeAgent-Client": clientKind,
+      "X-OfficeAgent-User": windowsUser,
+      "X-OfficeAgent-Domain": windowsDomain,
+      "X-OfficeAgent-Host": windowsHost,
+      "X-OfficeAgent-Identity": identity,
+    },
+    models: ${JSON.stringify(getProviderModelDefinitions(OFFICE_AGENT_REQUESTY_PROVIDER_ID), null, 6)},
   });
 }
 `;
