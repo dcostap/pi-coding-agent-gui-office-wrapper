@@ -384,7 +384,7 @@ export default function (pi: ExtensionAPI) {
         limit: params.limit,
       });
       onUpdate?.({ content: [{ type: "text", text: "Running SQL Server read-only action: " + action }] });
-      const result = await pi.exec(exe, args, { signal, timeout: 120000 });
+      const result = await pi.exec(exe, args, { cwd: path.dirname(exe), signal, timeout: 120000 });
       const stdout = result.stdout?.trim() ?? "";
       const stderr = result.stderr?.trim() ?? "";
       let payload: unknown = stdout;
