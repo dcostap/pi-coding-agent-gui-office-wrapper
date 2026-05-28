@@ -298,28 +298,32 @@ function resolveToolExe(): string | undefined {
 
 function buildArgs(params: {
   action: SqlAction;
+  database?: string;
   sql?: string;
   schema?: string;
   table?: string;
   includeViews?: boolean;
   limit?: number;
 }): string[] {
+  const database = params.database?.trim() || "LOGIC";
+  const databaseArgs = ["--database", database];
   switch (params.action) {
     case "info":
-      return ["info"];
+      return ["info", ...databaseArgs];
     case "list_tables": {
-      const args = ["list-tables"];
+      const args = ["list-tables", ...databaseArgs];
       if (params.schema) args.push("--schema", params.schema);
       if (params.includeViews) args.push("--include-views");
       return args;
     }
     case "describe":
       if (!params.table) throw new Error("describe requires table");
-      return ["describe", ...(params.schema ? ["--schema", params.schema] : []), "--table", params.table];
+      return ["describe", ...databaseArgs, ...(params.schema ? ["--schema", params.schema] : []), "--table", params.table];
     case "sample":
       if (!params.table) throw new Error("sample requires table");
       return [
         "sample",
+        ...databaseArgs,
         ...(params.schema ? ["--schema", params.schema] : []),
         "--table",
         params.table,
@@ -329,7 +333,7 @@ function buildArgs(params: {
     case "query": {
       const sql = params.sql?.trim();
       if (!sql) throw new Error("query requires sql");
-      return ["query", sql];
+      return ["query", ...databaseArgs, sql];
     }
   }
 }
@@ -355,6 +359,7 @@ export default function (pi: ExtensionAPI) {
     promptSnippet: "Inspect Castrosua SQL Server metadata and run read-only SELECT/WITH queries for ERP Logic/Sage, GLP4/APPi, articles, suppliers, and delivery notes.",
     promptGuidelines: [
       "Use castrosua_sql_read_only when the user asks about ERP Logic/Sage, GLP4/APPi, SQL Server data, tables, views, schemas, samples, or read-only SQL query results.",
+      "The adapter always passes --database to the SQL CLI. Default to database LOGIC for ERP Logic/Sage; use database GLP4 for APPi/GLP4 questions.",
       "Use castrosua_sql_read_only for article/material codes from technical documentation when they look like Logic CodigoArticulo values, usually 6-digit numeric codes.",
       "castrosua_sql_read_only is read-only: use action=query only for SELECT or WITH queries, and prefer narrow projections, filters, and TOP clauses before broad exploration.",
       "For unknown tables, call castrosua_sql_read_only list_tables and describe before writing a query.",
@@ -364,6 +369,7 @@ export default function (pi: ExtensionAPI) {
         [Type.Literal("info"), Type.Literal("list_tables"), Type.Literal("describe"), Type.Literal("sample"), Type.Literal("query")],
         { description: "Operation to run: connection info, list tables/views, describe a table, sample rows, or execute a read-only query." },
       ),
+      database: Type.Optional(Type.String({ description: "Database name for this call. Defaults to LOGIC. Use GLP4 for APPi/GLP4 questions." })),
       sql: Type.Optional(Type.String({ description: "SQL text for action=query. Must be a read-only SELECT or WITH query." })),
       schema: Type.Optional(Type.String({ description: "Schema name for list_tables, describe, or sample. Usually dbo." })),
       table: Type.Optional(Type.String({ description: "Table or view name for describe or sample." })),
@@ -378,6 +384,7 @@ export default function (pi: ExtensionAPI) {
       const action = params.action as SqlAction;
       const args = buildArgs({
         action,
+        database: params.database,
         sql: params.sql,
         schema: params.schema,
         table: params.table,
