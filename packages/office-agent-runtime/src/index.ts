@@ -118,19 +118,6 @@ export const OFFICE_AGENT_ENABLED_MODELS = [
     defaultThinkingLevel: "medium",
     enabledFor: ["chat", "code", "gitCommit", "skillCreator"],
   },
-  {
-    catalogId: "requesty/azure-gpt-5.4-swedencentral",
-    provider: OFFICE_AGENT_REQUESTY_PROVIDER_ID,
-    providerLabel: OFFICE_AGENT_REQUESTY_PROVIDER_LABEL,
-    modelId: "azure/gpt-5.4@swedencentral",
-    label: "GPT-5.4",
-    reasoning: true,
-    input: ["text", "image"],
-    contextWindow: 128000,
-    maxTokens: 16384,
-    defaultThinkingLevel: "medium",
-    enabledFor: ["chat", "code", "gitCommit", "skillCreator"],
-  },
 ] as const satisfies readonly OfficeAgentEnabledModel[];
 
 export function getOfficeAgentEnabledModelByCatalogId(catalogId: string): OfficeAgentEnabledModel | null {
@@ -415,8 +402,6 @@ const OFFICE_AGENT_PROVIDER_EXTENSION_SOURCE = `import type { ExtensionAPI } fro
 
 const gatewayUrl = process.env.${OFFICE_AGENT_GATEWAY_URL_ENV_NAME} || "${OFFICE_AGENT_DEFAULT_GATEWAY_URL}";
 const gatewayToken = process.env.${OFFICE_AGENT_GATEWAY_TOKEN_ENV_NAME} || "${OFFICE_AGENT_DEFAULT_GATEWAY_TOKEN}";
-const requestyBaseUrl = process.env.${OFFICE_AGENT_REQUESTY_BASE_URL_ENV_NAME} || "${OFFICE_AGENT_REQUESTY_DEFAULT_BASE_URL}";
-const requestyApiKey = process.env.${OFFICE_AGENT_REQUESTY_API_KEY_ENV_NAME} || "${OFFICE_AGENT_REQUESTY_API_KEY_ENV_NAME}";
 const clientKind = process.env.${OFFICE_AGENT_CLIENT_KIND_ENV_NAME} || "unknown";
 const windowsUser = process.env.${OFFICE_AGENT_WINDOWS_USER_ENV_NAME} || process.env.USERNAME || process.env.USER || "unknown-user";
 const windowsDomain = process.env.${OFFICE_AGENT_WINDOWS_DOMAIN_ENV_NAME} || process.env.USERDOMAIN || "";
@@ -437,22 +422,6 @@ export default function (pi: ExtensionAPI) {
       "X-OfficeAgent-Identity": identity,
     },
     models: ${JSON.stringify(getProviderModelDefinitions(OFFICE_AGENT_PROVIDER_ID), null, 6)},
-  });
-
-  pi.registerProvider("${OFFICE_AGENT_REQUESTY_PROVIDER_ID}", {
-    name: "${OFFICE_AGENT_REQUESTY_PROVIDER_LABEL}",
-    baseUrl: requestyBaseUrl,
-    api: "openai-completions",
-    apiKey: requestyApiKey,
-    authHeader: true,
-    headers: {
-      "X-OfficeAgent-Client": clientKind,
-      "X-OfficeAgent-User": windowsUser,
-      "X-OfficeAgent-Domain": windowsDomain,
-      "X-OfficeAgent-Host": windowsHost,
-      "X-OfficeAgent-Identity": identity,
-    },
-    models: ${JSON.stringify(getProviderModelDefinitions(OFFICE_AGENT_REQUESTY_PROVIDER_ID), null, 6)},
   });
 }
 `;
