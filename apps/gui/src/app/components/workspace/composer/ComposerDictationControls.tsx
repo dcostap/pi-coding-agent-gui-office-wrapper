@@ -55,13 +55,13 @@ export function ComposerDictationControls({
           data-open={dictationPromptOpen ? "true" : "false"}
           className={cn(
             compactCardClass,
-            "absolute right-[calc(100%+8px)] top-1/2 z-20 inline-flex items-center gap-1.5 whitespace-nowrap -translate-y-1/2 rounded-full px-2 py-1 text-[10.5px] shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition-[opacity,transform] duration-180 ease-out",
+            "absolute right-[calc(100%+8px)] top-1/2 z-20 inline-flex items-center gap-1.5 whitespace-nowrap -translate-y-1/2 rounded-full px-2 py-1 text-[11.5px] shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition-[opacity,transform] duration-180 ease-out",
             dictationPromptOpen
               ? "translate-x-0 opacity-100"
               : "pointer-events-none translate-x-2 opacity-0",
           )}
         >
-          <span className="pr-1 text-[10.5px] text-[color:var(--text)] whitespace-nowrap">
+          <span className="pr-1 text-[11.5px] text-[color:var(--text)] whitespace-nowrap">
             No speech-to-text model detected. Install?
           </span>
           <button
@@ -89,7 +89,7 @@ export function ComposerDictationControls({
             <X size={12} />
           </button>
           <TextButton
-            className="rounded-full border border-[rgba(255,110,110,0.22)] px-2 py-0.5 text-[10px] leading-4 whitespace-nowrap text-[#ffbcbc] hover:border-[rgba(255,110,110,0.34)] hover:bg-[rgba(255,110,110,0.08)] hover:text-[#ffd2d2]"
+            className="rounded-full border border-[rgba(255,110,110,0.22)] px-2 py-0.5 text-[11px] leading-4 whitespace-nowrap text-[#ffbcbc] hover:border-[rgba(255,110,110,0.34)] hover:bg-[rgba(255,110,110,0.08)] hover:text-[#ffd2d2]"
             onClick={() => {
               setDictationPromptOpen(false);
               void onAction("settings.update", {

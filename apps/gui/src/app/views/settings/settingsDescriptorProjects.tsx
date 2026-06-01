@@ -65,7 +65,7 @@ export function buildProjectsSettingsDescriptors({
       description: "Default commit action for projects that do not have their own override.",
       keywords: "gitops commit push default project",
       render: () => (
-        <div className="grid grid-cols-2 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[12px] text-[color:var(--muted)]">
+        <div className="grid grid-cols-2 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[13px] text-[color:var(--muted)]">
           {[
             ["commit", "Commit"],
             ["commit-push", "Commit & push"],
@@ -95,7 +95,7 @@ export function buildProjectsSettingsDescriptors({
       description: "Default baseline for the files and lines changed summary.",
       keywords: "git diff baseline comparison files lines default",
       render: () => (
-        <div className="grid grid-cols-3 gap-1 rounded-2xl border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[12px] text-[color:var(--muted)] xl:grid-cols-5">
+        <div className="grid grid-cols-3 gap-1 rounded-2xl border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[13px] text-[color:var(--muted)] xl:grid-cols-5">
           {[
             [{ kind: "head" }, "Last"],
             [{ kind: "previous" }, "Prev"],
@@ -129,7 +129,7 @@ export function buildProjectsSettingsDescriptors({
       description: "Default layout for the GitOps diff panel.",
       keywords: "git diff layout stacked split default",
       render: () => (
-        <div className="grid grid-cols-2 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[12px] text-[color:var(--muted)]">
+        <div className="grid grid-cols-2 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[13px] text-[color:var(--muted)]">
           {[
             ["stacked", "Unified"],
             ["split", "Split"],
@@ -178,7 +178,7 @@ export function buildProjectsSettingsDescriptors({
       description: "Delete only Pi session files, or nuke the full project folder from disk.",
       keywords: "delete deletion cleanup project full clean pi only",
       render: () => (
-        <div className="grid grid-cols-2 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[12px] text-[color:var(--muted)]">
+        <div className="grid grid-cols-2 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[13px] text-[color:var(--muted)]">
           {[
             ["pi-only", "Pi only"],
             ["full-clean", "Full clean"],
@@ -225,7 +225,7 @@ export function buildProjectsSettingsDescriptors({
             {appSettings.projectImportState === false ? (
               <button
                 type="button"
-                className={cn(composerTextActionButtonClass, "text-[12px]")}
+                className={cn(composerTextActionButtonClass, "text-[13px]")}
                 onClick={controller.showFirstLaunchReminderAgain}
               >
                 Show reminder
@@ -233,17 +233,17 @@ export function buildProjectsSettingsDescriptors({
             ) : null}
           </div>
           {controller.importStatusMessage ? (
-            <div className="text-right text-[12px] text-[color:var(--muted)]">
+            <div className="text-right text-[13px] text-[color:var(--muted)]">
               {controller.importStatusMessage}
             </div>
           ) : null}
           {!controller.desktopBridgeAvailable ? (
-            <div className="text-right text-[12px] text-[color:var(--muted)]">
+            <div className="text-right text-[13px] text-[color:var(--muted)]">
               Project sync needs the desktop bridge.
             </div>
           ) : null}
           {controller.importErrorMessage ? (
-            <div className="text-right text-[12px] text-[#f2a7a7]">
+            <div className="text-right text-[13px] text-[#f2a7a7]">
               {controller.importErrorMessage}
             </div>
           ) : null}
@@ -287,7 +287,7 @@ export function buildProjectsSettingsDescriptors({
               {appSettings.favoriteFolders.map((folder) => (
                 <span
                   key={folder}
-                  className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-[rgba(255,255,255,0.025)] py-1 pr-1 pl-2 text-[11.5px] text-[color:var(--muted)]"
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[color:var(--border)] bg-[rgba(255,255,255,0.025)] py-1 pr-1 pl-2 text-[12.5px] text-[color:var(--muted)]"
                 >
                   <span className="max-w-[18rem] truncate" title={folder}>
                     {folder}
@@ -322,7 +322,7 @@ export function buildProjectsSettingsDescriptors({
       render: () => (
         <div className="flex max-w-full items-center justify-end gap-2">
           {controller.clearImagesStatusMessage ? (
-            <div className="min-w-0 truncate text-right text-[12px] text-[color:var(--muted)]">
+            <div className="min-w-0 truncate text-right text-[13px] text-[color:var(--muted)]">
               {controller.clearImagesStatusMessage}
             </div>
           ) : null}

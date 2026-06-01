@@ -20,7 +20,7 @@ export function buildPiRuntimeSettingsDescriptors({
       description: "How Pi connects to providers that support multiple streaming transports.",
       keywords: "transport sse websocket auto provider runtime",
       render: () => (
-        <div className="grid grid-cols-3 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[12px] text-[color:var(--muted)]">
+        <div className="grid grid-cols-3 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[13px] text-[color:var(--muted)]">
           {[
             ["sse", "SSE"],
             ["websocket", "WebSocket"],
@@ -83,7 +83,7 @@ export function buildPiRuntimeSettingsDescriptors({
           : "Advanced Pi queue-drain behavior after follow-up messages are already queued.",
       keywords: "queue drain steering follow-up mode runtime advanced",
       render: () => (
-        <div className="grid grid-cols-2 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[12px] text-[color:var(--muted)]">
+        <div className="grid grid-cols-2 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[13px] text-[color:var(--muted)]">
           {[
             ["one-at-a-time", "One"],
             ["all", "All"],
@@ -166,7 +166,7 @@ export function buildPiRuntimeSettingsDescriptors({
       keywords: "terminal tui editor cursor changelog thinking images escape",
       render: () =>
         key === "doubleEscapeAction" ? (
-          <div className="grid grid-cols-3 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[12px] text-[color:var(--muted)]">
+          <div className="grid grid-cols-3 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[13px] text-[color:var(--muted)]">
             {[
               ["tree", "Tree"],
               ["fork", "Fork"],

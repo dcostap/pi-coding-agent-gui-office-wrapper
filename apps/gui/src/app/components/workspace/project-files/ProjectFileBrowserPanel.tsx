@@ -122,7 +122,7 @@ function ProjectFilePreviewPane({
 }) {
   if (!row) {
     return (
-      <div className="flex h-full items-center justify-center px-4 text-center text-[12px] text-[color:var(--muted-2)]">
+      <div className="flex h-full items-center justify-center px-4 text-center text-[13px] text-[color:var(--muted-2)]">
         Selecciona un archivo para previsualizarlo.
       </div>
     );
@@ -130,21 +130,21 @@ function ProjectFilePreviewPane({
 
   const entry = row.entry;
   const details = (
-    <div className="flex min-w-0 flex-wrap justify-start gap-x-3 gap-y-1 text-left text-[11px] text-[color:var(--muted-2)]">
+    <div className="flex min-w-0 flex-wrap justify-start gap-x-3 gap-y-1 text-left text-[12px] text-[color:var(--muted-2)]">
       <span>{formatFileSize(entry.size)}</span>
       <span>{formatModifiedTime(entry.modifiedMs)}</span>
     </div>
   );
   const compactHeader = (
     <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 border-t border-white/[0.06] px-3 py-2">
-      <div className="min-w-0 truncate text-right text-[12px] font-medium text-[color:var(--text)]">
+      <div className="min-w-0 truncate text-right text-[13px] font-medium text-[color:var(--text)]">
         {entry.name}
       </div>
       {details}
     </div>
   );
   const previewActionButtonClass =
-    "inline-flex items-center gap-1.5 rounded-lg bg-white/[0.07] px-2.5 py-1.5 text-[12px] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)] transition-[transform,background-color,box-shadow] duration-150 ease-out hover:bg-white/[0.11] hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06),0_8px_18px_rgba(0,0,0,0.18)] active:scale-[0.96] active:bg-white/[0.16] active:duration-75";
+    "inline-flex items-center gap-1.5 rounded-lg bg-white/[0.07] px-2.5 py-1.5 text-[13px] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)] transition-[transform,background-color,box-shadow] duration-150 ease-out hover:bg-white/[0.11] hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06),0_8px_18px_rgba(0,0,0,0.18)] active:scale-[0.96] active:bg-white/[0.16] active:duration-75";
   const actions = (
     <div className="mt-3 flex flex-wrap justify-center gap-2 px-3 pb-3">
       <button className={previewActionButtonClass} type="button" onClick={() => void openPathQuery(entry.path)}>
@@ -163,15 +163,15 @@ function ProjectFilePreviewPane({
     return (
       <div className="flex h-full flex-col items-center justify-center px-4 text-center">
         <FileTypeIcon kind={entry.kind} name={entry.name} size={46} />
-        <div className="mt-3 max-w-full truncate text-[13px] font-medium text-[color:var(--text)]">{entry.name}</div>
-        <div className="mt-1 text-[12px] text-[color:var(--muted-2)]">La previsualización de carpetas no está disponible.</div>
+        <div className="mt-3 max-w-full truncate text-[14px] font-medium text-[color:var(--text)]">{entry.name}</div>
+        <div className="mt-1 text-[13px] text-[color:var(--muted-2)]">La previsualización de carpetas no está disponible.</div>
         {actions}
       </div>
     );
   }
 
   if (loading) {
-    return <div className="flex h-full items-center justify-center text-[12px] text-[color:var(--muted-2)]">Cargando previsualización…</div>;
+    return <div className="flex h-full items-center justify-center text-[13px] text-[color:var(--muted-2)]">Cargando previsualización…</div>;
   }
 
   if (preview?.kind === "image") {
@@ -198,11 +198,11 @@ function ProjectFilePreviewPane({
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.06] px-3 py-2">
-          <div className="min-w-0 truncate text-[12px] font-medium text-[color:var(--text)]">{entry.name}</div>
+          <div className="min-w-0 truncate text-[13px] font-medium text-[color:var(--text)]">{entry.name}</div>
           {details}
         </div>
-        <pre className="m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[11px] leading-5 text-[color:var(--text)]">{preview.text}</pre>
-        {preview.truncated ? <div className="shrink-0 border-t border-white/[0.06] px-3 py-1.5 text-[11px] text-[color:var(--muted-2)]">Previsualización truncada.</div> : null}
+        <pre className="m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[12px] leading-5 text-[color:var(--text)]">{preview.text}</pre>
+        {preview.truncated ? <div className="shrink-0 border-t border-white/[0.06] px-3 py-1.5 text-[12px] text-[color:var(--muted-2)]">Previsualización truncada.</div> : null}
       </div>
     );
   }
@@ -217,10 +217,10 @@ function ProjectFilePreviewPane({
       >
         <FileTypeIcon kind={entry.kind} name={entry.name} size={54} />
       </div>
-      <div className="mt-3 max-w-full truncate text-[13px] font-medium text-[color:var(--text)]">{entry.name}</div>
+      <div className="mt-3 max-w-full truncate text-[14px] font-medium text-[color:var(--text)]">{entry.name}</div>
       {details}
       {preview?.kind === "unsupported" && preview.reason ? (
-        <div className="mt-2 text-[12px] text-[color:var(--muted-2)]">{preview.reason}</div>
+        <div className="mt-2 text-[13px] text-[color:var(--muted-2)]">{preview.reason}</div>
       ) : null}
       {actions}
     </div>
@@ -483,7 +483,7 @@ export function ProjectFileBrowserPanel({
 
   function renderSortIndicator(key: SortKey) {
     if (sortKey !== key) return null;
-    return <span className="text-[10px] text-[color:var(--muted-2)]">{sortDirection === "asc" ? "↑" : "↓"}</span>;
+    return <span className="text-[11px] text-[color:var(--muted-2)]">{sortDirection === "asc" ? "↑" : "↓"}</span>;
   }
 
   return (
@@ -501,10 +501,10 @@ export function ProjectFileBrowserPanel({
     >
       <header className="project-files-header">
         <div className="min-w-0 flex-1">
-          <h2 className="m-0 truncate text-[13px] font-medium text-[color:var(--text)]">
+          <h2 className="m-0 truncate text-[14px] font-medium text-[color:var(--text)]">
             {title}
           </h2>
-          <p className="m-0 truncate text-[11px] text-[color:var(--muted-2)]">{projectId}</p>
+          <p className="m-0 truncate text-[12px] text-[color:var(--muted-2)]">{projectId}</p>
         </div>
         {onClose ? (
           <Tooltip content="Contraer archivos del proyecto" placement="right">
@@ -520,7 +520,7 @@ export function ProjectFileBrowserPanel({
         ) : null}
       </header>
 
-      <div className="project-files-column-header grid h-8 shrink-0 grid-cols-[minmax(0,1fr)_6.8rem] items-center px-2 text-[11px] font-medium uppercase tracking-[0.08em] text-[color:var(--muted-2)]">
+      <div className="project-files-column-header grid h-8 shrink-0 grid-cols-[minmax(0,1fr)_6.8rem] items-center px-2 text-[12px] font-medium uppercase tracking-[0.08em] text-[color:var(--muted-2)]">
         <button type="button" className="flex min-w-0 items-center gap-1 px-1 text-left" onClick={() => toggleSort("name")}>
           <span>Nombre</span>{renderSortIndicator("name")}
         </button>
@@ -540,7 +540,7 @@ export function ProjectFileBrowserPanel({
             <div key={row.entry.path}>
               <div
                 className={cn(
-                  "grid h-8 cursor-default grid-cols-[minmax(0,1fr)_6.8rem] items-center rounded-lg px-1 text-[12px] text-[color:var(--text)] transition-colors",
+                  "grid h-8 cursor-default grid-cols-[minmax(0,1fr)_6.8rem] items-center rounded-lg px-1 text-[13px] text-[color:var(--text)] transition-colors",
                   selected
                     ? "bg-[color:var(--accent-bg)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]"
                     : "hover:bg-[color:var(--surface-hover)]",
@@ -588,17 +588,17 @@ export function ProjectFileBrowserPanel({
                   <span className="shrink-0"><FileTypeIcon kind={row.entry.kind} name={row.entry.name} size={16} /></span>
                   <span className="min-w-0 truncate">{row.entry.name}</span>
                   {attached ? (
-                    <span className="shrink-0 rounded-full bg-[color:var(--accent-bg)] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]">
+                    <span className="shrink-0 rounded-full bg-[color:var(--accent-bg)] px-1.5 py-0.5 text-[11px] font-medium text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]">
                       adjunto
                     </span>
                   ) : null}
                 </div>
-                <div className="truncate px-1 text-[11px] text-[color:var(--muted)]">
+                <div className="truncate px-1 text-[12px] text-[color:var(--muted)]">
                   {formatModifiedTime(row.entry.modifiedMs)}
                 </div>
               </div>
               {expanded && childDirectory?.loading ? (
-                <div className="py-1 pl-8 text-[11px] text-[color:var(--muted-2)]">Cargando…</div>
+                <div className="py-1 pl-8 text-[12px] text-[color:var(--muted-2)]">Cargando…</div>
               ) : null}
             </div>
           );
@@ -617,7 +617,7 @@ export function ProjectFileBrowserPanel({
       {contextMenu
         ? createPortal(
             <div
-              className="fixed z-[1000] grid min-w-44 gap-1 rounded-xl border border-white/10 bg-[rgba(24,24,24,0.96)] p-1.5 text-[12px] text-[color:var(--text)] shadow-[0_18px_50px_rgba(0,0,0,0.42)] backdrop-blur-xl"
+              className="fixed z-[1000] grid min-w-44 gap-1 rounded-xl border border-white/10 bg-[rgba(24,24,24,0.96)] p-1.5 text-[13px] text-[color:var(--text)] shadow-[0_18px_50px_rgba(0,0,0,0.42)] backdrop-blur-xl"
               style={{ left: contextMenu.x, top: contextMenu.y }}
               onContextMenu={(event) => event.preventDefault()}
               data-project-files-context-menu="true"

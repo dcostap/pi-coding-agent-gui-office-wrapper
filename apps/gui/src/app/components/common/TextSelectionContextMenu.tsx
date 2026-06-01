@@ -71,7 +71,7 @@ export function TextSelectionContextMenu() {
 
   return createPortal(
     <div
-      className="fixed z-[2000] grid min-w-36 rounded-xl border border-white/10 bg-[rgba(24,24,24,0.96)] p-1.5 text-[12px] text-[color:var(--text)] shadow-[0_18px_50px_rgba(0,0,0,0.42)] backdrop-blur-xl"
+      className="fixed z-[2000] grid min-w-36 rounded-xl border border-white/10 bg-[rgba(24,24,24,0.96)] p-1.5 text-[13px] text-[color:var(--text)] shadow-[0_18px_50px_rgba(0,0,0,0.42)] backdrop-blur-xl"
       style={{ left: menu.x, top: menu.y }}
       data-text-selection-menu="true"
       onContextMenu={(event) => event.preventDefault()}

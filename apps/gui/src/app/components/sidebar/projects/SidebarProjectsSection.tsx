@@ -336,7 +336,7 @@ export function SidebarProjectsSection({
                 >
                   <span className="sidebar-project-title">{pendingProject.name}</span>
                 </div>
-                <span className="text-[11px] text-[color:var(--muted-2)]">Adding…</span>
+                <span className="text-[12px] text-[color:var(--muted-2)]">Adding…</span>
               </div>
             </div>
           ) : null}
@@ -431,14 +431,14 @@ export function SidebarProjectsSection({
           ) : null}
         </>
       ) : !desktopBridgeAvailable ? (
-        <div className="px-2.5 py-2 text-[12px] leading-5 text-[color:var(--muted-2)]">
+        <div className="px-2.5 py-2 text-[13px] leading-5 text-[color:var(--muted-2)]">
           Project sync needs the desktop bridge. Restart the dev server or use{" "}
           <code>bun run dev</code>.
         </div>
       ) : (
         <div
           className={cn(
-            "px-2.5 py-2 text-[13px] text-[color:var(--muted-2)]",
+            "px-2.5 py-2 text-[14px] text-[color:var(--muted-2)]",
             searchQuery.trim().length > 0 || filterMode !== "all" ? "" : "hidden",
           )}
         >

@@ -58,12 +58,12 @@ export function SettingsFavoriteFoldersSection({
         {favoriteFolders.length > 0 ? (
           favoriteFolders.map((favoriteFolder) => (
             <div key={favoriteFolder} className={settingsListRowClass}>
-              <div className="truncate text-[13px] text-[color:var(--text)]" title={favoriteFolder}>
+              <div className="truncate text-[14px] text-[color:var(--text)]" title={favoriteFolder}>
                 {favoriteFolder}
               </div>
               <button
                 type="button"
-                className="text-[12px] text-[color:var(--muted)] transition-colors hover:text-[color:var(--text)]"
+                className="text-[13px] text-[color:var(--muted)] transition-colors hover:text-[color:var(--text)]"
                 onClick={() =>
                   updateFavoriteFolders(
                     favoriteFolders.filter((currentFolder) => currentFolder !== favoriteFolder),

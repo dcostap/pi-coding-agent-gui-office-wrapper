@@ -79,10 +79,10 @@ export function SettingsPanel({
       >
         <div className="flex items-start justify-between gap-4 border-b border-[color:var(--border)] px-6 py-5">
           <div>
-            <div id={titleId} className="text-[18px] font-medium text-[color:var(--text)]">
+            <div id={titleId} className="text-[19px] font-medium text-[color:var(--text)]">
               App settings
             </div>
-            <p className="mt-1 text-[13px] text-[color:var(--muted)]">
+            <p className="mt-1 text-[14px] text-[color:var(--muted)]">
               Choose which Pi model should be used for git commit message generation when that flow
               is enabled. Until you pick one, the app falls back to the current composer model.
             </p>
@@ -99,7 +99,7 @@ export function SettingsPanel({
 
         <div className="grid gap-4 px-6 py-5">
           <section className="grid gap-3">
-            <div className="flex items-center gap-2 text-[15px] font-medium text-[color:var(--text)]">
+            <div className="flex items-center gap-2 text-[16px] font-medium text-[color:var(--text)]">
               <GitCommitHorizontal size={16} />
               <span>Git commit message model</span>
             </div>
@@ -117,10 +117,10 @@ export function SettingsPanel({
               }
             >
               <div className="min-w-0">
-                <div className="truncate text-[14px] text-[color:var(--text)]">
+                <div className="truncate text-[15px] text-[color:var(--text)]">
                   Use current composer model
                 </div>
-                <div className="truncate text-[12px] text-[color:var(--muted)]">
+                <div className="truncate text-[13px] text-[color:var(--muted)]">
                   {currentModel
                     ? `${currentModel.name} · ${getModelDescription(currentModel)}`
                     : "No active composer model"}
@@ -153,10 +153,10 @@ export function SettingsPanel({
                     }
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-[14px] text-[color:var(--text)]">
+                      <div className="truncate text-[15px] text-[color:var(--text)]">
                         {model.name}
                       </div>
-                      <div className="truncate text-[12px] text-[color:var(--muted)]">
+                      <div className="truncate text-[13px] text-[color:var(--muted)]">
                         {getModelDescription(model)}
                       </div>
                     </div>

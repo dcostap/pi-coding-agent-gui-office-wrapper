@@ -438,7 +438,7 @@ export function InboxComposer({
                     <Paperclip size={16} />
                   </span>
                   {attachments.length > 0 ? (
-                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 text-[11px] text-[color:var(--text)]">
+                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 text-[12px] text-[color:var(--text)]">
                       {attachments.length}
                     </span>
                   ) : null}
@@ -477,7 +477,7 @@ export function InboxComposer({
                         return (
                           <div key={`${command.source}:${command.name}`}>
                             {previousGroupLabel !== groupLabel ? (
-                              <div className="px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-2)]">
+                              <div className="px-2 pt-1.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-2)]">
                                 {groupLabel}
                               </div>
                             ) : null}
@@ -497,11 +497,11 @@ export function InboxComposer({
                               onMouseDown={(event) => event.preventDefault()}
                               onClick={() => slashCommands.selectCommand(command)}
                             >
-                              <span className="shrink-0 font-mono text-[12px] text-[color:var(--text)]">
+                              <span className="shrink-0 font-mono text-[13px] text-[color:var(--text)]">
                                 /{command.name}
                               </span>
                               {command.description ? (
-                                <span className="min-w-0 truncate text-[12px]">
+                                <span className="min-w-0 truncate text-[13px]">
                                   {command.description}
                                 </span>
                               ) : null}
@@ -510,7 +510,7 @@ export function InboxComposer({
                         );
                       })
                     ) : (
-                      <div className="px-2 py-2 text-[12px] text-[color:var(--muted)]">
+                      <div className="px-2 py-2 text-[13px] text-[color:var(--muted)]">
                         {slashCommands.loading ? "Loading commands…" : "No matching commands"}
                       </div>
                     )}

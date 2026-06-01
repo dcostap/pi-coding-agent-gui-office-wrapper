@@ -72,28 +72,28 @@ export function SmallWindowOverlay() {
         className="m-0 w-full max-w-[30rem] border-0 rounded-[28px] bg-[color:var(--panel)] p-3 text-left shadow-[0_30px_80px_rgba(0,0,0,0.42),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
       >
         <div className="rounded-[20px] bg-[rgba(10,13,22,0.32)] px-6 py-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">
+          <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">
             Window too small
           </p>
           <h2
             id="small-window-overlay-title"
-            className="mb-3 text-balance text-[22px] font-semibold leading-[1.12] text-[color:var(--text)]"
+            className="mb-3 text-balance text-[23px] font-semibold leading-[1.12] text-[color:var(--text)]"
           >
             howcode works best with a little more room.
           </h2>
           <p
             id="small-window-overlay-description"
-            className="text-pretty text-[14px] leading-6 text-[color:var(--muted)]"
+            className="text-pretty text-[15px] leading-6 text-[color:var(--muted)]"
           >
             Please run the app at roughly half of a full HD screen for the best experience. Proper
             responsive layout will come eventually.
           </p>
           <div
             aria-hidden="true"
-            className="mt-5 grid gap-2 rounded-2xl bg-[rgba(255,255,255,0.045)] p-3 text-[12px] leading-5 text-[color:var(--muted)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.055)] sm:grid-cols-2"
+            className="mt-5 grid gap-2 rounded-2xl bg-[rgba(255,255,255,0.045)] p-3 text-[13px] leading-5 text-[color:var(--muted)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.055)] sm:grid-cols-2"
           >
             <div>
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">
+              <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">
                 Current
               </span>
               <span className="font-mono tabular-nums text-[color:var(--text)]">
@@ -101,7 +101,7 @@ export function SmallWindowOverlay() {
               </span>
             </div>
             <div>
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">
+              <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted-2)]">
                 Minimum
               </span>
               <span className="font-mono tabular-nums text-[color:var(--text)]">

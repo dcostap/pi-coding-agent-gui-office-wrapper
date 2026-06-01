@@ -38,7 +38,7 @@ export function SettingsProjectImportSection({
         {importedState === false ? (
           <button
             type="button"
-            className="text-[12px] text-[color:var(--muted)] transition-colors hover:text-[color:var(--text)]"
+            className="text-[13px] text-[color:var(--muted)] transition-colors hover:text-[color:var(--text)]"
             onClick={onShowFirstLaunchReminderAgain}
           >
             Show first-launch reminder again
@@ -47,16 +47,16 @@ export function SettingsProjectImportSection({
       </div>
 
       {importStatusMessage ? (
-        <div className="text-[12px] text-[color:var(--muted)]">{importStatusMessage}</div>
+        <div className="text-[13px] text-[color:var(--muted)]">{importStatusMessage}</div>
       ) : null}
       {!desktopBridgeAvailable ? (
-        <div className="text-[12px] text-[color:var(--muted)]">
+        <div className="text-[13px] text-[color:var(--muted)]">
           Project sync needs the desktop bridge. Restart the dev server or use{" "}
           <code>bun run dev</code>.
         </div>
       ) : null}
       {importErrorMessage ? (
-        <div className="text-[12px] text-[#f2a7a7]">{importErrorMessage}</div>
+        <div className="text-[13px] text-[#f2a7a7]">{importErrorMessage}</div>
       ) : null}
     </section>
   );

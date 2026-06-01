@@ -231,7 +231,7 @@ export function ComposerTextField({
       {statusMessage ? (
         <div
           className={cn(
-            "truncate text-[12px] leading-4",
+            "truncate text-[13px] leading-4",
             statusTone === "success" ? "text-[color:var(--green)]" : "text-[#f2a7a7]",
           )}
         >

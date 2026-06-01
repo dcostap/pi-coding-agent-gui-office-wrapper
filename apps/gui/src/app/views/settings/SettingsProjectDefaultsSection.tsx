@@ -44,7 +44,7 @@ export function SettingsProjectDefaultsSection({
 
       <div className="grid gap-2">
         <div className="grid gap-1">
-          <div className="grid grid-cols-[16px_minmax(0,1fr)] items-center gap-2 text-[13px] text-[color:var(--muted)]">
+          <div className="grid grid-cols-[16px_minmax(0,1fr)] items-center gap-2 text-[14px] text-[color:var(--muted)]">
             <FolderPlus size={14} />
             <span>Default project location</span>
           </div>
@@ -67,8 +67,8 @@ export function SettingsProjectDefaultsSection({
 
         <div className={settingsListRowClass}>
           <div className="grid gap-0.5">
-            <div className="text-[13px] text-[color:var(--text)]">Send while Pi is responding</div>
-            <div className="text-[12px] text-[color:var(--muted)]">
+            <div className="text-[14px] text-[color:var(--text)]">Send while Pi is responding</div>
+            <div className="text-[13px] text-[color:var(--muted)]">
               Steer interrupts immediately, Queue waits for the current turn, Stop aborts without
               sending the draft.
             </div>
@@ -89,8 +89,8 @@ export function SettingsProjectDefaultsSection({
 
         <div className={settingsListRowClass}>
           <div className="grid gap-0.5">
-            <div className="text-[13px] text-[color:var(--text)]">Initialise git</div>
-            <div className="text-[12px] text-[color:var(--muted)]">
+            <div className="text-[14px] text-[color:var(--text)]">Initialise git</div>
+            <div className="text-[13px] text-[color:var(--muted)]">
               Enables diffs for new projects.
             </div>
           </div>
@@ -113,8 +113,8 @@ export function SettingsProjectDefaultsSection({
 
         <div className={settingsListRowClass}>
           <div className="grid gap-0.5">
-            <div className="text-[13px] text-[color:var(--text)]">Project deletion cleanup</div>
-            <div className="text-[12px] text-[color:var(--muted)]">
+            <div className="text-[14px] text-[color:var(--text)]">Project deletion cleanup</div>
+            <div className="text-[13px] text-[color:var(--muted)]">
               Delete only Pi session files, or nuke the full project folder from disk.
             </div>
           </div>
@@ -133,8 +133,8 @@ export function SettingsProjectDefaultsSection({
 
         <div className={settingsListRowClass}>
           <div className="grid gap-0.5">
-            <div className="text-[13px] text-[color:var(--text)]">Open in TUI</div>
-            <div className="text-[12px] text-[color:var(--muted)]">
+            <div className="text-[14px] text-[color:var(--text)]">Open in TUI</div>
+            <div className="text-[13px] text-[color:var(--muted)]">
               Uses Pi takeover by default until a conversation is overridden for this app session.
             </div>
           </div>

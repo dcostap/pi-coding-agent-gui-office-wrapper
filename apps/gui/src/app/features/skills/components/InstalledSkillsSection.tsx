@@ -87,10 +87,10 @@ export function InstalledSkillsSection({
           }
         >
           <div className="min-w-0 flex items-baseline gap-1.5 overflow-hidden">
-            <div className="shrink-0 text-[13px] leading-4 text-[color:var(--text)]">
+            <div className="shrink-0 text-[14px] leading-4 text-[color:var(--text)]">
               {configuredSkill.displayName}
             </div>
-            <div className="min-w-0 truncate text-[12px] leading-4 text-[color:var(--muted)]">
+            <div className="min-w-0 truncate text-[13px] leading-4 text-[color:var(--muted)]">
               {configuredSkill.description || configuredSkill.sourceRepo || configuredSkill.source}
             </div>
           </div>

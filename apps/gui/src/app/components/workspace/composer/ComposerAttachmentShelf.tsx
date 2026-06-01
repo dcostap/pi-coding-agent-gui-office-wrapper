@@ -23,7 +23,7 @@ export function ComposerAttachmentShelf({ attachments, onRemove }: ComposerAttac
           <div
             key={attachment.path}
             className={cn(
-              "attachment-shelf-item inline-flex max-w-[17rem] items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--panel-2)] py-1.5 pr-1.5 pl-2.5 text-[12px] text-[color:var(--text)] shadow-none transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--panel-3)]",
+              "attachment-shelf-item inline-flex max-w-[17rem] items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--panel-2)] py-1.5 pr-1.5 pl-2.5 text-[13px] text-[color:var(--text)] shadow-none transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--panel-3)]",
             )}
             title={attachment.path}
           >

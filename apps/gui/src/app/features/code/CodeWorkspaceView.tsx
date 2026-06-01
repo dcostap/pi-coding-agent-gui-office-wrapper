@@ -439,7 +439,7 @@ export function CodeWorkspaceView({
                 ) : (
                   <div className="grid gap-0">
                     {showLandingComposer ? (
-                      <div className="landing-new-chat-title mb-3 text-center text-[clamp(22px,3vw,32px)] font-medium tracking-[-0.025em] text-[color:var(--text)]">
+                      <div className="landing-new-chat-title mb-3 text-center text-[clamp(23px,3vw,33px)] font-medium tracking-[-0.025em] text-[color:var(--text)]">
                         Nuevo chat
                       </div>
                     ) : null}

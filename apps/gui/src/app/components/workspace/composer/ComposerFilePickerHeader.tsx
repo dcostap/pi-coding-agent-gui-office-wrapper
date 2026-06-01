@@ -52,7 +52,7 @@ export function ComposerFilePickerHeader({
             className={cn(
               rootOption.iconOnly
                 ? "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(255,255,255,0.04)] text-[color:var(--text)] transition-colors"
-                : "inline-flex h-6 shrink-0 items-center gap-1 rounded-full bg-[rgba(255,255,255,0.04)] px-2 text-[11px] text-[color:var(--text)] transition-colors",
+                : "inline-flex h-6 shrink-0 items-center gap-1 rounded-full bg-[rgba(255,255,255,0.04)] px-2 text-[12px] text-[color:var(--text)] transition-colors",
               picker?.rootPath === rootOption.path
                 ? "bg-[rgba(255,255,255,0.12)]"
                 : "text-[color:var(--muted)] hover:bg-[rgba(255,255,255,0.08)] hover:text-[color:var(--text)]",
@@ -86,7 +86,7 @@ export function ComposerFilePickerHeader({
               placeholder="Search files"
               className={cn(
                 settingsInputClass,
-                "h-6 w-40 rounded-full border-transparent bg-[rgba(255,255,255,0.04)] pr-2 pl-7 text-[11px]",
+                "h-6 w-40 rounded-full border-transparent bg-[rgba(255,255,255,0.04)] pr-2 pl-7 text-[12px]",
               )}
               aria-label="Search files"
             />

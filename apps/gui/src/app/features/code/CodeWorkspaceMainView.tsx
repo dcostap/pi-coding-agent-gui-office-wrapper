@@ -169,8 +169,8 @@ export function CodeWorkspaceMainView({
         fallback={
           <div className="mx-auto grid h-full w-full max-w-[760px] content-start gap-4 px-2 pt-6 pb-6">
             <div className="grid gap-1">
-              <h1 className="m-0 text-[18px] font-medium text-[color:var(--text)]">Extensions</h1>
-              <p className="m-0 text-[13px] text-[color:var(--muted)]">Loading packages…</p>
+              <h1 className="m-0 text-[19px] font-medium text-[color:var(--text)]">Extensions</h1>
+              <p className="m-0 text-[14px] text-[color:var(--muted)]">Loading packages…</p>
             </div>
           </div>
         }
@@ -190,8 +190,8 @@ export function CodeWorkspaceMainView({
         fallback={
           <div className="mx-auto grid h-full w-full max-w-[760px] content-start gap-4 px-2 pt-6 pb-6">
             <div className="grid gap-1">
-              <h1 className="m-0 text-[18px] font-medium text-[color:var(--text)]">Skills</h1>
-              <p className="m-0 text-[13px] text-[color:var(--muted)]">Loading skills…</p>
+              <h1 className="m-0 text-[19px] font-medium text-[color:var(--text)]">Skills</h1>
+              <p className="m-0 text-[14px] text-[color:var(--muted)]">Loading skills…</p>
             </div>
           </div>
         }

@@ -22,7 +22,7 @@ export function UserMessageAttachments({ attachmentPaths }: UserMessageAttachmen
 
   return (
     <div className="mt-2 grid gap-1.5 border-t border-white/10 pt-2" aria-label="Message attachments">
-      <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
+      <div className="text-[12px] font-medium uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
         Attached files
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -32,7 +32,7 @@ export function UserMessageAttachments({ attachmentPaths }: UserMessageAttachmen
             <button
               key={pathValue}
               type="button"
-              className="inline-flex max-w-[16rem] items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-left text-[11.5px] text-[color:var(--text)] transition hover:border-white/18 hover:bg-white/[0.07]"
+              className="inline-flex max-w-[16rem] items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-left text-[12.5px] text-[color:var(--text)] transition hover:border-white/18 hover:bg-white/[0.07]"
               title={pathValue}
               onClick={() => void openPathQuery(pathValue)}
               aria-label={`Open attached file ${name}`}

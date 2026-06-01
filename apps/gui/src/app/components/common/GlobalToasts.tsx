@@ -50,13 +50,13 @@ export function GlobalToasts({ toasts, onDismiss }: GlobalToastsProps) {
             }}
             data-open={toast.visible ? "true" : "false"}
             className={cn(
-              "global-toast pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-2xl border px-4 py-3 text-[13px] text-[color:var(--text)] backdrop-blur-xl backdrop-saturate-[140%]",
+              "global-toast pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-2xl border px-4 py-3 text-[14px] text-[color:var(--text)] backdrop-blur-xl backdrop-saturate-[140%]",
               getToastToneClass(toast.tone),
             )}
           >
             <MarkdownContent
               markdown={toast.message}
-              className="gap-1 text-[13px] leading-[1.45] [&_p]:leading-[1.45]"
+              className="gap-1 text-[14px] leading-[1.45] [&_p]:leading-[1.45]"
             />
             <button
               type="button"

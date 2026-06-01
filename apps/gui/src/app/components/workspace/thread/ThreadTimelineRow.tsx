@@ -61,7 +61,7 @@ export function ThreadTimelineRow({
       <div className="flex w-full min-w-0 justify-center">
         <button
           type="button"
-          className="group inline-flex max-w-full items-center justify-center py-1 text-[13px] text-[color:var(--muted-2)]"
+          className="group inline-flex max-w-full items-center justify-center py-1 text-[14px] text-[color:var(--muted-2)]"
           onClick={onJumpToEarlierMessages}
         >
           <span className="rounded-[12px] px-3 py-1 text-center transition-colors group-hover:bg-[rgba(255,255,255,0.03)] group-focus-visible:bg-[rgba(255,255,255,0.03)]">

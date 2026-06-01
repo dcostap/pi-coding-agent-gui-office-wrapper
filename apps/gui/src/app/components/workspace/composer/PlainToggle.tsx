@@ -35,7 +35,7 @@ export function PlainToggle({
     <button
       type="button"
       className={cn(
-        "inline-flex items-center gap-2 text-[12px] text-[color:var(--muted)] transition-colors",
+        "inline-flex items-center gap-2 text-[13px] text-[color:var(--muted)] transition-colors",
         disabled ? "cursor-not-allowed opacity-45" : "hover:text-[color:var(--text)]",
       )}
       onClick={onClick}

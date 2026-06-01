@@ -21,7 +21,7 @@ export function buildCommonSettingsDescriptors({
       keywords: "queue steer stop streaming responding send composer",
       render: () => (
         <div className="min-w-0 sm:min-w-[13rem]">
-          <div className="grid grid-cols-3 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[12px] text-[color:var(--muted)]">
+          <div className="grid grid-cols-3 rounded-full border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] p-1 text-[13px] text-[color:var(--muted)]">
             {[
               ["steer", "Steer"],
               ["followUp", "Queue"],

@@ -622,12 +622,12 @@ export function TerminalViewport({
         />
       ) : null}
       {terminalCore === undefined && !terminalInitError ? (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-start bg-[color:var(--terminal-surface)] px-4 py-3 text-[12px] leading-5 text-[color:var(--muted)]">
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-start bg-[color:var(--terminal-surface)] px-4 py-3 text-[13px] leading-5 text-[color:var(--muted)]">
           <span>[terminal] Loading Ghostty renderer…</span>
         </div>
       ) : null}
       {terminalInitError ? (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-start bg-[color:var(--terminal-surface)]/92 px-4 py-3 text-[12px] leading-5 text-[color:var(--text)]">
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-start bg-[color:var(--terminal-surface)]/92 px-4 py-3 text-[13px] leading-5 text-[color:var(--text)]">
           <span>[terminal] {terminalInitError}</span>
         </div>
       ) : null}

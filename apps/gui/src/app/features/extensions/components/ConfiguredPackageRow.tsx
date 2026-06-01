@@ -77,12 +77,12 @@ export function ConfiguredPackageRow({
       }
     >
       <div className="min-w-0 flex items-baseline gap-1.5 overflow-hidden">
-        <div className="shrink-0 text-[13px] leading-4 text-[color:var(--text)]">
+        <div className="shrink-0 text-[14px] leading-4 text-[color:var(--text)]">
           {configuredPackage.displayName}
         </div>
         <div
           className={cn(
-            "text-[12px] leading-4 text-[color:var(--muted)]",
+            "text-[13px] leading-4 text-[color:var(--muted)]",
             isConfiguredSourcePath(configuredPackage) ? "min-w-0 truncate" : "shrink-0",
           )}
         >

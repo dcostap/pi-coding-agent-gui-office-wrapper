@@ -105,7 +105,7 @@ export function ProjectActionMenu({
           >
             <span className="sidebar-project-menu-item__icon">
               {confirmAction === item.action ? (
-                <span className="text-[13px] font-semibold text-[#f2a7a7]">!</span>
+                <span className="text-[14px] font-semibold text-[#f2a7a7]">!</span>
               ) : (
                 item.icon
               )}

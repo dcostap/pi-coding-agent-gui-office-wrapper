@@ -145,16 +145,16 @@ export function DiffPanelFileList({
                         <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-[color:var(--muted)]">
                           {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                         </span>
-                        <span className="truncate text-[13px] font-medium text-[color:var(--text)]">
+                        <span className="truncate text-[14px] font-medium text-[color:var(--text)]">
                           {filePath}
                         </span>
                         {headerContextLabel ? (
-                          <span className="shrink-0 text-[12px] text-[color:var(--muted)]">
+                          <span className="shrink-0 text-[13px] text-[color:var(--muted)]">
                             {headerContextLabel}
                           </span>
                         ) : null}
                       </span>
-                      <span className="flex shrink-0 items-center gap-2 text-[12px]">
+                      <span className="flex shrink-0 items-center gap-2 text-[13px]">
                         {deletions > 0 || additions === 0 ? (
                           <span className="text-[#d06b72]">-{deletions}</span>
                         ) : null}

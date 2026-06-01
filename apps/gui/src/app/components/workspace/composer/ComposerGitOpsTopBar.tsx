@@ -31,7 +31,7 @@ export function ComposerGitOpsTopBar({
             type="button"
             className={cn(
               compactCardClass,
-              "inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] text-[color:var(--text)]",
+              "inline-flex items-center gap-1.5 px-2.5 py-1 text-[13px] text-[color:var(--text)]",
             )}
             aria-label="Repository origin"
             data-tooltip="Repository origin"
@@ -46,7 +46,7 @@ export function ComposerGitOpsTopBar({
             type="button"
             className={cn(
               compactCardClass,
-              "inline-flex items-center gap-1 px-2.5 py-1 text-[12px] text-[color:var(--muted)]",
+              "inline-flex items-center gap-1 px-2.5 py-1 text-[13px] text-[color:var(--muted)]",
             )}
             aria-label="Current branch"
             data-tooltip="Current branch"
@@ -64,15 +64,15 @@ export function ComposerGitOpsTopBar({
               <button
                 key={comment.id}
                 type="button"
-                className="inline-flex min-w-0 shrink-0 items-center gap-1.5 rounded-full bg-[rgba(255,255,255,0.035)] px-2 py-1 text-[11px] leading-none text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.06)] hover:text-[color:var(--text)]"
+                className="inline-flex min-w-0 shrink-0 items-center gap-1.5 rounded-full bg-[rgba(255,255,255,0.035)] px-2 py-1 text-[12px] leading-none text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.06)] hover:text-[color:var(--text)]"
                 onClick={() => onSelectDiffComment(comment.filePath, comment.id)}
                 aria-label={`Open comment on ${comment.filePath} ${comment.linesLabel}`}
                 data-tooltip="Open comment"
               >
-                <span className="max-w-40 truncate text-[11px] font-normal text-[color:var(--text)]">
+                <span className="max-w-40 truncate text-[12px] font-normal text-[color:var(--text)]">
                   {comment.fileName}
                 </span>
-                <span className="shrink-0 text-[11px] font-normal">{comment.linesLabel}</span>
+                <span className="shrink-0 text-[12px] font-normal">{comment.linesLabel}</span>
               </button>
             ))}
           </div>

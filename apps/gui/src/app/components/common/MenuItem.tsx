@@ -58,7 +58,7 @@ export function MenuItem({
           {statusId ? <FeatureStatusBadge statusId={statusId} /> : null}
         </div>
         {subtitle ? (
-          <div className="truncate text-xs text-[color:var(--muted)]">{subtitle}</div>
+          <div className="truncate text-[13px] text-[color:var(--muted)]">{subtitle}</div>
         ) : null}
       </div>
       {detail ? <span className="ml-auto text-[color:var(--muted)]">{detail}</span> : null}

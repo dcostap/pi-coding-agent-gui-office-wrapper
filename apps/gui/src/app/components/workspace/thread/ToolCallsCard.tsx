@@ -21,8 +21,8 @@ function renderToolCallBody(message: ToolCallMessage) {
       <div
         className={
           message.isError
-            ? "grid min-w-0 gap-2 text-[13px] text-[#f2a7a7]"
-            : "grid min-w-0 gap-2 text-[13px] text-[color:var(--muted-2)]/88"
+            ? "grid min-w-0 gap-2 text-[14px] text-[#f2a7a7]"
+            : "grid min-w-0 gap-2 text-[14px] text-[color:var(--muted-2)]/88"
         }
       >
         {message.content.map((paragraph) => (
@@ -50,7 +50,7 @@ function renderToolCallBody(message: ToolCallMessage) {
   }
 
   return (
-    <div className="grid min-w-0 gap-2 font-mono text-[12px] text-[color:var(--muted-2)]/84">
+    <div className="grid min-w-0 gap-2 font-mono text-[13px] text-[color:var(--muted-2)]/84">
       <div className="whitespace-pre-wrap break-all text-[color:var(--muted-2)]/88">
         $ {stripAnsi(message.command)}
       </div>
@@ -100,7 +100,7 @@ export function ToolCallsCard({
       bodyClassName="border-[rgba(169,178,215,0.08)] px-2 py-2"
       header={
         <span className="flex min-w-0 flex-1 items-center justify-between gap-3 overflow-hidden">
-          <span className="truncate text-[12px] font-medium text-[color:var(--muted)]/90">
+          <span className="truncate text-[13px] font-medium text-[color:var(--muted)]/90">
             Tool calls ({messages.length})
           </span>
         </span>
@@ -133,15 +133,15 @@ export function ToolCallsCard({
               header={
                 <>
                   <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-                    <span className="shrink-0 truncate text-[12px] leading-[1.2] text-[color:var(--muted)]/92">
+                    <span className="shrink-0 truncate text-[13px] leading-[1.2] text-[color:var(--muted)]/92">
                       {title}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-[11.5px] leading-[1.2] text-[color:var(--muted-2)]/82">
+                    <span className="min-w-0 flex-1 truncate text-[12.5px] leading-[1.2] text-[color:var(--muted-2)]/82">
                       {preview}
                     </span>
                   </span>
                   {isError ? (
-                    <span className="shrink-0 text-[10.5px] font-medium text-[#f2a7a7]">Error</span>
+                    <span className="shrink-0 text-[11.5px] font-medium text-[#f2a7a7]">Error</span>
                   ) : null}
                 </>
               }

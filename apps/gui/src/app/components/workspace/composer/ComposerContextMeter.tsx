@@ -100,7 +100,7 @@ export function ComposerContextMeter({
         <div
           ref={popoverRef}
           data-open={popoverDisclosure.visible ? "true" : "false"}
-          className="motion-popover composer-context-popover absolute bottom-full left-0 z-[130] grid w-48 gap-1.5 rounded-lg border border-[color:var(--border-strong)] bg-[color:var(--panel)] px-3 py-2 text-center text-[12px] text-[color:var(--muted)] shadow-[var(--shadow)]"
+          className="motion-popover composer-context-popover absolute bottom-full left-0 z-[130] grid w-48 gap-1.5 rounded-lg border border-[color:var(--border-strong)] bg-[color:var(--panel)] px-3 py-2 text-center text-[13px] text-[color:var(--muted)] shadow-[var(--shadow)]"
           onMouseDown={(event) => event.preventDefault()}
         >
           <div className="font-medium text-[color:var(--muted)]">Ventana de contexto:</div>
@@ -113,12 +113,12 @@ export function ComposerContextMeter({
             {formatTokens(tokens, { compact: true })} / {formatTokens(contextWindow, { compact: true })} tokens usados
           </div>
           {tokens === null ? (
-            <div className="text-[11px] text-[color:var(--muted-2)]">
+            <div className="text-[12px] text-[color:var(--muted-2)]">
               Se actualizará tras la siguiente respuesta.
             </div>
           ) : null}
           {isCompacting ? (
-            <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--panel-2)] px-2 py-1.5 text-[11px] text-[color:var(--text)]">
+            <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--panel-2)] px-2 py-1.5 text-[12px] text-[color:var(--text)]">
               Compactando contexto de la sesión…
             </div>
           ) : null}

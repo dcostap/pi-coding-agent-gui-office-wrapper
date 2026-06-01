@@ -31,7 +31,7 @@ export function ComposerFilePickerFileGrid({
   return (
     <div className="min-h-0 overflow-x-hidden overflow-y-auto p-2 pt-1">
       {!picker && loading ? (
-        <div className="px-2 py-8 text-center text-[12px] text-[color:var(--muted)]">
+        <div className="px-2 py-8 text-center text-[13px] text-[color:var(--muted)]">
           Loading files…
         </div>
       ) : entries.length > 0 ? (
@@ -58,7 +58,7 @@ export function ComposerFilePickerFileGrid({
           })}
         </div>
       ) : (
-        <div className="px-2 py-8 text-center text-[12px] text-[color:var(--muted)]">
+        <div className="px-2 py-8 text-center text-[13px] text-[color:var(--muted)]">
           {searchQuery.trim().length > 0 ? "No matching files." : "No files in this folder."}
         </div>
       )}

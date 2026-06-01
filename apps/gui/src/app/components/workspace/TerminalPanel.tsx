@@ -124,7 +124,7 @@ export const TerminalPanel = memo(function TerminalPanel({
       {...getFeatureStatusDataAttributes(statusId)}
     >
       <div className="flex h-11 items-center justify-between gap-3 border-b border-[rgba(169,178,215,0.08)] px-3">
-        <div className="flex min-w-0 items-center gap-2 text-[13px] text-[color:var(--text)]">
+        <div className="flex min-w-0 items-center gap-2 text-[14px] text-[color:var(--text)]">
           <SquareTerminal size={15} className="shrink-0 text-[color:var(--muted)]" />
           <span className="truncate font-medium">Terminal</span>
         </div>

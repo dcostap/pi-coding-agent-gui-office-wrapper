@@ -159,8 +159,8 @@ export function SidebarInboxSection({
           </div>
         </div>
       ) : (
-        <EmptyStateCard className="grid gap-1.5 px-3 py-4 text-center text-[12.5px] text-[color:var(--muted)]">
-          <div className="text-[13px] text-[color:var(--text)]">No inbox items</div>
+        <EmptyStateCard className="grid gap-1.5 px-3 py-4 text-center text-[13.5px] text-[color:var(--muted)]">
+          <div className="text-[14px] text-[color:var(--text)]">No inbox items</div>
           <div>
             {showUnreadOnly
               ? "No unread threads right now."

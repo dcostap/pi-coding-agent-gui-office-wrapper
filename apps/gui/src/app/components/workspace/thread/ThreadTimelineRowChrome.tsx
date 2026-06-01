@@ -34,7 +34,7 @@ export function FoldedTimelineRow({
     >
       <div className="flex min-w-0 items-center gap-2">
         <div
-          className={`min-w-0 flex-1 text-[13px] font-medium leading-[1.4] ${mutedLabel ? "text-[color:var(--muted-2)]/90" : "text-[color:var(--text)]/92"} ${italicLabel ? "italic" : ""} ${singleLine || secondary || trailing ? clampOneLineClass : clampThreeLinesClass}`}
+          className={`min-w-0 flex-1 text-[14px] font-medium leading-[1.4] ${mutedLabel ? "text-[color:var(--muted-2)]/90" : "text-[color:var(--text)]/92"} ${italicLabel ? "italic" : ""} ${singleLine || secondary || trailing ? clampOneLineClass : clampThreeLinesClass}`}
         >
           {label}
         </div>
@@ -42,7 +42,7 @@ export function FoldedTimelineRow({
       </div>
       {secondary ? (
         <div
-          className={`min-w-0 text-[12px] leading-[1.4] text-[color:var(--muted-2)]/90 ${clampTwoLinesClass}`}
+          className={`min-w-0 text-[13px] leading-[1.4] text-[color:var(--muted-2)]/90 ${clampTwoLinesClass}`}
         >
           {secondary}
         </div>

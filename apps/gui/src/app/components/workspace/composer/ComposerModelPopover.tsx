@@ -42,12 +42,12 @@ export function ComposerModelPopover({
       id="composer-model-menu"
       data-open={open ? "true" : "false"}
       className={cn(
-        "motion-popover absolute bottom-[calc(100%+8px)] left-0 z-[60] grid w-64 max-w-[calc(100vw-2rem)] origin-bottom-left gap-2 overflow-visible rounded-2xl border-[color:var(--border-strong)] p-2 text-[12px] shadow-[0_18px_40px_rgba(0,0,0,0.28)]",
+        "motion-popover absolute bottom-[calc(100%+8px)] left-0 z-[60] grid w-64 max-w-[calc(100vw-2rem)] origin-bottom-left gap-2 overflow-visible rounded-2xl border-[color:var(--border-strong)] p-2 text-[13px] shadow-[0_18px_40px_rgba(0,0,0,0.28)]",
         popoverPanelClass,
       )}
     >
       <div className="grid gap-1 overflow-hidden">
-        <div className="px-1.5 text-[11px] font-medium text-[color:var(--muted)]">Modelo</div>
+        <div className="px-1.5 text-[12px] font-medium text-[color:var(--muted)]">Modelo</div>
         <div className="grid max-h-64 gap-1 overflow-y-auto pr-0.5">
           {availableModels.map((model) => {
             const selected = currentModel?.provider === model.provider && currentModel.id === model.id;
@@ -63,10 +63,10 @@ export function ComposerModelPopover({
                 onClick={() => onSelectModel(model)}
               >
                 <span className="grid min-w-0 gap-1 leading-none">
-                  <span className="block truncate text-[12.5px] font-semibold leading-[1.15] text-[color:var(--text)]">
+                  <span className="block truncate text-[13.5px] font-semibold leading-[1.15] text-[color:var(--text)]">
                     {model.name}
                   </span>
-                  <span className="block truncate text-[11px] leading-[1.15] text-[color:var(--muted-2)]">
+                  <span className="block truncate text-[12px] leading-[1.15] text-[color:var(--muted-2)]">
                     {getModelProviderLabel(model)}
                   </span>
                 </span>
@@ -90,8 +90,8 @@ export function ComposerModelPopover({
           )}
         >
           <span className="min-w-0">
-            <span className="block truncate text-[12px] text-[color:var(--text)]">Razonamiento</span>
-            <span className="block truncate text-[10.5px] text-[color:var(--muted)]">
+            <span className="block truncate text-[13px] text-[color:var(--text)]">Razonamiento</span>
+            <span className="block truncate text-[11.5px] text-[color:var(--muted)]">
               {thinkingLevelLabels[currentThinkingLevel]}
             </span>
           </span>
@@ -100,11 +100,11 @@ export function ComposerModelPopover({
 
         <SurfacePanel
           className={cn(
-            "reasoning-submenu pointer-events-none absolute bottom-0 left-[calc(100%+8px)] z-[70] grid w-44 origin-bottom-left gap-1 rounded-2xl border-[color:var(--border-strong)] p-2 text-[12px] opacity-0 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-none group-hover/reasoning:pointer-events-auto group-hover/reasoning:opacity-100 group-focus-within/reasoning:pointer-events-auto group-focus-within/reasoning:opacity-100",
+            "reasoning-submenu pointer-events-none absolute bottom-0 left-[calc(100%+8px)] z-[70] grid w-44 origin-bottom-left gap-1 rounded-2xl border-[color:var(--border-strong)] p-2 text-[13px] opacity-0 shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-none group-hover/reasoning:pointer-events-auto group-hover/reasoning:opacity-100 group-focus-within/reasoning:pointer-events-auto group-focus-within/reasoning:opacity-100",
           )}
           style={{ backgroundColor: "rgb(24, 24, 24)" }}
         >
-            <div className="px-1.5 pb-1 text-[11px] font-medium text-[color:var(--muted)]">
+            <div className="px-1.5 pb-1 text-[12px] font-medium text-[color:var(--muted)]">
               Razonamiento
             </div>
             {availableThinkingLevels.map((level) => {
@@ -122,7 +122,7 @@ export function ComposerModelPopover({
                     onSelectThinkingLevel(level);
                   }}
                 >
-                  <span className="truncate text-[12px] text-[color:var(--text)]">
+                  <span className="truncate text-[13px] text-[color:var(--text)]">
                     {thinkingLevelLabels[level]}
                   </span>
                   <span className="inline-flex justify-end text-[color:var(--text)]">

@@ -145,7 +145,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   border-radius: 10px;
   padding: 0 0.625rem;
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.25rem;
   transition: background-color 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
 }
@@ -195,7 +195,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
 .sidebar-coming-soon-label {
   flex-shrink: 0;
   color: var(--muted-2);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -216,7 +216,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   border-radius: 10px;
   padding: 0 0.625rem;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 15px;
   transition: background-color 150ms ease-out, color 150ms ease-out;
 }
 
@@ -264,7 +264,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   border-radius: 0.75rem;
   padding: 0.5rem 0.625rem;
   color: var(--text);
-  font-size: 14px;
+  font-size: 15px;
   text-align: left;
   transition: background-color 150ms ease-out, color 150ms ease-out, opacity 150ms ease-out;
 }
@@ -325,7 +325,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   border-radius: 7px;
   padding: 0.25rem 0.5rem;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   text-align: left;
   transition: background-color 150ms ease-out, color 150ms ease-out;
 }
@@ -384,7 +384,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   background: transparent;
   padding: 0 0.5rem;
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
   outline: none;
 }
 
@@ -424,7 +424,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
 .sidebar-inline-error {
   padding-inline: 0.25rem;
   color: #f2a7a7;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .sidebar-filter-menu {
@@ -447,7 +447,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   border-radius: 0.75rem;
   padding: 0.5rem 0.625rem;
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
   text-align: left;
   transition: background-color 150ms ease-out;
 }
@@ -495,7 +495,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   background: transparent;
   padding: 0 0.625rem;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   transition: background-color 150ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out, color 150ms ease-out;
 }
 
@@ -527,7 +527,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   background: transparent;
   padding: 0;
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
   outline: none;
 }
 
@@ -648,7 +648,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   border-radius: 0.75rem;
   padding-block: 0.25rem;
   color: var(--text);
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 500;
   line-height: 1.25rem;
 }
@@ -673,7 +673,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   border-radius: 0.75rem;
   padding-block: 0.25rem;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.25rem;
   text-align: left;
   transition: color 150ms ease-out;
@@ -692,7 +692,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text);
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 500;
   opacity: 0.92;
 }
@@ -734,7 +734,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   gap: 0.5rem;
   padding: 1px 0.625rem;
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
   line-height: 1.25rem;
 }
 
@@ -917,7 +917,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   border-radius: 0.375rem;
   padding-inline: 0.375rem;
   color: #ffd1d1;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   transition: background-color 150ms ease-out;
 }
@@ -967,7 +967,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   align-items: center;
   gap: 0.375rem;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   line-height: 1rem;
 }
@@ -982,7 +982,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
 .sidebar-inbox-title {
   overflow: hidden;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.2rem;
   text-overflow: ellipsis;
   transition: color 150ms ease-out;
@@ -1003,7 +1003,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   display: -webkit-box;
   overflow: hidden;
   color: var(--muted-2);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.2rem;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

@@ -61,7 +61,7 @@ export function ComposerFilePickerAttachmentsPanel({
           attachments.map((attachment) => (
             <div
               key={attachment.path}
-              className="flex h-5 items-center gap-1 rounded-sm border border-transparent bg-transparent px-1.5 text-[10.5px] text-[color:var(--text)] transition-colors hover:border-white/10 hover:bg-white/[0.04]"
+              className="flex h-5 items-center gap-1 rounded-sm border border-transparent bg-transparent px-1.5 text-[11.5px] text-[color:var(--text)] transition-colors hover:border-white/10 hover:bg-white/[0.04]"
               title={attachment.path}
             >
               <button
@@ -88,7 +88,7 @@ export function ComposerFilePickerAttachmentsPanel({
         ) : (
           <div
             className={cn(
-              "grid min-h-24 place-items-center rounded-xl border border-dashed border-transparent px-3 py-4 text-center text-[12px] text-[color:var(--muted)] transition-colors",
+              "grid min-h-24 place-items-center rounded-xl border border-dashed border-transparent px-3 py-4 text-center text-[13px] text-[color:var(--muted)] transition-colors",
               dropActive &&
                 "border-white/10 bg-white/[0.05] text-[color:var(--text)]",
             )}

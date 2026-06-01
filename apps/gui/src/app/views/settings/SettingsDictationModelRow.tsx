@@ -26,7 +26,7 @@ function ModelActionButton({
       onClick={onClick}
       className={cn(
         composerTextActionButtonClass,
-        "min-h-7 gap-1 rounded-lg px-2.5 text-[11px]",
+        "min-h-7 gap-1 rounded-lg px-2.5 text-[12px]",
         primary && "border-[rgba(169,178,215,0.22)] bg-[rgba(255,255,255,0.1)]",
       )}
     >
@@ -59,25 +59,25 @@ export function SettingsDictationModelRow({
   return (
     <div className={settingsListRowClass}>
       <div className="grid gap-0.5">
-        <div className="flex items-center gap-2 text-[13px] text-[color:var(--text)]">
+        <div className="flex items-center gap-2 text-[14px] text-[color:var(--text)]">
           <span>{model.name}</span>
-          <span className="rounded-full border border-[color:var(--border)] px-2 py-0.5 text-[10.5px] text-[color:var(--muted)]">
+          <span className="rounded-full border border-[color:var(--border)] px-2 py-0.5 text-[11.5px] text-[color:var(--muted)]">
             {model.downloadSizeLabel}
           </span>
           {model.selected ? (
-            <span className="rounded-full border border-[rgba(183,186,245,0.24)] bg-[rgba(183,186,245,0.08)] px-2 py-0.5 text-[10.5px] text-[color:var(--text)]">
+            <span className="rounded-full border border-[rgba(183,186,245,0.24)] bg-[rgba(183,186,245,0.08)] px-2 py-0.5 text-[11.5px] text-[color:var(--text)]">
               Selected
             </span>
           ) : null}
         </div>
-        <div className="text-[12px] text-[color:var(--muted)]">{model.description}</div>
+        <div className="text-[13px] text-[color:var(--muted)]">{model.description}</div>
       </div>
 
       <div className="flex items-center gap-2">
         {model.installed ? (
           <>
             {model.selected ? (
-              <div className="inline-flex min-h-7 items-center gap-1 rounded-full border border-[rgba(183,186,245,0.24)] bg-[rgba(183,186,245,0.08)] px-2.5 text-[11px] text-[color:var(--text)]">
+              <div className="inline-flex min-h-7 items-center gap-1 rounded-full border border-[rgba(183,186,245,0.24)] bg-[rgba(183,186,245,0.08)] px-2.5 text-[12px] text-[color:var(--text)]">
                 <Check size={11} />
                 <span>In use</span>
               </div>

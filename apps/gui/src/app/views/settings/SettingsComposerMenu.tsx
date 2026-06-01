@@ -52,7 +52,7 @@ export function SettingsComposerMenu({
           <span className="min-w-0">
             <span className="block truncate">{item.label}</span>
             {item.description ? (
-              <span className="block truncate text-[11px] text-[color:var(--muted)]">
+              <span className="block truncate text-[12px] text-[color:var(--muted)]">
                 {item.description}
               </span>
             ) : null}

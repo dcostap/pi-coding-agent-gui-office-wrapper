@@ -45,18 +45,18 @@ export function ConfirmPopover({
       data-open="true"
     >
       {message ? (
-        <span className="px-1.5 text-[10.5px] text-[color:var(--muted)]">{message}</span>
+        <span className="px-1.5 text-[11.5px] text-[color:var(--muted)]">{message}</span>
       ) : null}
       <button
         type="button"
-        className="rounded-md px-1.5 py-0.5 text-[10.5px] font-medium text-[#ffb4b4] transition-colors hover:bg-[rgba(255,120,120,0.14)]"
+        className="rounded-md px-1.5 py-0.5 text-[11.5px] font-medium text-[#ffb4b4] transition-colors hover:bg-[rgba(255,120,120,0.14)]"
         onClick={() => void onConfirm()}
       >
         {confirmLabel}
       </button>
       <button
         type="button"
-        className="rounded-md px-1.5 py-0.5 text-[10.5px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)]"
+        className="rounded-md px-1.5 py-0.5 text-[11.5px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)]"
         onClick={onClose}
       >
         {cancelLabel}

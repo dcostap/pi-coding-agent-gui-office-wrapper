@@ -204,7 +204,7 @@ function AppTitleBar({
           {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
         </button>
       </Tooltip>
-      <div className="ml-2 select-none text-[13px] font-medium tracking-[0.01em] text-[#9a9a9a]">
+      <div className="ml-2 select-none text-[14px] font-medium tracking-[0.01em] text-[#9a9a9a]">
         Castrosua IA
       </div>
       <div className="min-w-0 flex-1" />

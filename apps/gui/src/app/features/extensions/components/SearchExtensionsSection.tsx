@@ -108,11 +108,11 @@ export function SearchExtensionsSection({
           </div>
 
           {catalogLoading ? (
-            <div className="rounded-xl border border-[color:var(--border)] px-3 py-4 text-[12px] text-[color:var(--muted)]">
+            <div className="rounded-xl border border-[color:var(--border)] px-3 py-4 text-[13px] text-[color:var(--muted)]">
               Loading packages…
             </div>
           ) : catalogError ? (
-            <div className="rounded-xl border border-[color:var(--border)] px-3 py-4 text-[12px] text-[#f2a7a7]">
+            <div className="rounded-xl border border-[color:var(--border)] px-3 py-4 text-[13px] text-[#f2a7a7]">
               {catalogError}
             </div>
           ) : catalogItems.length > 0 ? (
@@ -135,7 +135,7 @@ export function SearchExtensionsSection({
           {hasNextCatalogPage ? (
             <div className="flex justify-center pt-1">
               <TextButton
-                className="rounded-full border border-[color:var(--border)] px-4 py-2 text-[12.5px] text-[color:var(--muted)] hover:text-[color:var(--text)]"
+                className="rounded-full border border-[color:var(--border)] px-4 py-2 text-[13.5px] text-[color:var(--muted)] hover:text-[color:var(--text)]"
                 onClick={onLoadMore}
                 disabled={isFetchingNextCatalogPage}
               >

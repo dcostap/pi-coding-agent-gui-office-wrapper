@@ -75,7 +75,7 @@ function CommitOption({
     <button
       type="button"
       className={cn(
-        "grid min-h-11 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)]",
+        "grid min-h-11 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[13px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)]",
         selected && "bg-[rgba(255,255,255,0.06)] text-[color:var(--text)]",
       )}
       onClick={onSelect}
@@ -86,10 +86,10 @@ function CommitOption({
         {selected ? <Check size={14} /> : null}
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-[12.5px] text-[color:var(--text)]">
+        <span className="block truncate text-[13.5px] text-[color:var(--text)]">
           {commit.subject || "(no subject)"}
         </span>
-        <span className="block truncate text-[11px] text-[color:var(--muted)]">
+        <span className="block truncate text-[12px] text-[color:var(--muted)]">
           {commit.shortSha} · {commit.authorName}
         </span>
       </span>
@@ -110,7 +110,7 @@ function BaselineOption({
     <button
       type="button"
       className={cn(
-        "grid min-h-9 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[13px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)]",
+        "grid min-h-9 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[14px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)]",
         selected && "bg-[rgba(255,255,255,0.06)] text-[color:var(--text)]",
       )}
       onClick={onSelect}
@@ -306,7 +306,7 @@ export function ComposerDiffBaselineSelector({
               )}
               style={{ right: `${panelPosition.right}px`, bottom: `${panelPosition.bottom}px` }}
             >
-              <div className="px-2 pt-1 text-[11px] uppercase tracking-[0.08em] text-[color:var(--muted)]">
+              <div className="px-2 pt-1 text-[12px] uppercase tracking-[0.08em] text-[color:var(--muted)]">
                 Changes since
               </div>
 
@@ -324,7 +324,7 @@ export function ComposerDiffBaselineSelector({
                     />
                   ))
                 ) : (
-                  <div className="px-2.5 py-3 text-[12px] text-[color:var(--muted)]">
+                  <div className="px-2.5 py-3 text-[13px] text-[color:var(--muted)]">
                     {commitsQuery.isLoading ? "Loading commits…" : "No commits found."}
                   </div>
                 )}

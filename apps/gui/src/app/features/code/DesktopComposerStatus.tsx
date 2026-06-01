@@ -14,7 +14,7 @@ type DesktopComposerStatusProps = {
 };
 
 const statusLineClass =
-  "flex min-w-0 flex-row-reverse items-center gap-1.5 truncate text-right text-[11px] leading-4 text-[color:var(--muted)]";
+  "flex min-w-0 flex-row-reverse items-center gap-1.5 truncate text-right text-[12px] leading-4 text-[color:var(--muted)]";
 
 const iconClass = "shrink-0 text-[rgba(169,178,215,0.58)]";
 

@@ -70,7 +70,7 @@ export function CatalogItemRow({
               onClick={() => void openExternalUrl(externalUrl)}
               aria-label={`Open ${item.name}`}
             >
-              <span className="truncate text-[13px] leading-4 text-[color:var(--text)] transition-colors duration-150 ease-out group-hover:text-[color:var(--accent)]">
+              <span className="truncate text-[14px] leading-4 text-[color:var(--text)] transition-colors duration-150 ease-out group-hover:text-[color:var(--accent)]">
                 {item.name}
               </span>
               <ArrowUpRight
@@ -80,22 +80,22 @@ export function CatalogItemRow({
             </button>
           </Tooltip>
         ) : (
-          <span className="truncate text-[13px] leading-4 text-[color:var(--text)]">
+          <span className="truncate text-[14px] leading-4 text-[color:var(--text)]">
             {item.name}
           </span>
         )}
       </div>
-      <div className="min-w-0 truncate text-[12px] leading-4 text-[color:var(--muted)]">
+      <div className="min-w-0 truncate text-[13px] leading-4 text-[color:var(--muted)]">
         {item.description || item.source}
       </div>
-      <span className="shrink-0 whitespace-nowrap text-[11px] leading-4 text-[color:var(--muted)]">
+      <span className="shrink-0 whitespace-nowrap text-[12px] leading-4 text-[color:var(--muted)]">
         {formatDownloads(item.monthlyDownloads)}
       </span>
-      <span className="shrink-0 whitespace-nowrap text-[11px] leading-4 text-[color:var(--muted)]">
+      <span className="shrink-0 whitespace-nowrap text-[12px] leading-4 text-[color:var(--muted)]">
         v{item.version}
       </span>
       {installed ? (
-        <span className="shrink-0 whitespace-nowrap text-[11px] leading-4 text-[color:var(--muted)]">
+        <span className="shrink-0 whitespace-nowrap text-[12px] leading-4 text-[color:var(--muted)]">
           Installed
         </span>
       ) : null}

@@ -35,7 +35,7 @@ export function SegmentedToggle<T extends string>({
           className={cn(
             segmentedControlOptionClass,
             "cursor-pointer has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[color:var(--accent)]",
-            compact && "px-2.5 py-1 text-[11.5px] leading-4",
+            compact && "px-2.5 py-1 text-[12.5px] leading-4",
             value === option.value
               ? "bg-[color:var(--brand-secondary-bg)] font-medium text-[color:var(--text)] shadow-[inset_0_0_0_1px_var(--accent-border)]"
               : "text-[color:var(--muted)] hover:text-[color:var(--text)]",

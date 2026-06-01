@@ -31,7 +31,7 @@ export function LandingView({ className }: LandingViewProps) {
           draggable={false}
         />
 
-        <p className="text-[14px] font-medium tracking-[0.08em] text-[color:var(--muted)]">
+        <p className="text-[15px] font-medium tracking-[0.08em] text-[color:var(--muted)]">
           v{OFFICE_AGENT_VERSION}
         </p>
       </div>

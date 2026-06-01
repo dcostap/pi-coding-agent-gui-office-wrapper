@@ -95,7 +95,7 @@ export function ComposerPromptInputPanel({
                       return (
                         <div key={`${command.source}:${command.name}`}>
                           {showGroup ? (
-                            <div className="px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-2)]">
+                            <div className="px-2 pt-1.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-2)]">
                               {groupLabel}
                             </div>
                           ) : null}
@@ -115,11 +115,11 @@ export function ComposerPromptInputPanel({
                             onMouseDown={(event) => event.preventDefault()}
                             onClick={() => slashCommands.selectCommand(command)}
                           >
-                            <span className="shrink-0 font-mono text-[12px] text-[color:var(--text)]">
+                            <span className="shrink-0 font-mono text-[13px] text-[color:var(--text)]">
                               /{command.name}
                             </span>
                             {command.description ? (
-                              <span className="min-w-0 truncate text-[12px]">
+                              <span className="min-w-0 truncate text-[13px]">
                                 {command.description}
                               </span>
                             ) : null}
@@ -128,7 +128,7 @@ export function ComposerPromptInputPanel({
                       );
                     })
                   ) : (
-                    <div className="px-2 py-2 text-[12px] text-[color:var(--muted)]">
+                    <div className="px-2 py-2 text-[13px] text-[color:var(--muted)]">
                       {slashCommands.loading ? "Loading commands…" : "No matching commands"}
                     </div>
                   )}
@@ -207,7 +207,7 @@ export function ComposerPromptInputPanel({
 
           <div className="inline-flex h-8 items-center justify-end gap-2">
             {extensionRunning ? (
-              <div className="inline-flex h-6 items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[color:var(--panel-2)] px-2.5 text-[12px] text-[color:var(--muted)]">
+              <div className="inline-flex h-6 items-center gap-1.5 rounded-full border border-[color:var(--border)] bg-[color:var(--panel-2)] px-2.5 text-[13px] text-[color:var(--muted)]">
                 <Loader2 size={12} className="animate-spin" />
                 <span>Pi extension running</span>
               </div>

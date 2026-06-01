@@ -72,10 +72,10 @@ export function SettingsModelSection({
           <div className="grid min-w-0 grid-cols-[16px_minmax(0,1fr)] items-center gap-3">
             <GitCommitHorizontal size={16} className="text-[color:var(--muted)]" />
             <div className="min-w-0">
-              <div className="truncate text-[13px] text-[color:var(--muted)]">
+              <div className="truncate text-[14px] text-[color:var(--muted)]">
                 Git commit message model
               </div>
-              <div className="truncate text-[14px] text-[color:var(--text)]">
+              <div className="truncate text-[15px] text-[color:var(--text)]">
                 {gitCommitCurrentValue}
               </div>
             </div>
@@ -113,10 +113,10 @@ export function SettingsModelSection({
           <div className="grid min-w-0 grid-cols-[16px_minmax(0,1fr)] items-center gap-3">
             <FilePenLine size={16} className="text-[color:var(--muted)]" />
             <div className="min-w-0">
-              <div className="truncate text-[13px] text-[color:var(--muted)]">
+              <div className="truncate text-[14px] text-[color:var(--muted)]">
                 Skill creator model
               </div>
-              <div className="truncate text-[14px] text-[color:var(--text)]">
+              <div className="truncate text-[15px] text-[color:var(--text)]">
                 {skillCreatorCurrentValue}
               </div>
             </div>

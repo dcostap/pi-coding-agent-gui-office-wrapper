@@ -30,7 +30,7 @@ export function SettingRow({ setting }: { setting: SettingDescriptor }) {
       className="grid min-h-10 min-w-0 grid-cols-1 items-center gap-2 border-b border-[rgba(169,178,215,0.09)] px-1 py-1.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,auto)] sm:gap-5"
       data-setting-id={setting.id}
     >
-      <div className="min-w-0 truncate text-[13px] text-[color:var(--text)]">{setting.title}</div>
+      <div className="min-w-0 truncate text-[14px] text-[color:var(--text)]">{setting.title}</div>
       <div className="min-w-0 max-w-full justify-self-stretch sm:justify-self-end">
         {setting.render()}
       </div>
@@ -73,7 +73,7 @@ export function InlineSelect({
     );
   }, [normalizedSearch, options]);
   const compactOptionClass =
-    "flex min-h-0 w-full items-center rounded-md border border-transparent px-2 py-1 text-left text-[11.5px] leading-4 text-[color:var(--text)] transition-colors hover:bg-[rgba(255,255,255,0.045)]";
+    "flex min-h-0 w-full items-center rounded-md border border-transparent px-2 py-1 text-left text-[12.5px] leading-4 text-[color:var(--text)] transition-colors hover:bg-[rgba(255,255,255,0.045)]";
 
   useEffect(() => {
     if (!open) {
@@ -88,7 +88,7 @@ export function InlineSelect({
 
   return (
     <span
-      className={cn("relative block max-w-full text-[13px]", className, "w-52")}
+      className={cn("relative block max-w-full text-[14px]", className, "w-52")}
       data-inline-select-root
     >
       <button
@@ -108,7 +108,7 @@ export function InlineSelect({
         aria-expanded={open}
         aria-controls={`${id}-menu`}
       >
-        <span className="min-w-0 truncate text-[13px] text-[color:var(--text)]">
+        <span className="min-w-0 truncate text-[14px] text-[color:var(--text)]">
           {selectedOption?.label ?? "Select"}
         </span>
       </button>
@@ -140,7 +140,7 @@ export function InlineSelect({
                 ref={searchInputRef}
                 value={search}
                 onChange={(event) => setSearch(event.currentTarget.value)}
-                className="h-8 w-full rounded-lg border border-[rgba(169,178,215,0.14)] bg-[rgba(255,255,255,0.055)] px-2.5 pl-8 text-[13px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
+                className="h-8 w-full rounded-lg border border-[rgba(169,178,215,0.14)] bg-[rgba(255,255,255,0.055)] px-2.5 pl-8 text-[14px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
                 placeholder={`Search ${options.length} options…`}
                 aria-label="Search options"
               />
@@ -165,9 +165,9 @@ export function InlineSelect({
                   }}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] leading-4">{option.label}</span>
+                    <span className="block truncate text-[14px] leading-4">{option.label}</span>
                     {option.description ? (
-                      <span className="block truncate text-[11px] leading-3 text-[color:var(--muted)]">
+                      <span className="block truncate text-[12px] leading-3 text-[color:var(--muted)]">
                         {option.description}
                       </span>
                     ) : null}
@@ -176,7 +176,7 @@ export function InlineSelect({
               ))}
             </div>
           ) : (
-            <div className="px-2 py-3 text-[12px] text-[color:var(--muted)]">No matches</div>
+            <div className="px-2 py-3 text-[13px] text-[color:var(--muted)]">No matches</div>
           )}
         </div>
       ) : null}

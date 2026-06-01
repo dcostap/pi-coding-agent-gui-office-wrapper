@@ -145,10 +145,10 @@ export function DiffChangedFilesTree({
   return (
     <div className="flex h-full min-h-0 w-full flex-col border-l border-[color:var(--border)] bg-[color:var(--workspace)]">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[color:var(--border)] px-2.5">
-        <div className="min-w-0 flex-1 truncate pl-2.5 text-[12px] font-medium text-[color:var(--text)]">
+        <div className="min-w-0 flex-1 truncate pl-2.5 text-[13px] font-medium text-[color:var(--text)]">
           Cambios
         </div>
-        <div className="shrink-0 text-[11px] font-medium tabular-nums text-[color:var(--muted)]">
+        <div className="shrink-0 text-[12px] font-medium tabular-nums text-[color:var(--muted)]">
           {statusLabel}
         </div>
         {hasSelection ? (
@@ -165,7 +165,7 @@ export function DiffChangedFilesTree({
       </div>
       <div className="flex min-h-0 flex-1 flex-col bg-[color:var(--workspace)] px-2.5 pt-2 pb-2">
         <label
-          className="flex min-h-8 shrink-0 items-center gap-2 rounded-[10px] border border-transparent bg-transparent px-2.5 text-[13px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)] focus-within:bg-[rgba(255,255,255,0.05)] focus-within:text-[color:var(--text)]"
+          className="flex min-h-8 shrink-0 items-center gap-2 rounded-[10px] border border-transparent bg-transparent px-2.5 text-[14px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)] focus-within:bg-[rgba(255,255,255,0.05)] focus-within:text-[color:var(--text)]"
           data-active={search.value.trim().length > 0 ? "true" : "false"}
         >
           <Search size={14} className="shrink-0 text-[color:var(--muted)]" />
@@ -173,7 +173,7 @@ export function DiffChangedFilesTree({
             value={search.value}
             onChange={(event) => search.setValue(event.target.value)}
             placeholder="Buscar"
-            className="min-w-0 flex-1 bg-transparent p-0 text-[13px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
+            className="min-w-0 flex-1 bg-transparent p-0 text-[14px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
             aria-label="Buscar archivos modificados"
           />
         </label>

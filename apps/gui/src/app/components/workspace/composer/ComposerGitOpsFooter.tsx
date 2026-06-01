@@ -156,7 +156,7 @@ export function ComposerGitOpsFooter({
                         saveOriginOnce();
                       }
                     }}
-                    className="min-h-7 rounded-lg border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] px-2.5 text-[12px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted-2)]"
+                    className="min-h-7 rounded-lg border border-[color:var(--border)] bg-[rgba(255,255,255,0.03)] px-2.5 text-[13px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted-2)]"
                     placeholder="Repository URL"
                     aria-label="Repository URL"
                   />

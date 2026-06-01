@@ -186,7 +186,7 @@ export function ArchivedThreadsView({ threads, onAction }: ArchivedThreadsViewPr
 
       {visibleThreads.length > 0 ? (
         <div className="grid gap-2">
-          <div className="flex items-center justify-between rounded-2xl border border-[color:var(--border)] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-[13px] text-[color:var(--muted)]">
+          <div className="flex items-center justify-between rounded-2xl border border-[color:var(--border)] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-[14px] text-[color:var(--muted)]">
             <label className="inline-flex items-center gap-2 text-[color:var(--text)]">
               <input
                 type="checkbox"
@@ -274,8 +274,8 @@ export function ArchivedThreadsView({ threads, onAction }: ArchivedThreadsViewPr
               />
 
               <div className="min-w-0">
-                <div className="truncate text-[14px] text-[color:var(--text)]">{thread.title}</div>
-                <div className="mt-1 flex items-center gap-2 text-[12px] text-[color:var(--muted)]">
+                <div className="truncate text-[15px] text-[color:var(--text)]">{thread.title}</div>
+                <div className="mt-1 flex items-center gap-2 text-[13px] text-[color:var(--muted)]">
                   <span className="truncate">{thread.projectName}</span>
                   <span aria-hidden="true">•</span>
                   <span>{thread.age}</span>
@@ -318,9 +318,9 @@ export function ArchivedThreadsView({ threads, onAction }: ArchivedThreadsViewPr
           ))}
         </div>
       ) : (
-        <div className="grid min-h-60 place-items-center px-6 text-center text-[13px] text-[color:var(--muted)]">
+        <div className="grid min-h-60 place-items-center px-6 text-center text-[14px] text-[color:var(--muted)]">
           <div className="grid gap-2">
-            <div className="text-[15px] text-[color:var(--text)]">No archived threads</div>
+            <div className="text-[16px] text-[color:var(--text)]">No archived threads</div>
             <p className="m-0 max-w-[448px]">
               Archive a thread from the sidebar and it will show up here for restore or permanent
               deletion.

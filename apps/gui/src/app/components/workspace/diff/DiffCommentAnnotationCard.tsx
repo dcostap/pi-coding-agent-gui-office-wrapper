@@ -29,11 +29,11 @@ export function DiffCommentAnnotationCard({
   if (metadata.kind === "draft") {
     return (
       <div ref={draftCardRef} className={commentCardClass}>
-        <div className="mb-2 text-[11px] font-medium text-[color:var(--muted)]">
+        <div className="mb-2 text-[12px] font-medium text-[color:var(--muted)]">
           Add comment · {draftComment ? describeCommentTarget(draftComment) : "Line comment"}
         </div>
         <textarea
-          className="min-h-20 w-full resize-y rounded-lg border border-[color:var(--border)] bg-[color:var(--workspace)] px-3 py-2 text-[12px] leading-5 text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
+          className="min-h-20 w-full resize-y rounded-lg border border-[color:var(--border)] bg-[color:var(--workspace)] px-3 py-2 text-[13px] leading-5 text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
           value={draftComment?.body ?? ""}
           onChange={(event) => {
             setDraftComment((current) =>
@@ -77,7 +77,7 @@ export function DiffCommentAnnotationCard({
 
   return (
     <div data-saved-diff-comment-id={metadata.id} className={commentCardClass}>
-      <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-medium text-[color:var(--muted)]">
+      <div className="mb-1 flex items-center justify-between gap-2 text-[12px] font-medium text-[color:var(--muted)]">
         <span>Comment · {describeCommentTarget(metadata)}</span>
         <button
           type="button"
@@ -89,7 +89,7 @@ export function DiffCommentAnnotationCard({
           <X size={12} />
         </button>
       </div>
-      <p className="m-0 whitespace-pre-wrap text-[12px] leading-5 text-[color:var(--text)]">
+      <p className="m-0 whitespace-pre-wrap text-[13px] leading-5 text-[color:var(--text)]">
         {metadata.body}
       </p>
     </div>

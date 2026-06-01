@@ -9,7 +9,7 @@ export function HowcodeLogoMark({ className }: HowcodeLogoMarkProps) {
     <span
       aria-hidden="true"
       className={cn(
-        "inline-flex shrink-0 items-center justify-center text-[13px] font-semibold leading-none text-[#a9b1ea]",
+        "inline-flex shrink-0 items-center justify-center text-[14px] font-semibold leading-none text-[#a9b1ea]",
         className,
       )}
     >

@@ -109,11 +109,11 @@ export function BrowseSkillsSection({
         Search with at least 2 characters to browse installable skills.
       </EmptyStateCard>
     ) : skillsQuery.isLoading ? (
-      <div className="rounded-xl border border-[color:var(--border)] px-3 py-4 text-[12px] text-[color:var(--muted)]">
+      <div className="rounded-xl border border-[color:var(--border)] px-3 py-4 text-[13px] text-[color:var(--muted)]">
         Loading skills…
       </div>
     ) : skillsQuery.isError ? (
-      <div className="rounded-xl border border-[color:var(--border)] px-3 py-4 text-[12px] text-[#f2a7a7]">
+      <div className="rounded-xl border border-[color:var(--border)] px-3 py-4 text-[13px] text-[#f2a7a7]">
         {getActionError(skillsQuery.error)}
       </div>
     ) : catalogItems.length > 0 ? (
@@ -177,7 +177,7 @@ export function BrowseSkillsSection({
                   onClick={() => void openExternalUrl(item.url)}
                   aria-label={`Open ${item.name}`}
                 >
-                  <span className="text-[13px] leading-4 text-[color:var(--text)] transition-colors duration-150 ease-out group-hover:text-[color:var(--accent)]">
+                  <span className="text-[14px] leading-4 text-[color:var(--text)] transition-colors duration-150 ease-out group-hover:text-[color:var(--accent)]">
                     {item.name}
                   </span>
                   <ArrowUpRight
@@ -186,14 +186,14 @@ export function BrowseSkillsSection({
                   />
                 </button>
               </Tooltip>
-              <div className="min-w-0 truncate text-[12px] leading-4 text-[color:var(--muted)]">
+              <div className="min-w-0 truncate text-[13px] leading-4 text-[color:var(--muted)]">
                 {item.description || item.source}
               </div>
-              <span className="shrink-0 whitespace-nowrap text-[11px] leading-4 text-[color:var(--muted)]">
+              <span className="shrink-0 whitespace-nowrap text-[12px] leading-4 text-[color:var(--muted)]">
                 {formatInstalls(item.installs)}
               </span>
               {installed ? (
-                <span className="shrink-0 whitespace-nowrap text-[11px] leading-4 text-[color:var(--muted)]">
+                <span className="shrink-0 whitespace-nowrap text-[12px] leading-4 text-[color:var(--muted)]">
                   Installed
                 </span>
               ) : null}
@@ -213,7 +213,7 @@ export function BrowseSkillsSection({
       actions={
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 text-[12px] text-[color:var(--muted)]"
+          className="inline-flex items-center gap-1.5 text-[13px] text-[color:var(--muted)]"
           onClick={() => {
             void onAction("settings.update", {
               key: "useAgentsSkillsPaths",

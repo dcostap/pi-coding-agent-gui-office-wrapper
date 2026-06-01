@@ -14,10 +14,10 @@ import { openExternalUrl } from "./utils";
 function SkillsMetaLink() {
   return (
     <>
-      <span className="text-[12px] text-[color:var(--muted)]">via</span>
+      <span className="text-[13px] text-[color:var(--muted)]">via</span>
       <button
         type="button"
-        className="group inline-flex items-center gap-0.5 p-0 text-[12px]"
+        className="group inline-flex items-center gap-0.5 p-0 text-[13px]"
         onClick={() => void openExternalUrl("https://skills.sh")}
         aria-label="Open skills.sh"
         data-tooltip="Open skills.sh"
@@ -91,7 +91,7 @@ export function SkillsView({
       />
 
       {!controller.projectScopeAvailable ? (
-        <div className="text-[12px] text-[color:var(--muted)]">
+        <div className="text-[13px] text-[color:var(--muted)]">
           Project skills are unavailable until a project path is available.
         </div>
       ) : null}
@@ -100,7 +100,7 @@ export function SkillsView({
         {controller.actionError ?? ""}
       </output>
       {controller.actionError ? (
-        <div className="text-[12px] text-[#f2a7a7]">{controller.actionError}</div>
+        <div className="text-[13px] text-[#f2a7a7]">{controller.actionError}</div>
       ) : null}
 
       <SkillCreatorSection

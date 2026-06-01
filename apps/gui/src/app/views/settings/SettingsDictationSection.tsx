@@ -93,18 +93,18 @@ export function SettingsDictationSection({
 
       <div className={settingsListRowClass}>
         <div className="grid gap-0.5">
-          <div className="flex items-center gap-2 text-[13px] text-[color:var(--text)]">
+          <div className="flex items-center gap-2 text-[14px] text-[color:var(--text)]">
             <Mic size={14} className="text-[color:var(--muted)]" />
             <span>{statusCopy.title}</span>
           </div>
-          <div className="text-[12px] text-[color:var(--muted)]">{statusCopy.description}</div>
+          <div className="text-[13px] text-[color:var(--muted)]">{statusCopy.description}</div>
           {dictationState?.modelDirectory ? (
-            <div className="pt-1 text-[11.5px] text-[color:var(--muted)]">
+            <div className="pt-1 text-[12.5px] text-[color:var(--muted)]">
               Looking in <span className={inlineCodeClass}>{dictationState.modelDirectory}</span>
             </div>
           ) : null}
         </div>
-        <div className="rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[11.5px] text-[color:var(--muted)]">
+        <div className="rounded-full border border-[color:var(--border)] px-2.5 py-1 text-[12.5px] text-[color:var(--muted)]">
           {dictationState?.available ? "Ready" : (dictationState?.reason ?? "Pending")}
         </div>
       </div>
@@ -127,14 +127,14 @@ export function SettingsDictationSection({
       </div>
 
       {dictationInstallError ? (
-        <output className="text-[12px] text-[#f2a7a7]" aria-live="polite">
+        <output className="text-[13px] text-[#f2a7a7]" aria-live="polite">
           {dictationInstallError}
         </output>
       ) : null}
 
       {dictationDownloadLogLines.length > 0 ? (
-        <div className="grid gap-1.5 rounded-xl border border-[color:var(--border)] bg-[rgba(18,20,28,0.78)] px-3 py-2 font-mono text-[11px] text-[color:var(--muted)]">
-          <div className="text-[10.5px] uppercase tracking-[0.08em] text-[color:var(--muted)]">
+        <div className="grid gap-1.5 rounded-xl border border-[color:var(--border)] bg-[rgba(18,20,28,0.78)] px-3 py-2 font-mono text-[12px] text-[color:var(--muted)]">
+          <div className="text-[11.5px] uppercase tracking-[0.08em] text-[color:var(--muted)]">
             Temporary download log
           </div>
           <div className="grid gap-1">
@@ -147,8 +147,8 @@ export function SettingsDictationSection({
 
       <div className={settingsListRowClass}>
         <div className="grid gap-0.5">
-          <div className="text-[13px] text-[color:var(--text)]">Max dictation length</div>
-          <div className="text-[12px] text-[color:var(--muted)]">
+          <div className="text-[14px] text-[color:var(--text)]">Max dictation length</div>
+          <div className="text-[13px] text-[color:var(--muted)]">
             Longer captures use more memory before transcription. Default is{" "}
             {DEFAULT_DICTATION_MAX_DURATION_SECONDS / 60} minutes.
           </div>
@@ -171,8 +171,8 @@ export function SettingsDictationSection({
 
       <div className={settingsListRowClass}>
         <div className="grid gap-0.5">
-          <div className="text-[13px] text-[color:var(--text)]">Toggle dictation</div>
-          <div className="text-[12px] text-[color:var(--muted)]">
+          <div className="text-[14px] text-[color:var(--text)]">Toggle dictation</div>
+          <div className="text-[13px] text-[color:var(--muted)]">
             If hidden, you can still re-enable it here after dismissing the first-run prompt.
           </div>
         </div>

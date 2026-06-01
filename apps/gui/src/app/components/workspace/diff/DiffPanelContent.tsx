@@ -218,7 +218,7 @@ export function DiffPanelContent({
         <>
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {!renderablePatch ? (
-              <div className="flex h-full items-center justify-center px-3 py-2 text-center text-xs text-[color:var(--muted)]">
+              <div className="flex h-full items-center justify-center px-3 py-2 text-center text-[13px] text-[color:var(--muted)]">
                 <div className="grid max-w-[42rem] gap-1.5">
                   <p>
                     {isLoading
@@ -277,8 +277,8 @@ export function DiffPanelContent({
             ) : (
               <div className="h-full overflow-auto p-3">
                 <div className="space-y-2">
-                  <p className="text-[11px] text-[color:var(--muted)]">{renderablePatch.reason}</p>
-                  <pre className="max-h-[70vh] overflow-auto rounded-xl border border-[color:var(--border)] bg-[rgba(18,20,28,0.7)] p-3 font-mono text-[11px] leading-relaxed text-[color:var(--text)]/90">
+                  <p className="text-[12px] text-[color:var(--muted)]">{renderablePatch.reason}</p>
+                  <pre className="max-h-[70vh] overflow-auto rounded-xl border border-[color:var(--border)] bg-[rgba(18,20,28,0.7)] p-3 font-mono text-[12px] leading-relaxed text-[color:var(--text)]/90">
                     {renderablePatch.text}
                   </pre>
                 </div>

@@ -183,7 +183,7 @@ export function SettingsView({
               type="search"
               value={filter}
               onChange={(event) => setFilter(event.currentTarget.value)}
-              className="h-10 w-full min-w-0 flex-1 rounded-xl border border-[color:var(--border)] bg-[rgba(255,255,255,0.055)] px-3 py-2 pl-9 text-[13px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
+              className="h-10 w-full min-w-0 flex-1 rounded-xl border border-[color:var(--border)] bg-[rgba(255,255,255,0.055)] px-3 py-2 pl-9 text-[14px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
               placeholder="Search…"
               aria-label="Search settings"
             />
@@ -205,7 +205,7 @@ export function SettingsView({
           <button
             type="button"
             className={cn(
-              "flex h-10 items-center rounded-xl px-3 text-left text-[12px] transition-colors active:scale-[0.96]",
+              "flex h-10 items-center rounded-xl px-3 text-left text-[13px] transition-colors active:scale-[0.96]",
               activeCategory === null && !normalizedFilter
                 ? "bg-[color:var(--accent-bg)] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]"
                 : "text-[color:var(--muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]",
@@ -219,7 +219,7 @@ export function SettingsView({
               key={category.id}
               type="button"
               className={cn(
-                "flex h-10 items-center rounded-xl px-3 text-left text-[12px] transition-colors active:scale-[0.96]",
+                "flex h-10 items-center rounded-xl px-3 text-left text-[13px] transition-colors active:scale-[0.96]",
                 activeCategory === category.id && !normalizedFilter
                   ? "bg-[color:var(--accent-bg)] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]"
                   : "text-[color:var(--muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]",
@@ -241,7 +241,7 @@ export function SettingsView({
               type="search"
               value={filter}
               onChange={(event) => setFilter(event.currentTarget.value)}
-              className="h-10 w-full min-w-0 flex-1 rounded-xl border border-[color:var(--border)] bg-[rgba(255,255,255,0.055)] px-3 py-2 pl-9 text-[13px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
+              className="h-10 w-full min-w-0 flex-1 rounded-xl border border-[color:var(--border)] bg-[rgba(255,255,255,0.055)] px-3 py-2 pl-9 text-[14px] text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
               placeholder="Search…"
               aria-label="Search settings"
             />
@@ -251,7 +251,7 @@ export function SettingsView({
             <button
               type="button"
               className={cn(
-                "rounded-full border border-[color:var(--border)] px-3 py-1.5 text-[12px] transition-colors",
+                "rounded-full border border-[color:var(--border)] px-3 py-1.5 text-[13px] transition-colors",
                 activeCategory === null && "bg-[color:var(--accent-bg)] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]",
               )}
               onClick={() => setActiveCategory(null)}
@@ -263,7 +263,7 @@ export function SettingsView({
                 key={category.id}
                 type="button"
                 className={cn(
-                  "rounded-full border border-[color:var(--border)] px-3 py-1.5 text-[12px] text-[color:var(--muted)] transition-colors",
+                  "rounded-full border border-[color:var(--border)] px-3 py-1.5 text-[13px] text-[color:var(--muted)] transition-colors",
                   activeCategory === category.id &&
                     "bg-[color:var(--accent-bg)] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]",
                 )}
@@ -280,7 +280,7 @@ export function SettingsView({
             visibleGroups.map((group) => (
               <section key={group.id} className={cn(settingsSectionClass, "min-w-0 gap-1 p-2.5")}>
                 <div className="flex items-baseline justify-between gap-3 px-1 pb-1">
-                  <h2 className="text-[15px] font-semibold text-[color:var(--text)]">
+                  <h2 className="text-[16px] font-semibold text-[color:var(--text)]">
                     {group.label}
                   </h2>
                 </div>
@@ -293,8 +293,8 @@ export function SettingsView({
             ))
           ) : (
             <div className="rounded-[22px] border border-[rgba(169,178,215,0.12)] bg-[rgba(255,255,255,0.025)] p-8 text-center">
-              <div className="text-[14px] text-[color:var(--text)]">No matching settings</div>
-              <div className="mt-1 text-[12px] text-[color:var(--muted)]">
+              <div className="text-[15px] text-[color:var(--text)]">No matching settings</div>
+              <div className="mt-1 text-[13px] text-[color:var(--muted)]">
                 Try a broader term like “Pi”, “model”, “folder”, or “voice”.
               </div>
             </div>
@@ -368,16 +368,16 @@ function WindowsSandboxSetupSection() {
     <section className={cn(settingsSectionClass, "min-w-0 gap-3 p-3")}> 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[15px] font-semibold text-[color:var(--text)]">
+          <div className="flex items-center gap-2 text-[16px] font-semibold text-[color:var(--text)]">
             <ShieldCheck size={16} />
             Windows sandbox v2
           </div>
-          <p className="mt-1 text-[12px] text-[color:var(--muted)]">
+          <p className="mt-1 text-[13px] text-[color:var(--muted)]">
             Strong Windows command isolation uses the OfficeAgentSandbox account, DPAPI credentials, capability ACLs, and an elevated one-time setup.
           </p>
         </div>
         <div className={cn(
-          "rounded-full border px-3 py-1 text-[12px]",
+          "rounded-full border px-3 py-1 text-[13px]",
           status?.ready
             ? "border-emerald-400/35 bg-emerald-400/10 text-emerald-200"
             : "border-amber-400/35 bg-amber-400/10 text-amber-100",
@@ -386,7 +386,7 @@ function WindowsSandboxSetupSection() {
         </div>
       </div>
 
-      <div className="grid gap-1.5 text-[12px] text-[color:var(--muted)]">
+      <div className="grid gap-1.5 text-[13px] text-[color:var(--muted)]">
         {status?.managedRoot && <div>Managed root: <span className="text-[color:var(--text)]">{status.managedRoot}</span></div>}
         {status?.username && <div>Sandbox account: <span className="text-[color:var(--text)]">{status.username}</span></div>}
         {issues.length > 0 && (
@@ -400,15 +400,15 @@ function WindowsSandboxSetupSection() {
 
       {setupCommand && (
         <div className="grid gap-2 rounded-xl border border-[color:var(--border)] bg-[rgba(0,0,0,0.18)] p-3">
-          <div className="text-[12px] text-[color:var(--muted)]">
+          <div className="text-[13px] text-[color:var(--muted)]">
             Run this command elevated, then refresh status:
           </div>
-          <code className="max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-black/30 p-2 text-[11px] text-[color:var(--text)]">
+          <code className="max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-black/30 p-2 text-[12px] text-[color:var(--text)]">
             {setupCommand}
           </code>
           <button
             type="button"
-            className="inline-flex h-8 w-fit items-center gap-2 rounded-lg border border-[color:var(--border)] px-3 text-[12px] text-[color:var(--text)] hover:bg-[rgba(255,255,255,0.07)]"
+            className="inline-flex h-8 w-fit items-center gap-2 rounded-lg border border-[color:var(--border)] px-3 text-[13px] text-[color:var(--text)] hover:bg-[rgba(255,255,255,0.07)]"
             onClick={() => void copyTextToClipboardQuery(setupCommand)}
           >
             <Copy size={13} /> Copy command
@@ -420,7 +420,7 @@ function WindowsSandboxSetupSection() {
         <button
           type="button"
           disabled={busy}
-          className="inline-flex h-8 items-center gap-2 rounded-lg border border-[color:var(--border)] px-3 text-[12px] text-[color:var(--text)] disabled:opacity-50 hover:bg-[rgba(255,255,255,0.07)]"
+          className="inline-flex h-8 items-center gap-2 rounded-lg border border-[color:var(--border)] px-3 text-[13px] text-[color:var(--text)] disabled:opacity-50 hover:bg-[rgba(255,255,255,0.07)]"
           onClick={() => void refresh()}
         >
           <RefreshCw size={13} /> Refresh
@@ -428,7 +428,7 @@ function WindowsSandboxSetupSection() {
         <button
           type="button"
           disabled={busy}
-          className="inline-flex h-8 items-center rounded-lg border border-emerald-400/35 px-3 text-[12px] text-emerald-100 disabled:opacity-50 hover:bg-emerald-400/10"
+          className="inline-flex h-8 items-center rounded-lg border border-emerald-400/35 px-3 text-[13px] text-emerald-100 disabled:opacity-50 hover:bg-emerald-400/10"
           onClick={() => void runElevated("setup")}
         >
           Run setup as administrator
@@ -436,7 +436,7 @@ function WindowsSandboxSetupSection() {
         <button
           type="button"
           disabled={busy}
-          className="inline-flex h-8 items-center rounded-lg border border-[color:var(--border)] px-3 text-[12px] text-[color:var(--text)] disabled:opacity-50 hover:bg-[rgba(255,255,255,0.07)]"
+          className="inline-flex h-8 items-center rounded-lg border border-[color:var(--border)] px-3 text-[13px] text-[color:var(--text)] disabled:opacity-50 hover:bg-[rgba(255,255,255,0.07)]"
           onClick={() => void prepare("setup")}
         >
           Copy setup command
@@ -444,7 +444,7 @@ function WindowsSandboxSetupSection() {
         <button
           type="button"
           disabled={busy}
-          className="inline-flex h-8 items-center rounded-lg border border-rose-400/35 px-3 text-[12px] text-rose-100 disabled:opacity-50 hover:bg-rose-400/10"
+          className="inline-flex h-8 items-center rounded-lg border border-rose-400/35 px-3 text-[13px] text-rose-100 disabled:opacity-50 hover:bg-rose-400/10"
           onClick={() => void runElevated("reset")}
         >
           Run reset as administrator
@@ -452,7 +452,7 @@ function WindowsSandboxSetupSection() {
         <button
           type="button"
           disabled={busy}
-          className="inline-flex h-8 items-center rounded-lg border border-rose-400/35 px-3 text-[12px] text-rose-100 disabled:opacity-50 hover:bg-rose-400/10"
+          className="inline-flex h-8 items-center rounded-lg border border-rose-400/35 px-3 text-[13px] text-rose-100 disabled:opacity-50 hover:bg-rose-400/10"
           onClick={() => void prepare("reset")}
         >
           Copy reset command

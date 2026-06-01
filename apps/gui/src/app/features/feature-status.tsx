@@ -19,7 +19,7 @@ export const featureStatusById = {
 export type FeatureStatusId = keyof typeof featureStatusById;
 
 const featureStatusBadgeBaseClass =
-  "inline-flex items-center rounded-full border px-1.5 py-[1px] text-[10px] font-medium uppercase tracking-[0.08em]";
+  "inline-flex items-center rounded-full border px-1.5 py-[1px] text-[11px] font-medium uppercase tracking-[0.08em]";
 
 export function getFeatureStatusMeta(statusId: FeatureStatusId) {
   return featureStatusById[statusId];

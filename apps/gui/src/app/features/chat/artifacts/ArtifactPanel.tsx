@@ -76,7 +76,7 @@ export function ArtifactPanel({
       className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border-l border-[rgba(169,178,215,0.08)] bg-[color:var(--workspace)]"
     >
       <div className="flex h-11 items-center justify-between gap-3 border-b border-[rgba(169,178,215,0.08)] px-3">
-        <div className="flex min-w-0 items-center gap-2 text-[13px] text-[color:var(--text)]">
+        <div className="flex min-w-0 items-center gap-2 text-[14px] text-[color:var(--text)]">
           <FileCode2 size={15} className="shrink-0 text-[color:var(--muted)]" />
           {selectedArtifact ? (
             <span className="truncate font-medium">
@@ -87,7 +87,7 @@ export function ArtifactPanel({
         <div className="flex items-center gap-1">
           {selectedArtifact ? (
             <select
-              className="h-7 rounded-md border border-[rgba(169,178,215,0.08)] bg-[rgba(255,255,255,0.03)] px-2 text-[11px] text-[color:var(--muted)] outline-none transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-[color:var(--text)]"
+              className="h-7 rounded-md border border-[rgba(169,178,215,0.08)] bg-[rgba(255,255,255,0.03)] px-2 text-[12px] text-[color:var(--muted)] outline-none transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-[color:var(--text)]"
               value={selectedVersion}
               onChange={(event) => {
                 const value = event.target.value;
@@ -185,7 +185,7 @@ export function ArtifactPanel({
 
       <div className="relative min-h-0 flex-1 overflow-hidden bg-[color:var(--sidebar)]">
         {artifacts.length === 0 ? (
-          <div className="grid h-full place-items-center px-6 text-center text-[12px] text-[color:var(--muted)]">
+          <div className="grid h-full place-items-center px-6 text-center text-[13px] text-[color:var(--muted)]">
             No artifacts yet.
           </div>
         ) : null}
@@ -198,7 +198,7 @@ export function ArtifactPanel({
                   key={artifact.slug}
                   type="button"
                   className={cn(
-                    "rounded-lg px-3 py-2.5 text-left text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)]",
+                    "rounded-lg px-3 py-2.5 text-left text-[13px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[color:var(--text)]",
                     artifact.slug === selectedArtifact?.slug &&
                       "bg-[rgba(183,186,245,0.1)] text-[color:var(--text)]",
                   )}
@@ -208,7 +208,7 @@ export function ArtifactPanel({
                   }}
                 >
                   <div className="truncate font-medium">{formatArtifactSlug(artifact.slug)}</div>
-                  <div className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
+                  <div className="mt-0.5 text-[11px] uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
                     {artifact.kind} · v{artifact.version}
                   </div>
                 </button>
@@ -219,7 +219,7 @@ export function ArtifactPanel({
 
         {view === "code" ? (
           <textarea
-            className="h-full w-full resize-none overflow-auto bg-[#111521] p-3 font-mono text-[12px] leading-5 text-[color:var(--text)] outline-none"
+            className="h-full w-full resize-none overflow-auto bg-[#111521] p-3 font-mono text-[13px] leading-5 text-[color:var(--text)] outline-none"
             value={draft}
             spellCheck={false}
             readOnly={showingHistoricalVersion}
@@ -252,7 +252,7 @@ export function ArtifactPanel({
         {view === "preview" && selectedArtifact?.kind !== "markdown" ? (
           <div className="relative h-full bg-[color:var(--sidebar)]">
             {previewError ? (
-              <pre className="absolute right-2 bottom-2 left-2 z-10 max-h-32 overflow-auto rounded-lg border border-[#f2a7a7]/30 bg-[#2b1720]/95 p-2 text-[11px] whitespace-pre-wrap text-[#ffd1d1]">
+              <pre className="absolute right-2 bottom-2 left-2 z-10 max-h-32 overflow-auto rounded-lg border border-[#f2a7a7]/30 bg-[#2b1720]/95 p-2 text-[12px] whitespace-pre-wrap text-[#ffd1d1]">
                 {previewError}
               </pre>
             ) : null}

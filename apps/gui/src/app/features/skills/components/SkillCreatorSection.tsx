@@ -137,25 +137,25 @@ export function SkillCreatorSection({
 
   return (
     <section className="grid gap-2">
-      <div className="inline-flex items-center gap-2 text-[13px] font-medium text-[color:var(--text)]">
+      <div className="inline-flex items-center gap-2 text-[14px] font-medium text-[color:var(--text)]">
         <span>Create a skill</span>
       </div>
 
-      <div className="grid gap-1.5 text-[12px] leading-5 text-[color:var(--muted)]">
+      <div className="grid gap-1.5 text-[13px] leading-5 text-[color:var(--muted)]">
         {skillCreatorReady ? (
           <div className="grid gap-2">
             <div className="px-0.5 py-0.5">
               {skillCreatorBusy ? (
-                <div className="inline-flex items-center gap-2 rounded-xl bg-[rgba(255,255,255,0.03)] px-2.5 py-2 text-[12px] leading-5 text-[color:var(--muted)]">
+                <div className="inline-flex items-center gap-2 rounded-xl bg-[rgba(255,255,255,0.03)] px-2.5 py-2 text-[13px] leading-5 text-[color:var(--muted)]">
                   <span>Pi is working</span>
                   <ThreeDotsSpinner className="text-[color:var(--muted)]" />
                 </div>
               ) : skillCreatorLatestResponse ? (
-                <div className="rounded-xl bg-[rgba(255,255,255,0.03)] px-2.5 py-2 text-[12px] leading-5 text-[color:var(--muted)]">
+                <div className="rounded-xl bg-[rgba(255,255,255,0.03)] px-2.5 py-2 text-[13px] leading-5 text-[color:var(--muted)]">
                   {skillCreatorLatestResponse}
                 </div>
               ) : (
-                <div className="rounded-xl bg-[rgba(255,255,255,0.03)] px-2.5 py-2 text-[12px] leading-5 text-[color:var(--muted)]">
+                <div className="rounded-xl bg-[rgba(255,255,255,0.03)] px-2.5 py-2 text-[13px] leading-5 text-[color:var(--muted)]">
                   This spawns a temporary chat session. For complex project-skills, please use
                   normal chat for best results.
                 </div>
@@ -193,7 +193,7 @@ export function SkillCreatorSection({
               </div>
 
               <TextButton
-                className="inline-flex h-auto items-center gap-1 rounded-xl px-1.5 py-0 text-[12px]"
+                className="inline-flex h-auto items-center gap-1 rounded-xl px-1.5 py-0 text-[13px]"
                 onClick={() => {
                   if (createdSkillPath) {
                     void window.piDesktop?.openPath?.(createdSkillPath);
@@ -213,7 +213,7 @@ export function SkillCreatorSection({
                 No skill creator detected for this scope. Install the bundled skill creator?
               </span>
               <TextButton
-                className="h-auto rounded-md px-1.5 py-0 text-[12px] text-[color:var(--text)]"
+                className="h-auto rounded-md px-1.5 py-0 text-[13px] text-[color:var(--text)]"
                 onClick={() => {
                   onSetActionError(null);
                   setMockSkillCreatorInstalled(true);
@@ -222,7 +222,7 @@ export function SkillCreatorSection({
                 Yes
               </TextButton>
               <TextButton
-                className="inline-flex h-auto items-center gap-1 rounded-md px-1.5 py-0 text-[12px]"
+                className="inline-flex h-auto items-center gap-1 rounded-md px-1.5 py-0 text-[13px]"
                 onClick={() => {
                   void onRefreshSkillCreatorDetection();
                 }}

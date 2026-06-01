@@ -141,7 +141,7 @@
   border-radius: inherit;
   background: rgba(10, 16, 18, 0.34);
   color: var(--text);
-  font-size: 26px;
+  font-size: 27px;
   font-weight: 500;
   letter-spacing: -0.01em;
   opacity: 0;
@@ -202,7 +202,7 @@ button[data-tooltip]::after {
   backdrop-filter: blur(18px) saturate(130%);
   -webkit-backdrop-filter: blur(18px) saturate(130%);
   content: attr(data-tooltip);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 15px;
   white-space: nowrap;
   opacity: 0;
@@ -239,7 +239,7 @@ button[data-tooltip][aria-disabled="true"]::after {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(18px) saturate(130%);
   -webkit-backdrop-filter: blur(18px) saturate(130%);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 15px;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -292,12 +292,12 @@ body[data-app-resizing="true"] *:not(.shell-side-dock):not(.shell-side-dock *) {
 }
 
 .composer-prompt-textarea {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.45;
 }
 
 .composer-footer-text {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1;
 }
 
@@ -394,7 +394,7 @@ body[data-app-resizing="true"] *:not(.shell-side-dock):not(.shell-side-dock *) {
 .artifact-markdown-editor .artifact-mdx-toolbar [role="button"],
 .artifact-markdown-editor .artifact-mdx-toolbar [role="combobox"] {
   min-height: 24px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .artifact-markdown-editor .artifact-mdx-toolbar [class*="toolbarToggleItem"],
@@ -435,7 +435,7 @@ body[data-app-resizing="true"] *:not(.shell-side-dock):not(.shell-side-dock *) {
   [class*="toolbarToggleItem"]
   > span {
   padding: 0.125rem 0.25rem;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
 }
 
@@ -516,7 +516,7 @@ body[data-app-resizing="true"] *:not(.shell-side-dock):not(.shell-side-dock *) {
   min-height: 100%;
   padding: 1.5rem 1.75rem;
   color: var(--text);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.7;
   text-wrap: pretty;
 }
