@@ -28,7 +28,7 @@ function formatTokens(value: number | null | undefined, options: { compact?: boo
 
 function getMeterTone(percent: number | null | undefined) {
   if (percent === null || percent === undefined) {
-    return "rgba(146,153,184,0.64)";
+    return "var(--muted)";
   }
 
   if (percent > 90) {
@@ -39,7 +39,7 @@ function getMeterTone(percent: number | null | undefined) {
     return "#f2c27f";
   }
 
-  return "#d6d6d6";
+  return "var(--accent)";
 }
 
 export function ComposerContextMeter({

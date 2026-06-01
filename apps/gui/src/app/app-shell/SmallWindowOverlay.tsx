@@ -69,7 +69,7 @@ export function SmallWindowOverlay() {
         onKeyDownCapture={(event) => {
           event.stopPropagation();
         }}
-        className="m-0 w-full max-w-[30rem] border-0 rounded-[28px] bg-[linear-gradient(180deg,rgba(52,56,72,0.98),rgba(35,38,51,0.98))] p-3 text-left shadow-[0_30px_80px_rgba(0,0,0,0.42),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+        className="m-0 w-full max-w-[30rem] border-0 rounded-[28px] bg-[color:var(--panel)] p-3 text-left shadow-[0_30px_80px_rgba(0,0,0,0.42),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
       >
         <div className="rounded-[20px] bg-[rgba(10,13,22,0.32)] px-6 py-5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">

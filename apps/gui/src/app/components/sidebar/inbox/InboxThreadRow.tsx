@@ -45,7 +45,7 @@ export function InboxThreadRow({
         {running ? (
           <ActivitySpinner className="h-3.5 w-3.5 text-[color:var(--text)]" />
         ) : unread ? (
-          <span className="h-2 w-2 rounded-full bg-[rgba(183,186,245,0.95)]" />
+          <span className="h-2 w-2 rounded-full bg-[color:var(--brand-accent-line)]" />
         ) : null}
       </div>
 

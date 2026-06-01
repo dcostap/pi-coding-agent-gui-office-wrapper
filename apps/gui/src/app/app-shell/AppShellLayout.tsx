@@ -23,7 +23,7 @@ import type { AppShellController } from "./useAppShellController";
 import { useAppShellLayoutState } from "./useAppShellLayoutState";
 
 const TERMINAL_DRAWER_WIDTH = "min(28rem, calc(100% - 2.5rem))";
-const PROJECT_FILES_DOCK_WIDTH = 360;
+const PROJECT_FILES_DOCK_WIDTH = 400;
 const PROJECT_FILES_DOCKED_MIN_WIDTH = 1180;
 
 let automaticWindowsSandboxSetupStarted = false;
@@ -607,7 +607,7 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
           onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
         />
         <div className="app-shell-chrome flex min-h-0 flex-1 overflow-hidden bg-[color:var(--sidebar)]">
-          <ShellSideDock side="left" collapsed={sidebarCollapsed} width={300}>
+          <ShellSideDock side="left" collapsed={sidebarCollapsed} width={305}>
             <Sidebar
               projects={projects}
               inboxThreads={controller.inboxThreads}
@@ -760,8 +760,8 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
             side="right"
             collapsed={!projectFilesOpen || !projectFilesAvailable}
             width={PROJECT_FILES_DOCK_WIDTH}
-            className="bg-[#1e1e1e]"
-            contentClassName="w-[360px]"
+            className="bg-[color:var(--sidebar-solid)]"
+            contentClassName="w-[400px]"
             keepMounted
           >
             <ProjectFileBrowserPanel

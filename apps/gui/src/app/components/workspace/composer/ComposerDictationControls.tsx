@@ -117,9 +117,9 @@ export function ComposerDictationControls({
           dictationActive &&
             "border-[rgba(255,110,110,0.3)] bg-[rgba(255,94,94,0.12)] text-[#ffd1d1] opacity-100",
           dictationTranscribing &&
-            "border-[rgba(183,186,245,0.3)] bg-[rgba(183,186,245,0.12)] text-[color:var(--text)] opacity-100",
+            "border-[color:var(--accent-border)] bg-[color:var(--brand-secondary-bg)] text-[color:var(--text)] opacity-100",
           dictationPromptOpen &&
-            "border-[rgba(183,186,245,0.24)] bg-[rgba(183,186,245,0.08)] text-[color:var(--text)] opacity-100",
+            "border-[color:var(--accent-border)] bg-[color:var(--brand-secondary-bg)] text-[color:var(--text)] opacity-100",
         )}
         aria-label={
           dictationActive

@@ -32,7 +32,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       className={cn(
         iconButtonClass,
         active &&
-          "bg-[rgba(183,186,245,0.09)] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(183,186,245,0.03)]",
+          "bg-[color:var(--accent-bg)] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]",
         className,
       )}
       onClick={onClick}

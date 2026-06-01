@@ -207,8 +207,8 @@ export function SettingsView({
             className={cn(
               "flex h-10 items-center rounded-xl px-3 text-left text-[12px] transition-colors active:scale-[0.96]",
               activeCategory === null && !normalizedFilter
-                ? "bg-[rgba(169,178,215,0.14)] text-[color:var(--text)]"
-                : "text-[color:var(--muted)] hover:bg-[rgba(169,178,215,0.08)] hover:text-[color:var(--text)]",
+                ? "bg-[color:var(--accent-bg)] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]"
+                : "text-[color:var(--muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]",
             )}
             onClick={() => setActiveCategory(null)}
           >
@@ -221,8 +221,8 @@ export function SettingsView({
               className={cn(
                 "flex h-10 items-center rounded-xl px-3 text-left text-[12px] transition-colors active:scale-[0.96]",
                 activeCategory === category.id && !normalizedFilter
-                  ? "bg-[rgba(169,178,215,0.14)] text-[color:var(--text)]"
-                  : "text-[color:var(--muted)] hover:bg-[rgba(169,178,215,0.08)] hover:text-[color:var(--text)]",
+                  ? "bg-[color:var(--accent-bg)] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]"
+                  : "text-[color:var(--muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]",
               )}
               onClick={() => setActiveCategory(category.id)}
             >
@@ -252,7 +252,7 @@ export function SettingsView({
               type="button"
               className={cn(
                 "rounded-full border border-[color:var(--border)] px-3 py-1.5 text-[12px] transition-colors",
-                activeCategory === null && "bg-[rgba(169,178,215,0.14)] text-[color:var(--text)]",
+                activeCategory === null && "bg-[color:var(--accent-bg)] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]",
               )}
               onClick={() => setActiveCategory(null)}
             >
@@ -265,7 +265,7 @@ export function SettingsView({
                 className={cn(
                   "rounded-full border border-[color:var(--border)] px-3 py-1.5 text-[12px] text-[color:var(--muted)] transition-colors",
                   activeCategory === category.id &&
-                    "bg-[rgba(169,178,215,0.14)] text-[color:var(--text)]",
+                    "bg-[color:var(--accent-bg)] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]",
                 )}
                 onClick={() => setActiveCategory(category.id)}
               >

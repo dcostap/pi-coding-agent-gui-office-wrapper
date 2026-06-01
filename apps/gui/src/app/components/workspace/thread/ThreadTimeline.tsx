@@ -22,7 +22,7 @@ type ThreadTimelineProps = {
 };
 
 const timelineQuickActionButtonClass =
-  "pointer-events-auto h-6 w-6 shrink-0 rounded-full bg-[rgba(146,153,184,0.22)] hover:bg-[rgba(146,153,184,0.32)] disabled:cursor-not-allowed disabled:opacity-45";
+  "pointer-events-auto h-6 w-6 shrink-0 rounded-full bg-[color:var(--brand-secondary-bg)] hover:bg-[color:var(--brand-secondary-bg-strong)] disabled:cursor-not-allowed disabled:opacity-45";
 
 export function ThreadTimeline({
   messages,

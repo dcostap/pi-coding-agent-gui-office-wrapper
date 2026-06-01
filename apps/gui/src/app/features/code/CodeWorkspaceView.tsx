@@ -44,7 +44,7 @@ type CodeWorkspaceViewProps = {
 
 const TERMINAL_DRAWER_OFFSET = "min(28rem, calc(100% - 2.5rem))";
 const projectFilesExpandButtonClass =
-  "pointer-events-auto h-6 w-6 shrink-0 rounded-full bg-[rgba(146,153,184,0.22)] hover:bg-[rgba(146,153,184,0.32)]";
+  "pointer-events-auto h-6 w-6 shrink-0 rounded-full bg-[color:var(--brand-secondary-bg)] hover:bg-[color:var(--brand-secondary-bg-strong)]";
 
 function getReplyActivityKey(messages: readonly Message[]) {
   return messages
@@ -348,7 +348,7 @@ export function CodeWorkspaceView({
           />
           <div
             className={cn(
-              "absolute top-0 right-0 bottom-0 w-[min(22rem,calc(100%-2rem))] overflow-hidden transition-[transform,opacity] duration-200 ease-out",
+              "absolute top-0 right-0 bottom-0 w-[min(25rem,calc(100%-2rem))] overflow-hidden transition-[transform,opacity] duration-200 ease-out",
               projectFilesOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0",
             )}
           >
@@ -376,9 +376,9 @@ export function CodeWorkspaceView({
           style={threadFooterStyle}
         >
           <div className="pointer-events-auto grid gap-2.5">
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(520px,800px)_minmax(0,1fr)] items-end gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(520px,840px)_minmax(0,1fr)] items-end gap-3">
               <div className="mb-1.5 min-w-0 self-end" />
-              <div className="w-full max-w-[800px]">
+              <div className="w-full max-w-[840px]">
                 {state.activeView === "gitops" ? (
                   <div>
                     <GitOpsComposerPanel

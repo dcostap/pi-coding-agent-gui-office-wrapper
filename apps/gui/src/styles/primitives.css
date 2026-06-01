@@ -68,24 +68,36 @@
 }
 
 .composer-howcode-surface {
-  --panel: #202020;
-  --panel-2: #1c1c1c;
-  --panel-3: #262626;
-  --border: rgba(91, 112, 122, 0.16);
-  --border-strong: rgba(91, 112, 122, 0.32);
-  --text: #d8d8dc;
-  --muted: #8f929b;
-  --muted-2: #6f7480;
-  --accent: #9aa8b2;
-  --accent-bg-subtle: rgba(113, 136, 148, 0.07);
-  --accent-bg: rgba(113, 136, 148, 0.12);
-  --accent-bg-strong: rgba(113, 136, 148, 0.18);
-  --accent-border: rgba(88, 112, 123, 0.58);
+  --panel: #191d22;
+  --panel-2: #15191e;
+  --panel-3: #1f2328;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.19);
+  --text: rgba(240, 242, 244, 0.88);
+  --muted: rgba(240, 242, 244, 0.62);
+  --muted-2: rgba(240, 242, 244, 0.46);
+  --accent: #c7aa48;
+  --accent-bg-subtle: rgba(199, 170, 72, 0.07);
+  --accent-bg: rgba(199, 170, 72, 0.12);
+  --accent-bg-strong: rgba(199, 170, 72, 0.18);
+  --accent-border: rgba(199, 170, 72, 0.24);
   --danger: #f2a7a7;
   --danger-bg: rgba(255, 94, 94, 0.14);
   --danger-border: rgba(255, 110, 110, 0.3);
-  --surface-hover: rgba(255, 255, 255, 0.045);
+  --surface-hover: rgba(240, 242, 244, 0.045);
   --shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
+}
+
+.composer-howcode-surface button[data-mode="send"]:not(:disabled) {
+  border-color: rgba(199, 170, 72, 0.24);
+  background: rgba(0, 53, 95, 0.18);
+  color: #d8bd56;
+}
+
+.composer-howcode-surface button[data-mode="send"]:not(:disabled):hover {
+  border-color: rgba(199, 170, 72, 0.34);
+  background: rgba(0, 53, 95, 0.26);
+  color: #e2c766;
 }
 
 .composer-attachment-drop-target {
@@ -110,9 +122,7 @@
   inset: -1px;
   z-index: 1;
   border-radius: inherit;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(183, 186, 245, 0.08), transparent 36%),
-    linear-gradient(90deg, transparent 8%, rgba(183, 186, 245, 0.08), transparent 92%);
+  background: rgba(199, 170, 72, 0.06);
   opacity: 0;
   transition: opacity 180ms ease;
 }
@@ -257,7 +267,7 @@ body[data-app-resizing="true"] *:not(.shell-side-dock):not(.shell-side-dock *) {
 
 .app-titlebar {
   -webkit-app-region: drag;
-  background: rgba(31, 31, 31, 0.36);
+  background: var(--bg);
   backdrop-filter: blur(34px) saturate(160%);
   -webkit-backdrop-filter: blur(34px) saturate(160%);
 }

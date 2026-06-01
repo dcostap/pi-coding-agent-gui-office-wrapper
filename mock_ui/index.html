@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OfficeAgent UI Style Lab</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <svg class="svg-sprite" aria-hidden="true">
+      <symbol id="i-panel-left" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="m15 9-3 3 3 3"/></symbol>
+      <symbol id="i-panel-right" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/><path d="m9 9 3 3-3 3"/></symbol>
+      <symbol id="i-square-pen" viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></symbol>
+      <symbol id="i-folder-plus" viewBox="0 0 24 24"><path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"/></symbol>
+      <symbol id="i-folder-open" viewBox="0 0 24 24"><path d="M6 14 4.5 19A2 2 0 0 0 6.4 21h11.2a2 2 0 0 0 1.9-1.4L22 11H8.5A2 2 0 0 0 6.6 12.4Z"/><path d="M4 17V5a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v4"/></symbol>
+      <symbol id="i-github" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-1.5 6-6A4.7 4.7 0 0 0 18.7 5 4.4 4.4 0 0 0 18.6 1S17.5.7 15 2.3a12.3 12.3 0 0 0-6 0C6.5.7 5.4 1 5.4 1a4.4 4.4 0 0 0-.1 4A4.7 4.7 0 0 0 4 8.5c0 4.5 3 6 6 6a4.8 4.8 0 0 0-1 3.5v4"/><path d="M9 18c-4.5 2-5-2-7-2"/></symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+      <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+      <symbol id="i-star" viewBox="0 0 24 24"><path d="M11.5 2.5 14.4 8l6.1.9-4.4 4.3 1 6.1-5.6-2.9-5.5 2.9 1-6.1L2.6 8.9 8.7 8Z"/></symbol>
+      <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m7 11 3 3-3 3"/><path d="M12 17h5"/><rect x="3" y="4" width="18" height="16" rx="2"/></symbol>
+      <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></symbol>
+      <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M9 13h.01"/><path d="M15 13h.01"/><path d="M9 17h6"/></symbol>
+      <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></symbol>
+      <symbol id="i-square" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"/></symbol>
+      <symbol id="i-git-branch" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></symbol>
+      <symbol id="i-file-code" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="m10 13-2 2 2 2"/><path d="m14 17 2-2-2-2"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+      <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V22a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 18l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.4 8A2 2 0 1 1 7.2 5.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V4a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 20 8.2l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.8.8Z"/></symbol>
+      <symbol id="i-list-collapse" viewBox="0 0 24 24"><path d="m8 6 4-4 4 4"/><path d="m8 18 4 4 4-4"/><path d="M20 12H4"/><path d="M20 7H4"/><path d="M20 17H4"/></symbol>
+      <symbol id="i-down-to-line" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+      <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="m21.4 11.6-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.3 9.2a2 2 0 0 1-2.8-2.8l8.6-8.6"/></symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    </svg>
+
+    <div class="mock-lab">
+      <aside class="config-panel" aria-label="Customization controls">
+        <div class="config-header">
+          <div class="config-eyebrow">Static UI mock</div>
+          <h1>OfficeAgent style lab</h1>
+          <p>Controls on this side rewrite the CSS variables used by the app previews on the right.</p>
+        </div>
+
+        <section class="control-card">
+          <div class="control-title">Typography</div>
+          <label class="control-row" for="fontFamily">
+            <span>Font family</span>
+            <select id="fontFamily">
+              <option value='"Inter", "Inter Variable", ui-sans-serif, system-ui, sans-serif'>Inter</option>
+              <option value='"Exo 2", "Inter", ui-sans-serif, system-ui, sans-serif'>Exo 2 / Castrosua corporate</option>
+              <option value='"Geist", ui-sans-serif, system-ui, sans-serif'>Geist</option>
+              <option value='"Roboto", ui-sans-serif, system-ui, sans-serif'>Roboto</option>
+              <option value='"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif'>IBM Plex Sans</option>
+              <option value='"Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif'>Atkinson Hyperlegible</option>
+              <option value='Calibri, "Segoe UI", ui-sans-serif, system-ui, sans-serif'>Calibri / mail style</option>
+              <option value='ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'>System UI</option>
+            </select>
+          </label>
+          <label class="control-row" for="fontScale">
+            <span>Font scale <output id="fontScaleValue">100%</output></span>
+            <input id="fontScale" type="range" min="92" max="112" value="100" />
+          </label>
+          <label class="control-row" for="density">
+            <span>Density <output id="densityValue">0</output></span>
+            <input id="density" type="range" min="-8" max="8" value="0" />
+          </label>
+        </section>
+
+        <section class="control-card">
+          <div class="control-title">Core color tokens</div>
+          <div class="color-grid">
+            <label>Background<input id="bgColor" type="color" value="#1f1f1f" /></label>
+            <label>Workspace<input id="workspaceColor" type="color" value="#151515" /></label>
+            <label>Sidebar<input id="sidebarColor" type="color" value="#1f1f1f" /></label>
+            <label>Panel<input id="panelColor" type="color" value="#2b2b2b" /></label>
+            <label>Accent<input id="accentColor" type="color" value="#d8d8d8" /></label>
+            <label>Secondary accent<input id="secondaryColor" type="color" value="#9aa8b2" /></label>
+            <label>Text<input id="textColor" type="color" value="#ededed" /></label>
+          </div>
+          <div class="brandbook-note">
+            Brandbook source: Pantone 7463 C / RGB 0·43·79 and Pantone 123 C / RGB 255·207·28; corporate type: Exo 2.0. The Castrosua presets adapt these into quieter app palettes.
+          </div>
+        </section>
+
+        <section class="control-card">
+          <div class="control-title">Shape + surface</div>
+          <label class="control-row" for="radiusScale">
+            <span>Radius scale <output id="radiusScaleValue">1.00×</output></span>
+            <input id="radiusScale" type="range" min="60" max="150" value="100" />
+          </label>
+          <label class="control-row" for="borderAlpha">
+            <span>Border strength <output id="borderAlphaValue">7.5%</output></span>
+            <input id="borderAlpha" type="range" min="3" max="22" value="7.5" step="0.5" />
+          </label>
+          <label class="control-row" for="blurAmount">
+            <span>Glass blur <output id="blurAmountValue">22px</output></span>
+            <input id="blurAmount" type="range" min="0" max="40" value="22" />
+          </label>
+          <label class="control-row" for="shellOpacity">
+            <span>Shell opacity <output id="shellOpacityValue">48%</output></span>
+            <input id="shellOpacity" type="range" min="18" max="96" value="48" />
+          </label>
+          <label class="switch-row">
+            <span>Show project files dock</span>
+            <input id="toggleFiles" type="checkbox" checked />
+          </label>
+          <label class="switch-row">
+            <span>Show terminal drawer</span>
+            <input id="toggleTerminal" type="checkbox" />
+          </label>
+          <label class="switch-row">
+            <span>Compact gallery cards</span>
+            <input id="toggleCompact" type="checkbox" />
+          </label>
+        </section>
+
+        <section class="control-card">
+          <div class="control-title">Layout sizing</div>
+          <label class="control-row" for="sidebarWidth">
+            <span>Sidebar width <output id="sidebarWidthValue">300px</output></span>
+            <input id="sidebarWidth" type="range" min="240" max="380" value="300" />
+          </label>
+          <label class="control-row" for="filesWidth">
+            <span>Project files width <output id="filesWidthValue">360px</output></span>
+            <input id="filesWidth" type="range" min="280" max="480" value="360" />
+          </label>
+          <label class="control-row" for="composerWidth">
+            <span>Composer max width <output id="composerWidthValue">800px</output></span>
+            <input id="composerWidth" type="range" min="620" max="980" value="800" />
+          </label>
+          <label class="switch-row">
+            <span>Brand accent stripe</span>
+            <input id="toggleBrandAccents" type="checkbox" />
+          </label>
+          <label class="switch-row">
+            <span>Flat brand accents</span>
+            <input id="toggleFlatBrand" type="checkbox" />
+          </label>
+        </section>
+
+        <section class="control-card preset-card">
+          <div class="control-title">Presets</div>
+          <button type="button" data-preset="current">Current app default</button>
+          <button type="button" data-preset="blueprint">Muted blueprint</button>
+          <button type="button" data-preset="warm">Warm graphite</button>
+          <button type="button" data-preset="castrosua">Castrosua balanced</button>
+          <button type="button" data-preset="castrosuaGraphite">Castrosua graphite</button>
+          <button type="button" data-preset="castrosuaGraphiteFlat">Castrosua graphite flat</button>
+          <button type="button" data-preset="castrosuaMidnight">Castrosua midnight</button>
+          <button type="button" data-preset="castrosuaSignal">Castrosua signal</button>
+          <button type="button" data-preset="highContrast">High contrast</button>
+        </section>
+
+        <section class="control-card export-card">
+          <div class="control-title">Export</div>
+          <p>Copy the currently selected customization options as JSON, including the generated CSS variable values.</p>
+          <button class="copy-button" type="button" id="copyCustomization">Copy customization options</button>
+          <output class="copy-status" id="copyCustomizationStatus" aria-live="polite"></output>
+        </section>
+
+        <button class="reset-button" type="button" id="resetMock">Reset to 1:1 current styling</button>
+      </aside>
+
+      <main class="preview-stage">
+        <div class="stage-header">
+          <div>
+            <div class="config-eyebrow">Live preview</div>
+            <h2>Current UI recreation</h2>
+          </div>
+          <div class="stage-pills" aria-label="Preview tags">
+            <span>dark</span>
+            <span>Electron shell</span>
+            <span>chat + composer</span>
+            <span>project files</span>
+          </div>
+        </div>
+
+        <div class="gallery preview-root" id="previewRoot">
+          <section class="showcase-card showcase-card--hero">
+            <div class="showcase-caption">
+              <span>01</span>
+              <div>
+                <h3>Thread workspace</h3>
+                <p>Default code/thread view with sidebar, timeline, composer, and docked project files.</p>
+              </div>
+            </div>
+
+            <div class="app-window app-window--main">
+              <div class="app-titlebar">
+                <button class="titlebar-button" type="button" aria-label="Ocultar barra lateral"><svg><use href="#i-panel-left" /></svg></button>
+                <div class="titlebar-name">Castrosua IA</div>
+                <div class="window-spacer"></div>
+                <div class="window-dots"><span></span><span></span><span></span></div>
+              </div>
+
+              <div class="app-chrome">
+                <aside class="sidebar-shell">
+                  <nav class="sidebar-mode-nav" aria-label="Primary navigation">
+                    <button class="sidebar-nav-button" type="button"><svg><use href="#i-square-pen" /></svg><span>Nuevo chat</span></button>
+                    <button class="sidebar-nav-button" type="button"><svg><use href="#i-folder-plus" /></svg><span>Nuevo proyecto</span></button>
+                  </nav>
+
+                  <section class="sidebar-section">
+                    <div class="sidebar-toolbar">
+                      <label class="sidebar-search-field"><svg><use href="#i-search" /></svg><input placeholder="Buscar" /></label>
+                    </div>
+
+                    <div class="sidebar-project-tree">
+                      <div class="sidebar-tree-item">
+                        <div class="sidebar-row-surface sidebar-project-row">
+                          <button class="sidebar-project-toggle" type="button"><svg><use href="#i-chevron-down" /></svg></button>
+                          <span class="sidebar-project-button"><span class="sidebar-project-title">Chats sin proyecto</span></span>
+                          <div class="sidebar-project-actions visible"><button><svg><use href="#i-square-pen" /></svg></button><button><svg><use href="#i-more" /></svg></button></div>
+                        </div>
+                        <div class="motion-collapse-panel open">
+                          <div class="sidebar-row-surface sidebar-thread-row">
+                            <span class="sidebar-thread-pin-indicator"></span>
+                            <span class="sidebar-thread-button"><span>Resumen para dirección</span></span>
+                            <span class="sidebar-thread-meta-slot"><span class="sidebar-thread-meta-value">2h</span></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="sidebar-tree-item">
+                        <div class="sidebar-row-surface sidebar-project-row" data-highlighted="true">
+                          <button class="sidebar-project-toggle" type="button"><svg><use href="#i-folder-open" /></svg></button>
+                          <span class="sidebar-project-button"><span class="sidebar-project-title">office-gui-for-agentic-ai</span></span>
+                          <div class="sidebar-project-actions visible"><button><svg><use href="#i-square-pen" /></svg></button><button><svg><use href="#i-more" /></svg></button></div>
+                        </div>
+                        <div class="motion-collapse-panel open">
+                          <div class="sidebar-row-surface sidebar-thread-row" data-selected="true">
+                            <button class="sidebar-thread-pin" data-pinned="true"><svg><use href="#i-star" /></svg></button>
+                            <span class="sidebar-thread-button"><span>Frontend redesign style audit</span></span>
+                            <span class="sidebar-thread-meta-slot"><span class="sidebar-thread-meta-value"><svg><use href="#i-terminal" /></svg></span></span>
+                          </div>
+                          <div class="sidebar-row-surface sidebar-thread-row">
+                            <span class="sidebar-thread-leading-icon"><span class="activity-spinner"></span></span>
+                            <span class="sidebar-thread-button"><span>Sandbox packaging follow-up</span></span>
+                            <span class="sidebar-thread-meta-slot"><span class="sidebar-thread-meta-value">1d</span></span>
+                          </div>
+                          <div class="sidebar-row-surface sidebar-old-sessions-row">
+                            <button class="sidebar-old-sessions-toggle"><svg><use href="#i-chevron-right" /></svg></button>
+                            <button class="sidebar-old-sessions-button"><span>Sesiones antiguas</span></button>
+                            <span class="sidebar-old-sessions-action"><svg><use href="#i-archive" /></svg></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="sidebar-tree-item">
+                        <div class="sidebar-row-surface sidebar-project-row">
+                          <button class="sidebar-project-toggle" type="button"><svg><use href="#i-github" /></svg></button>
+                          <span class="sidebar-project-button"><span class="sidebar-project-title">castrosua-docs</span></span>
+                          <div class="sidebar-project-actions"><button><svg><use href="#i-square-pen" /></svg></button><button><svg><use href="#i-more" /></svg></button></div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div class="sidebar-footer"></div>
+                </aside>
+
+                <section class="workspace-panel with-files">
+                  <div class="thread-workspace">
+                    <main class="thread-scroll">
+                      <div class="thread-content">
+                        <div class="timeline-row">
+                          <div></div>
+                          <div class="timeline-main">
+                            <div class="user-message">Quiero rediseñar toda la interfaz visual. Primero recrea el look actual 1:1 y añade controles para probar colores y tipografías.</div>
+                          </div>
+                          <button class="row-toggle"><svg><use href="#i-chevron-down" /></svg></button>
+                        </div>
+
+                        <div class="timeline-row">
+                          <div></div>
+                          <div class="timeline-main">
+                            <div class="assistant-message">
+                              <div class="thinking-panel">
+                                <div class="expandable-trigger"><svg><use href="#i-chevron-right" /></svg><span>Thinking</span><em>— map app shell, sidebar, composer and thread widgets</em></div>
+                              </div>
+                              <p>Claro. Voy a montar un mock estático que preserve el aspecto actual: shell oscuro translúcido, sidebar compacta, timeline centrado, composer flotante y panel de archivos.</p>
+                              <p>También añadiré un panel de personalización para cambiar tokens sin tocar el código real de la app.</p>
+                            </div>
+                          </div>
+                          <button class="row-toggle"><svg><use href="#i-chevron-down" /></svg></button>
+                        </div>
+
+                        <div class="timeline-row tool-row">
+                          <div></div>
+                          <div class="timeline-main">
+                            <div class="tool-card expanded">
+                              <div class="tool-header"><svg><use href="#i-chevron-down" /></svg><span>Tool calls (3)</span></div>
+                              <div class="tool-body">
+                                <div class="tool-line"><strong>read</strong><span>apps/gui/src/styles/tokens.css</span></div>
+                                <div class="tool-line"><strong>read</strong><span>apps/gui/src/app/components/workspace/Composer.tsx</span></div>
+                                <div class="tool-line"><strong>write</strong><span>mock_ui/index.html</span></div>
+                              </div>
+                            </div>
+                          </div>
+                          <div></div>
+                        </div>
+
+                        <div class="timeline-row collapsed-row">
+                          <div></div>
+                          <button class="folded-turn">
+                            <span>Previous implementation notes and screenshots…</span>
+                            <small>2 messages collapsed</small>
+                          </button>
+                          <button class="row-toggle"><svg><use href="#i-chevron-right" /></svg></button>
+                        </div>
+
+                        <div class="timeline-row">
+                          <div></div>
+                          <div class="timeline-main">
+                            <div class="user-message">Make sure the preview includes real widgets: project tree, file browser, settings rows, terminal, buttons and popovers.</div>
+                          </div>
+                          <button class="row-toggle"><svg><use href="#i-chevron-down" /></svg></button>
+                        </div>
+
+                        <div class="timeline-row">
+                          <div></div>
+                          <div class="timeline-main">
+                            <div class="assistant-message">
+                              <p>Done — the gallery below includes the active thread view, an empty new-chat state, plus a widgets board with settings controls, model menu, terminal drawer and toast styling.</p>
+                              <pre><code>mock_ui/
+  index.html
+  styles.css
+  script.js</code></pre>
+                            </div>
+                          </div>
+                          <div></div>
+                        </div>
+                      </div>
+                    </main>
+
+                    <div class="timeline-actions">
+                      <button><svg><use href="#i-list-collapse" /></svg></button>
+                      <button disabled><svg><use href="#i-down-to-line" /></svg></button>
+                    </div>
+
+                    <aside class="terminal-drawer" id="terminalDrawer">
+                      <div class="terminal-header"><span>Terminal</span><button><svg><use href="#i-x" /></svg></button></div>
+                      <pre><span class="prompt">PS C:\Projects\office-gui-for-agentic-ai&gt;</span> npm run build --workspace @pi-gui/pi-sdk-driver
+
+<span class="success">✓</span> src/index.ts compiled
+<span class="muted">ready in 1.2s</span></pre>
+                    </aside>
+
+                    <footer class="workspace-footer">
+                      <div></div>
+                      <div class="composer-block">
+                        <div class="composer-panel">
+                          <div class="composer-input-row">
+                            <div class="composer-textarea" contenteditable="true" aria-label="Prompt composer">Pulir la estética del mock y probar una variante más cálida…</div>
+                            <button class="send-button"><svg><use href="#i-arrow-right" /></svg></button>
+                          </div>
+                          <div class="attachment-shelf">
+                            <span class="attachment-chip"><svg><use href="#i-file-code" /></svg> AppShellLayout.tsx <button><svg><use href="#i-x" /></svg></button></span>
+                            <span class="attachment-chip"><svg><use href="#i-image" /></svg> reference.png <button><svg><use href="#i-x" /></svg></button></span>
+                          </div>
+                          <div class="composer-divider"></div>
+                          <div class="composer-footer-row">
+                            <button class="toolbar-button"><svg><use href="#i-bot" /></svg><span>Agente</span></button>
+                            <button class="context-meter" aria-label="Context usage"><span></span></button>
+                            <div class="composer-trailing">
+                              <button class="toolbar-button"><svg><use href="#i-git-branch" /></svg><span>HEAD</span></button>
+                              <div class="branch-chip">main</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div></div>
+                    </footer>
+                  </div>
+                </section>
+
+                <aside class="project-files-shell" id="projectFilesDock">
+                  <header class="project-files-header">
+                    <div><h2>Archivos del proyecto</h2><p>C:\Projects\office-gui-for-agentic-ai</p></div>
+                    <button><svg><use href="#i-panel-right" /></svg></button>
+                  </header>
+                  <div class="project-files-column-header"><button>Nombre <span>↑</span></button><button>Modificado <span>↓</span></button></div>
+                  <div class="project-files-body">
+                    <div class="file-list">
+                      <div class="file-row"><div><svg><use href="#i-chevron-down" /></svg><svg><use href="#i-folder-open" /></svg><span>apps</span></div><span>May 31, 22:14</span></div>
+                      <div class="file-row depth-1"><div><svg><use href="#i-chevron-down" /></svg><svg><use href="#i-folder-open" /></svg><span>gui</span></div><span>May 31, 22:13</span></div>
+                      <div class="file-row depth-2 selected"><div><span class="indent-spacer"></span><svg><use href="#i-file-code" /></svg><span>AppShellLayout.tsx</span><b>adjunto</b></div><span>Jun 1, 00:12</span></div>
+                      <div class="file-row depth-2"><div><span class="indent-spacer"></span><svg><use href="#i-file-code" /></svg><span>styles.css</span></div><span>May 30, 18:42</span></div>
+                      <div class="file-row"><div><svg><use href="#i-chevron-right" /></svg><svg><use href="#i-folder" /></svg><span>packages</span></div><span>May 29, 12:08</span></div>
+                      <div class="file-row"><div><span class="indent-spacer"></span><svg><use href="#i-file" /></svg><span>package.json</span></div><span>May 28, 09:37</span></div>
+                    </div>
+                    <div class="project-files-preview-pane">
+                      <div class="preview-header"><span>AppShellLayout.tsx</span><small>36 KB · Jun 1, 00:12</small></div>
+                      <pre>return (
+  &lt;div className="app-shell-chrome"&gt;
+    &lt;ShellSideDock side="left" width={300}&gt;
+      &lt;Sidebar /&gt;
+    &lt;/ShellSideDock&gt;
+  &lt;/div&gt;
+);</pre>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </div>
+          </section>
+
+          <section class="showcase-card">
+            <div class="showcase-caption">
+              <span>02</span>
+              <div>
+                <h3>Empty / new chat state</h3>
+                <p>Centered landing logo and composer placement before the first message.</p>
+              </div>
+            </div>
+
+            <div class="app-window app-window--empty">
+              <div class="app-titlebar"><button class="titlebar-button"><svg><use href="#i-panel-left" /></svg></button><div class="titlebar-name">Castrosua IA</div><div class="window-spacer"></div><div class="window-dots"><span></span><span></span><span></span></div></div>
+              <div class="app-chrome no-files">
+                <aside class="sidebar-shell slim-sidebar">
+                  <nav class="sidebar-mode-nav"><button class="sidebar-nav-button"><svg><use href="#i-square-pen" /></svg><span>Nuevo chat</span></button><button class="sidebar-nav-button"><svg><use href="#i-folder-plus" /></svg><span>Nuevo proyecto</span></button></nav>
+                  <section class="sidebar-section"><label class="sidebar-search-field"><svg><use href="#i-search" /></svg><input placeholder="Buscar" /></label><div class="sidebar-project-tree"><div class="sidebar-row-surface sidebar-project-row"><button class="sidebar-project-toggle"><svg><use href="#i-folder" /></svg></button><span class="sidebar-project-button"><span class="sidebar-project-title">Propuestas comerciales</span></span></div><div class="sidebar-row-surface sidebar-project-row"><button class="sidebar-project-toggle"><svg><use href="#i-github" /></svg></button><span class="sidebar-project-button"><span class="sidebar-project-title">internal-automation</span></span></div></div></section>
+                </aside>
+                <section class="workspace-panel">
+                  <div class="empty-workspace">
+                    <div class="landing-logo-wrap">
+                      <img src="./office-agent-logo-white.png" alt="Castrosua" />
+                      <p>v0.1</p>
+                    </div>
+                    <footer class="workspace-footer centered">
+                      <div></div>
+                      <div class="composer-block">
+                        <div class="landing-new-chat-title">Nuevo chat</div>
+                        <div class="composer-panel">
+                          <div class="composer-input-row"><div class="composer-textarea placeholder">Escribe aquí · Enter para enviar · Shift + Enter para nueva línea</div><button class="send-button" disabled><svg><use href="#i-arrow-right" /></svg></button></div>
+                          <div class="composer-divider"></div>
+                          <div class="composer-footer-row"><button class="toolbar-button"><svg><use href="#i-bot" /></svg><span>Agente</span></button><button class="context-meter"><span></span></button><div class="composer-trailing"><button class="toolbar-button"><svg><use href="#i-paperclip" /></svg><span>Adjuntar</span></button><button class="toolbar-button"><svg><use href="#i-mic" /></svg><span>Dictar</span></button></div></div>
+                        </div>
+                      </div>
+                      <div></div>
+                    </footer>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </section>
+
+          <section class="showcase-card">
+            <div class="showcase-caption">
+              <span>03</span>
+              <div>
+                <h3>Widgets board</h3>
+                <p>Settings rows, selects, toggles, model menu, terminal and toast surfaces.</p>
+              </div>
+            </div>
+
+            <div class="widget-board">
+              <div class="settings-view-mock">
+                <div class="settings-head">
+                  <div><h2>App settings</h2><p>Application, Pi runtime and project defaults.</p></div>
+                  <label class="settings-search"><svg><use href="#i-search" /></svg><input placeholder="Search…" /></label>
+                  <button class="round-close"><svg><use href="#i-x" /></svg></button>
+                </div>
+                <div class="settings-layout">
+                  <nav class="settings-nav"><button class="active">All settings</button><button>Models</button><button>Composer</button><button>Projects</button><button>Sandbox</button></nav>
+                  <div class="settings-sections">
+                    <section class="settings-section"><h3>Models</h3><div class="setting-row"><div><strong>Chat model</strong><span>Default model used in chat mode.</span></div><button class="settings-select">OpenAI · gpt-4.1 <svg><use href="#i-chevron-down" /></svg></button></div><div class="setting-row"><div><strong>Thinking level</strong><span>Controls reasoning effort where supported.</span></div><div class="segmented"><button>off</button><button class="active">low</button><button>high</button></div></div></section>
+                    <section class="settings-section"><h3>Workspace</h3><div class="setting-row"><div><strong>Show dictation button</strong><span>Surface microphone controls in the composer.</span></div><span class="plain-toggle checked"><span></span></span></div><div class="setting-row"><div><strong>Git diff render mode</strong><span>Default comparison layout for GitOps.</span></div><button class="settings-select">Stacked <svg><use href="#i-chevron-down" /></svg></button></div></section>
+                  </div>
+                </div>
+              </div>
+
+              <div class="floating-popover model-popover">
+                <div class="popover-title">Agente</div>
+                <button class="menu-option selected"><span><svg><use href="#i-bot" /></svg> OpenAI · gpt-4.1</span><small>current</small></button>
+                <button class="menu-option"><span><svg><use href="#i-bot" /></svg> Anthropic · Claude Sonnet</span></button>
+                <div class="popover-divider"></div>
+                <div class="popover-title muted">Thinking</div>
+                <button class="menu-option"><span>Off</span></button>
+                <button class="menu-option selected"><span>Low</span><small>balanced</small></button>
+              </div>
+
+              <div class="terminal-panel-mock">
+                <div class="terminal-header"><span><svg><use href="#i-terminal" /></svg> Terminal</span><button><svg><use href="#i-x" /></svg></button></div>
+                <pre><span class="prompt">PS&gt;</span> bun run typecheck:web
+<span class="muted">$ vite --mode production</span>
+<span class="success">✓</span> No type errors found
+
+<span class="prompt">PS&gt;</span> rg "composer-footer" src</pre>
+              </div>
+
+              <div class="toast-stack">
+                <div class="toast success"><b>Sandbox configurado correctamente.</b><span>Ya puedes ejecutar comandos.</span></div>
+                <div class="toast info"><b>Project files refreshed</b><span>6 entries changed.</span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script src="./script.js"></script>
+  </body>
+</html>

@@ -576,7 +576,7 @@ export function InboxComposer({
                 type="button"
                 className={cn(
                   compactIconButtonClass,
-                  "group h-7 w-7 shrink-0 rounded-full border border-[#f2bf20]/40 bg-[#f2bf20]/10 text-[#f2bf20] shadow-[0_0_0_rgba(242,191,32,0)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[#f2bf20]/70 hover:bg-[#f2bf20] hover:text-[#151515] hover:shadow-[0_8px_22px_rgba(242,191,32,0.22)] active:translate-y-0 active:scale-95 disabled:pointer-events-none disabled:border-white/10 disabled:bg-white/[0.035] disabled:text-[color:var(--muted-2)] disabled:opacity-55",
+                  "group h-7 w-7 shrink-0 rounded-full border border-[color:var(--accent-border)] bg-[color:var(--brand-secondary-bg)] text-[color:var(--accent)] shadow-[0_0_0_rgba(199,170,72,0)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[color:var(--accent)] hover:bg-[color:var(--brand-secondary-bg-strong)] hover:text-[color:var(--accent)] hover:shadow-[0_8px_22px_rgba(0,53,95,0.22)] active:translate-y-0 active:scale-95 disabled:pointer-events-none disabled:border-white/10 disabled:bg-white/[0.035] disabled:text-[color:var(--muted-2)] disabled:opacity-55",
                 )}
                 onClick={() => slashCommands.submit()}
                 disabled={!canSend}

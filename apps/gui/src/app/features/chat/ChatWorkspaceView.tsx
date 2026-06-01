@@ -164,14 +164,14 @@ export function ChatWorkspaceView({
           )}
         >
           <div className="pointer-events-auto grid gap-2.5">
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(520px,800px)_minmax(0,1fr)] items-end gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(520px,840px)_minmax(0,1fr)] items-end gap-3">
               <div
                 className={cn(
                   "mb-1.5 min-w-0 self-end",
                   artifactsVisible && !artifactsFullscreen && "invisible",
                 )}
               />
-              <div className="grid w-full max-w-[800px] gap-0">
+              <div className="grid w-full max-w-[840px] gap-0">
                 <QueuedPromptsCard
                   prompts={activeComposerState?.queuedPrompts ?? []}
                   pendingPromptIds={pendingQueuedPromptIdsForSession}
