@@ -78,7 +78,7 @@ Default deployed resource paths:
 - Linux: `apps/gateway/resources/sqlserver-readonly/castrosua-readonly-sqlserver`
 - Windows: `apps/gateway/resources/sqlserver-readonly/castrosua-readonly-sqlserver.exe` plus `Microsoft.Data.SqlClient.SNI.dll`
 
-On Linux deployments, the binary must be executable. The checked-in file mode should handle this after `git pull`; if needed, run `chmod +x apps/gateway/resources/sqlserver-readonly/castrosua-readonly-sqlserver` once on the server.
+The Linux build carries app-local ICU libraries beside the executable, so minimal Debian hosts do not need a separate `libicu` install. On Linux deployments, the binary must be executable. The checked-in file mode should handle this after `git pull`; if needed, run `chmod +x apps/gateway/resources/sqlserver-readonly/castrosua-readonly-sqlserver` once on the server.
 
 ## Pi-auth-backed bootstrap
 
