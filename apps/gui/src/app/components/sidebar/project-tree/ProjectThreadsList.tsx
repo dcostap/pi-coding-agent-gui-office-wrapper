@@ -34,7 +34,7 @@ function partitionProjectThreads(project: Project) {
   const oldThreads: Project["threads"] = [];
 
   for (const thread of project.threads) {
-    if ((thread.lastModifiedMs ?? Number.MAX_SAFE_INTEGER) >= cutoffMs) {
+    if (thread.pinned || (thread.lastModifiedMs ?? Number.MAX_SAFE_INTEGER) >= cutoffMs) {
       recentThreads.push(thread);
     } else {
       oldThreads.push(thread);

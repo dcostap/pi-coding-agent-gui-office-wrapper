@@ -835,6 +835,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
 
 .sidebar-thread-pin[data-pinned="true"] {
   color: var(--text);
+  opacity: 1;
   pointer-events: auto;
 }
 
