@@ -93,6 +93,14 @@ function getTitleBarMenuTemplate(menuId: TitleBarMenuId): MenuItemConstructorOpt
   }
 }
 
+const MIN_ZOOM_LEVEL = -4;
+const MAX_ZOOM_LEVEL = 4;
+const ZOOM_STEP = 0.5;
+
+function clampZoomLevel(zoomLevel: number) {
+  return Math.min(MAX_ZOOM_LEVEL, Math.max(MIN_ZOOM_LEVEL, zoomLevel));
+}
+
 const dragIcon = nativeImage
   .createFromDataURL(
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
@@ -213,10 +221,10 @@ export function registerDesktopIpc(
           webContents.setZoomLevel(0);
           return { ok: true };
         case "view.zoomIn":
-          webContents.setZoomLevel(webContents.getZoomLevel() + 0.5);
+          webContents.setZoomLevel(clampZoomLevel(webContents.getZoomLevel() + ZOOM_STEP));
           return { ok: true };
         case "view.zoomOut":
-          webContents.setZoomLevel(webContents.getZoomLevel() - 0.5);
+          webContents.setZoomLevel(clampZoomLevel(webContents.getZoomLevel() - ZOOM_STEP));
           return { ok: true };
         case "view.toggleFullscreen":
           mainWindow.setFullScreen(!mainWindow.isFullScreen());
