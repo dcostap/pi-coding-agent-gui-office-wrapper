@@ -4,7 +4,6 @@ import type { Message } from "../../types";
 import { getThinkingPreview } from "../../utils/thread-previews";
 import { ExpandablePanel } from "./ExpandablePanel";
 import { MarkdownContent } from "./MarkdownContent";
-import { cn } from "../../utils/cn";
 import { UserMessageAttachments } from "./UserMessageAttachments";
 
 type ThreadMessageProps = {
@@ -15,14 +14,6 @@ type ThreadMessageProps = {
   disableInnerExpansion?: boolean;
   primaryToggleAction?: () => void;
 };
-
-function hasMarkdownTable(content: string[]) {
-  return content.some((paragraph) =>
-    /(^|\n)\s*\|.+\|\s*\n\s*\|\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*(\n|$)/.test(
-      paragraph,
-    ),
-  );
-}
 
 function renderProse(content: string[], format: "prose" | "list" = "prose") {
   if (format === "list") {
@@ -212,12 +203,7 @@ export const ThreadMessage = memo(function ThreadMessage({
           />
         ) : null}
         {showAssistantContent ? (
-          <div
-            className={cn(
-              "px-0 text-[15px] leading-[1.62] text-[color:var(--text)]",
-              hasMarkdownTable(message.content) ? "w-full max-w-full" : "max-w-[min(78%,46rem)]",
-            )}
-          >
+          <div className="w-full max-w-full px-0 text-[15px] leading-[1.62] text-[color:var(--text)]">
             {renderProse(message.content, message.format)}
           </div>
         ) : null}
