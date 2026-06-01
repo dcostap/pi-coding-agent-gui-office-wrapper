@@ -1253,7 +1253,11 @@ async function handleSqlReadonlyRequest(req, res) {
         errorCode: "cli_exit_" + runResult.code,
         message,
         stderr: sanitizeSqlToolText(stderr, normalized.sql),
-        extraDetails: { exitCode: runResult.code, stdout: payload },
+        extraDetails: {
+          exitCode: runResult.code,
+          stdoutBytes: Buffer.byteLength(runResult.stdout, "utf8"),
+          ...extractSanitizedSqlStdoutError(payload, normalized.sql),
+        },
       });
       await appendSqlAuditEvent(createSqlAuditEvent({
         startedAtMs,
@@ -1675,6 +1679,20 @@ function createSqlToolErrorResult(options) {
       errorCode: options.errorCode,
       ...(options.stderr ? { stderr: options.stderr } : {}),
       ...(options.extraDetails || {}),
+    },
+  };
+}
+
+function extractSanitizedSqlStdoutError(payload, sql) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
+  const error = payload.error;
+  if (!error || typeof error !== "object" || Array.isArray(error)) return {};
+  const code = typeof error.code === "string" ? cleanMetricName(error.code, "error") : "error";
+  const message = typeof error.message === "string" ? sanitizeSqlToolText(error.message, sql) : undefined;
+  return {
+    stdoutError: {
+      code,
+      ...(message ? { message } : {}),
     },
   };
 }
