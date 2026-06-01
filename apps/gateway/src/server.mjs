@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { appendFile, lstat, mkdir, readFile, readdir, realpath } from "node:fs/promises";
@@ -8,7 +8,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { streamSimple as piStreamSimple } from "@earendil-works/pi-ai";
-import { OFFICE_AGENT_VFS_ROOTS } from "@office-agent/runtime";
+import {
+  OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME,
+  OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME,
+  OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME,
+  OFFICE_AGENT_VFS_ROOTS,
+} from "@office-agent/runtime";
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 const gatewayRoot = path.resolve(serverDir, "..");
@@ -58,6 +63,18 @@ const VFS_MAX_OUTPUT_BYTES = 1024 * 1024;
 const VFS_TIMEOUT_MS = Number(process.env.OFFICE_AGENT_VFS_TIMEOUT_MS || 30_000);
 const VFS_BASE_DIR = process.env.OFFICE_AGENT_VFS_BASE_DIR || "/srv/officeagent/vfs";
 const VFS_ROOT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
+const SQL_TOOL_ENDPOINT_PATH = "/v1/tools/castrosua_sql_read_only";
+const SQL_ALLOWED_ACTIONS = new Set(["info", "list_tables", "describe", "sample", "query"]);
+const SQL_ALLOWED_DATABASES = new Set(["LOGIC", "GLP4"]);
+const SQL_IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_$#@]{0,127}$/;
+const SQL_DEFAULT_SAMPLE_LIMIT = 20;
+const SQL_MAX_SAMPLE_LIMIT = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_SAMPLE_LIMIT, 200);
+const SQL_MAX_SQL_CHARS = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_SQL_CHARS, 20_000);
+const SQL_TIMEOUT_MS = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_TIMEOUT_MS, 120_000);
+const SQL_MAX_STDOUT_BYTES = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_STDOUT_BYTES, 2 * 1024 * 1024);
+const SQL_MAX_STDERR_BYTES = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_STDERR_BYTES, 256 * 1024);
+const SQL_MAX_CONCURRENT = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_CONCURRENT, 2);
+const SQL_DANGEROUS_KEYWORD_PATTERN = /\b(?:INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC|EXECUTE|GRANT|REVOKE|BACKUP|RESTORE|DBCC|USE)\b/i;
 
 const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 const authPath =
@@ -68,6 +85,7 @@ const modelsPath =
 const analyticsDir =
   process.env.OFFICE_AGENT_GATEWAY_ANALYTICS_DIR || path.join(localAppData, "OfficeAgent", "gateway-analytics");
 const analyticsEventsPath = path.join(analyticsDir, "events.jsonl");
+const sqlAuditEventsPath = path.join(analyticsDir, "sql-events.jsonl");
 const defaultRoutedProvider = process.env.GATEWAY_UPSTREAM_PROVIDER || "openai-codex";
 const sparkRoute = {
   provider: process.env.GATEWAY_SPARK_UPSTREAM_PROVIDER || defaultRoutedProvider,
@@ -252,6 +270,7 @@ class GatewayAnalyticsStore {
 
 const analyticsStore = new GatewayAnalyticsStore(analyticsEventsPath);
 await analyticsStore.load();
+let activeSqlToolRequests = 0;
 
 const dashboardTemplatePath = path.join(serverDir, "dashboard.html");
 const dashboardTemplate = await readFile(dashboardTemplatePath, "utf8");
@@ -1125,6 +1144,585 @@ function runCommand(command, args, options) {
   });
 }
 
+function parsePositiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+async function handleSqlReadonlyRequest(req, res) {
+  const token = getBearer(req);
+  if (token !== GATEWAY_TOKEN) return unauthorized(res);
+
+  let body;
+  try {
+    body = await readJson(req, { maxBytes: MAX_JSON_BODY_BYTES });
+  } catch (error) {
+    return sendJson(res, 400, {
+      error: "bad_request",
+      message: sanitizeSqlToolText(String(error?.message || error)),
+    });
+  }
+
+  const startedAtMs = Date.now();
+  const client = getClientIdentity(req);
+  const validation = validateSqlReadonlyParams(body);
+  if (!validation.ok) {
+    const result = createSqlToolErrorResult({
+      action: validation.action,
+      database: validation.database,
+      errorCode: validation.code,
+      message: validation.message,
+    });
+    await appendSqlAuditEvent(createSqlAuditEvent({
+      startedAtMs,
+      client,
+      action: validation.action,
+      database: validation.database,
+      status: "validation_error",
+      errorCode: validation.code,
+    }));
+    return sendJson(res, 200, result);
+  }
+
+  const normalized = validation.value;
+  if (activeSqlToolRequests >= SQL_MAX_CONCURRENT) {
+    const result = createSqlToolErrorResult({
+      action: normalized.action,
+      database: normalized.database,
+      errorCode: "busy",
+      message: "SQL Server read-only gateway is busy. Try again shortly.",
+    });
+    await appendSqlAuditEvent(createSqlAuditEvent({
+      startedAtMs,
+      client,
+      action: normalized.action,
+      database: normalized.database,
+      status: "busy",
+      errorCode: "busy",
+      sql: normalized.sql,
+    }));
+    return sendJson(res, 200, result);
+  }
+
+  const exe = resolveSqlToolExe();
+  if (!exe) {
+    const result = createSqlToolErrorResult({
+      action: normalized.action,
+      database: normalized.database,
+      errorCode: "missing_sql_tool",
+      message: `Server-side SQL Server CLI was not found. Configure ${OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME} on the gateway host.`,
+    });
+    await appendSqlAuditEvent(createSqlAuditEvent({
+      startedAtMs,
+      client,
+      action: normalized.action,
+      database: normalized.database,
+      status: "missing_sql_tool",
+      errorCode: "missing_sql_tool",
+      sql: normalized.sql,
+    }));
+    return sendJson(res, 200, result);
+  }
+
+  activeSqlToolRequests += 1;
+  let completed = false;
+  const abortController = new AbortController();
+  const onClientClosed = () => {
+    if (!completed && !res.writableEnded) abortController.abort();
+  };
+  res.on("close", onClientClosed);
+
+  try {
+    const runResult = await runSqlTool(exe, normalized.args, {
+      signal: abortController.signal,
+      timeoutMs: SQL_TIMEOUT_MS,
+      maxStdoutBytes: SQL_MAX_STDOUT_BYTES,
+      maxStderrBytes: SQL_MAX_STDERR_BYTES,
+    });
+    completed = true;
+    const stdout = runResult.stdout.trim();
+    const stderr = runResult.stderr.trim();
+    const payload = parseSqlToolPayload(stdout);
+
+    if (runResult.code !== 0) {
+      const message = sanitizeSqlToolText(stderr || stdout || "SQL Server read-only CLI failed with exit code " + runResult.code, normalized.sql);
+      const result = createSqlToolErrorResult({
+        action: normalized.action,
+        database: normalized.database,
+        errorCode: "cli_exit_" + runResult.code,
+        message,
+        stderr: sanitizeSqlToolText(stderr, normalized.sql),
+        extraDetails: { exitCode: runResult.code, stdout: payload },
+      });
+      await appendSqlAuditEvent(createSqlAuditEvent({
+        startedAtMs,
+        client,
+        action: normalized.action,
+        database: normalized.database,
+        status: "cli_error",
+        errorCode: "cli_exit_" + runResult.code,
+        stdoutBytes: Buffer.byteLength(runResult.stdout, "utf8"),
+        stderrBytes: Buffer.byteLength(runResult.stderr, "utf8"),
+        sql: normalized.sql,
+      }));
+      if (!res.destroyed) return sendJson(res, 200, result);
+      return;
+    }
+
+    const result = {
+      content: [{ type: "text", text: summarizeSqlToolResult(normalized.action, payload) }],
+      details: {
+        action: normalized.action,
+        database: normalized.database,
+        result: payload,
+        ...(stderr ? { stderr: sanitizeSqlToolText(stderr, normalized.sql) } : {}),
+      },
+    };
+    await appendSqlAuditEvent(createSqlAuditEvent({
+      startedAtMs,
+      client,
+      action: normalized.action,
+      database: normalized.database,
+      status: "success",
+      stdoutBytes: Buffer.byteLength(runResult.stdout, "utf8"),
+      stderrBytes: Buffer.byteLength(runResult.stderr, "utf8"),
+      sql: normalized.sql,
+    }));
+    if (!res.destroyed) return sendJson(res, 200, result);
+  } catch (error) {
+    completed = true;
+    const code = cleanMetricName(error?.code, "sql_tool_error");
+    const result = createSqlToolErrorResult({
+      action: normalized.action,
+      database: normalized.database,
+      errorCode: code,
+      message: sanitizeSqlToolText(String(error?.message || error), normalized.sql),
+    });
+    await appendSqlAuditEvent(createSqlAuditEvent({
+      startedAtMs,
+      client,
+      action: normalized.action,
+      database: normalized.database,
+      status: "runtime_error",
+      errorCode: code,
+      sql: normalized.sql,
+    }));
+    if (!res.destroyed) return sendJson(res, 200, result);
+  } finally {
+    completed = true;
+    activeSqlToolRequests = Math.max(0, activeSqlToolRequests - 1);
+    res.off("close", onClientClosed);
+  }
+}
+
+function validateSqlReadonlyParams(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return sqlValidationError("invalid_body", "SQL tool request body must be a JSON object.");
+  }
+
+  const allowedKeys = new Set(["action", "database", "sql", "schema", "table", "includeViews", "limit"]);
+  const unknownKey = Object.keys(body).find((key) => !allowedKeys.has(key));
+  if (unknownKey) {
+    return sqlValidationError("unknown_field", `Unknown SQL tool field: ${unknownKey}`);
+  }
+
+  const action = typeof body.action === "string" ? body.action.trim() : "";
+  if (!SQL_ALLOWED_ACTIONS.has(action)) {
+    return sqlValidationError("invalid_action", "Invalid SQL tool action.", action || "unknown");
+  }
+
+  const databaseInput = body.database == null || body.database === "" ? "LOGIC" : body.database;
+  if (typeof databaseInput !== "string") {
+    return sqlValidationError("invalid_database", "SQL database must be a string.", action);
+  }
+  const database = databaseInput.trim().toUpperCase();
+  if (!SQL_ALLOWED_DATABASES.has(database)) {
+    return sqlValidationError("invalid_database", "SQL database is not allowed.", action, database || "unknown");
+  }
+
+  if (body.includeViews != null && typeof body.includeViews !== "boolean") {
+    return sqlValidationError("invalid_include_views", "includeViews must be a boolean.", action, database);
+  }
+
+  let limit = SQL_DEFAULT_SAMPLE_LIMIT;
+  if (body.limit != null) {
+    if (!Number.isInteger(body.limit)) {
+      return sqlValidationError("invalid_limit", "limit must be an integer.", action, database);
+    }
+    if (body.limit < 1 || body.limit > SQL_MAX_SAMPLE_LIMIT) {
+      return sqlValidationError("invalid_limit", `limit must be between 1 and ${SQL_MAX_SAMPLE_LIMIT}.`, action, database);
+    }
+    limit = body.limit;
+  }
+
+  const schemaResult = normalizeSqlIdentifier(body.schema, "schema");
+  if (!schemaResult.ok) return sqlValidationError(schemaResult.code, schemaResult.message, action, database);
+  const tableResult = normalizeSqlIdentifier(body.table, "table");
+  if (!tableResult.ok) return sqlValidationError(tableResult.code, tableResult.message, action, database);
+  const schema = schemaResult.value;
+  const table = tableResult.value;
+
+  if ((action === "describe" || action === "sample") && !table) {
+    return sqlValidationError("missing_table", `${action} requires table.`, action, database);
+  }
+
+  let sql;
+  if (action === "query") {
+    if (typeof body.sql !== "string" || !body.sql.trim()) {
+      return sqlValidationError("missing_sql", "query requires non-empty sql.", action, database);
+    }
+    sql = body.sql.trim();
+    const sqlSafety = validateReadOnlySql(sql);
+    if (!sqlSafety.ok) return sqlValidationError(sqlSafety.code, sqlSafety.message, action, database);
+  }
+
+  return {
+    ok: true,
+    value: {
+      action,
+      database,
+      sql,
+      args: buildSqlToolArgs({
+        action,
+        database,
+        sql,
+        schema,
+        table,
+        includeViews: body.includeViews === true,
+        limit,
+      }),
+    },
+  };
+}
+
+function sqlValidationError(code, message, action = "unknown", database = "LOGIC") {
+  return { ok: false, code, message, action, database };
+}
+
+function normalizeSqlIdentifier(value, label) {
+  if (value == null || value === "") return { ok: true, value: undefined };
+  if (typeof value !== "string") {
+    return { ok: false, code: "invalid_" + label, message: `${label} must be a string.` };
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return { ok: true, value: undefined };
+  if (!SQL_IDENTIFIER_PATTERN.test(trimmed)) {
+    return {
+      ok: false,
+      code: "invalid_" + label,
+      message: `${label} must be a simple SQL Server identifier without dots, separators, semicolons, or control characters.`,
+    };
+  }
+  return { ok: true, value: trimmed };
+}
+
+function validateReadOnlySql(sql) {
+  if (sql.length > SQL_MAX_SQL_CHARS) {
+    return { ok: false, code: "sql_too_long", message: `SQL text exceeds ${SQL_MAX_SQL_CHARS} characters.` };
+  }
+  const leading = stripLeadingSqlComments(sql);
+  if (!leading.ok) return leading;
+  const firstKeyword = /^([A-Za-z]+)/.exec(leading.text)?.[1]?.toUpperCase();
+  if (firstKeyword !== "SELECT" && firstKeyword !== "WITH") {
+    return { ok: false, code: "sql_not_read_only", message: "Only SELECT or WITH queries are allowed." };
+  }
+
+  const masked = maskSqlLiteralsAndComments(sql);
+  const trimmed = masked.trim();
+  const semicolonIndexes = [];
+  for (let index = 0; index < trimmed.length; index += 1) {
+    if (trimmed[index] === ";") semicolonIndexes.push(index);
+  }
+  if (semicolonIndexes.length > 1 || (semicolonIndexes.length === 1 && semicolonIndexes[0] !== trimmed.length - 1)) {
+    return { ok: false, code: "multiple_statements", message: "Multiple SQL statements are not allowed." };
+  }
+  if (SQL_DANGEROUS_KEYWORD_PATTERN.test(masked)) {
+    return { ok: false, code: "sql_not_read_only", message: "SQL contains a disallowed write/admin keyword." };
+  }
+  return { ok: true };
+}
+
+function stripLeadingSqlComments(sql) {
+  let text = sql.trimStart();
+  while (text.startsWith("--") || text.startsWith("/*")) {
+    if (text.startsWith("--")) {
+      const nextLine = text.search(/\r?\n/);
+      text = nextLine === -1 ? "" : text.slice(nextLine).trimStart();
+      continue;
+    }
+    const end = text.indexOf("*/", 2);
+    if (end === -1) {
+      return { ok: false, code: "unterminated_comment", message: "SQL starts with an unterminated block comment." };
+    }
+    text = text.slice(end + 2).trimStart();
+  }
+  return { ok: true, text };
+}
+
+function maskSqlLiteralsAndComments(sql) {
+  let output = "";
+  let index = 0;
+  while (index < sql.length) {
+    const char = sql[index];
+    const next = sql[index + 1];
+    if (char === "-" && next === "-") {
+      output += "  ";
+      index += 2;
+      while (index < sql.length && sql[index] !== "\n") {
+        output += " ";
+        index += 1;
+      }
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      output += "  ";
+      index += 2;
+      while (index < sql.length) {
+        if (sql[index] === "*" && sql[index + 1] === "/") {
+          output += "  ";
+          index += 2;
+          break;
+        }
+        output += sql[index] === "\n" ? "\n" : " ";
+        index += 1;
+      }
+      continue;
+    }
+    if (char === "'") {
+      output += " ";
+      index += 1;
+      while (index < sql.length) {
+        if (sql[index] === "'" && sql[index + 1] === "'") {
+          output += "  ";
+          index += 2;
+          continue;
+        }
+        const current = sql[index];
+        output += current === "\n" ? "\n" : " ";
+        index += 1;
+        if (current === "'") break;
+      }
+      continue;
+    }
+    if (char === "[") {
+      output += " ";
+      index += 1;
+      while (index < sql.length) {
+        const current = sql[index];
+        output += current === "\n" ? "\n" : " ";
+        index += 1;
+        if (current === "]") break;
+      }
+      continue;
+    }
+    output += char;
+    index += 1;
+  }
+  return output;
+}
+
+function buildSqlToolArgs(params) {
+  const databaseArgs = ["--database", params.database];
+  switch (params.action) {
+    case "info":
+      return ["info", ...databaseArgs];
+    case "list_tables": {
+      const args = ["list-tables", ...databaseArgs];
+      if (params.schema) args.push("--schema", params.schema);
+      if (params.includeViews) args.push("--include-views");
+      return args;
+    }
+    case "describe":
+      return ["describe", ...databaseArgs, ...(params.schema ? ["--schema", params.schema] : []), "--table", params.table];
+    case "sample":
+      return [
+        "sample",
+        ...databaseArgs,
+        ...(params.schema ? ["--schema", params.schema] : []),
+        "--table",
+        params.table,
+        "--limit",
+        String(params.limit),
+      ];
+    case "query":
+      return ["query", ...databaseArgs, params.sql];
+    default:
+      throw new Error("Unsupported SQL action: " + params.action);
+  }
+}
+
+function resolveSqlToolExe() {
+  const configured = process.env[OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME]?.trim();
+  if (configured && existsSync(configured)) return configured;
+  const candidates = [
+    path.join(gatewayRoot, "resources", OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME, OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME),
+    path.resolve(process.cwd(), "resources", OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME, OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME),
+    path.resolve(process.cwd(), "apps", "gateway", "resources", OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME, OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME),
+  ];
+  return candidates.find((candidate) => existsSync(candidate));
+}
+
+function runSqlTool(exe, args, options) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const stdoutChunks = [];
+    const stderrChunks = [];
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    const child = spawn(exe, args, {
+      cwd: path.dirname(exe),
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      windowsHide: true,
+    });
+
+    function cleanup() {
+      clearTimeout(timeout);
+      options.signal?.removeEventListener("abort", onAbort);
+    }
+
+    function fail(code, message) {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      try {
+        child.kill();
+      } catch {
+        // ignore kill errors after process exit
+      }
+      const error = new Error(message);
+      error.code = code;
+      reject(error);
+    }
+
+    function onAbort() {
+      fail("cancelled", "SQL Server read-only request was cancelled.");
+    }
+
+    const timeout = setTimeout(() => {
+      fail("timeout", "SQL Server read-only request timed out.");
+    }, options.timeoutMs);
+
+    if (options.signal?.aborted) {
+      onAbort();
+      return;
+    }
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+
+    child.stdout.on("data", (chunk) => {
+      stdoutBytes += chunk.length;
+      if (stdoutBytes > options.maxStdoutBytes) {
+        fail("stdout_limit", "SQL Server read-only stdout exceeded the configured limit.");
+        return;
+      }
+      stdoutChunks.push(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderrBytes += chunk.length;
+      if (stderrBytes > options.maxStderrBytes) {
+        fail("stderr_limit", "SQL Server read-only stderr exceeded the configured limit.");
+        return;
+      }
+      stderrChunks.push(chunk);
+    });
+    child.on("error", (error) => {
+      fail("spawn_failed", "SQL Server read-only CLI failed to start: " + sanitizeSqlToolText(error.message));
+    });
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve({
+        code: code ?? -1,
+        stdout: Buffer.concat(stdoutChunks).toString("utf8"),
+        stderr: Buffer.concat(stderrChunks).toString("utf8"),
+      });
+    });
+  });
+}
+
+function parseSqlToolPayload(stdout) {
+  if (!stdout) return "";
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return { stdout };
+  }
+}
+
+function summarizeSqlToolResult(action, payload) {
+  const json = JSON.stringify(payload, null, 2) ?? String(payload ?? "");
+  return [
+    "SQL Server read-only tool completed action: " + action,
+    "",
+    json.length > 30000 ? json.slice(0, 30000) + "\n... [truncated in display; full JSON is in details]" : json,
+  ].join("\n");
+}
+
+function createSqlToolErrorResult(options) {
+  return {
+    isError: true,
+    content: [{ type: "text", text: options.message }],
+    details: {
+      action: options.action,
+      database: options.database,
+      errorCode: options.errorCode,
+      ...(options.stderr ? { stderr: options.stderr } : {}),
+      ...(options.extraDetails || {}),
+    },
+  };
+}
+
+function sanitizeSqlToolText(message, sql) {
+  let text = String(message ?? "");
+  if (sql && sql.length > 8) {
+    text = text.split(sql).join("<sql>");
+  }
+  return text
+    .replace(/\b(Password|Pwd)\s*=\s*[^;\r\n]+/gi, "$1=<redacted>")
+    .replace(/\b(User\s*Id|UserID|UID)\s*=\s*[^;\r\n]+/gi, "$1=<redacted>")
+    .replace(/\b(Server|Data Source|Address|Addr|Network Address)\s*=\s*[^;\r\n]+/gi, "$1=<redacted>")
+    .replace(/[A-Za-z]:\\[^\r\n\t]+/g, "<path>")
+    .replace(/\/[^\r\n\t ]*officeagent[^\r\n\t ]*/gi, "<path>")
+    .slice(0, 2000);
+}
+
+function createSqlAuditEvent(options) {
+  const completedAtMs = Date.now();
+  return {
+    schemaVersion: 1,
+    id: randomUUID(),
+    startedAt: new Date(options.startedAtMs).toISOString(),
+    startedAtMs: options.startedAtMs,
+    completedAt: new Date(completedAtMs).toISOString(),
+    completedAtMs,
+    durationMs: Math.max(0, completedAtMs - options.startedAtMs),
+    client: options.client,
+    action: options.action,
+    database: options.database,
+    status: options.status,
+    errorCode: options.errorCode || null,
+    stdoutBytes: Number(options.stdoutBytes || 0),
+    stderrBytes: Number(options.stderrBytes || 0),
+    activeSqlToolRequests,
+    sql: options.sql
+      ? {
+          length: options.sql.length,
+          sha256: createHash("sha256").update(options.sql).digest("hex"),
+        }
+      : null,
+  };
+}
+
+async function appendSqlAuditEvent(event) {
+  try {
+    await mkdir(path.dirname(sqlAuditEventsPath), { recursive: true });
+    await appendFile(sqlAuditEventsPath, JSON.stringify(event) + "\n", "utf8");
+  } catch (error) {
+    console.warn("[gateway] SQL audit append warning", error);
+  }
+}
+
 async function handleChatCompletions(req, res) {
   const token = getBearer(req);
   if (token !== GATEWAY_TOKEN) return unauthorized(res);
@@ -1746,7 +2344,13 @@ const server = http.createServer(async (req, res) => {
         mockMode: MOCK_MODE,
         authPath,
         analyticsEventsPath,
+        sqlAuditEventsPath,
         dashboardUrl: `http://localhost:${PORT}/dashboard`,
+        sqlTool: {
+          configured: Boolean(resolveSqlToolExe()),
+          maxConcurrent: SQL_MAX_CONCURRENT,
+          active: activeSqlToolRequests,
+        },
         routed,
       });
     }
@@ -1809,6 +2413,10 @@ const server = http.createServer(async (req, res) => {
       return handleVfsRequest(req, res, handleVfsRoots);
     }
 
+    if (req.method === "POST" && url.pathname === SQL_TOOL_ENDPOINT_PATH) {
+      return handleSqlReadonlyRequest(req, res);
+    }
+
     if (req.method === "POST" && url.pathname === "/v1/chat/completions") {
       return handleChatCompletions(req, res);
     }
@@ -1831,4 +2439,6 @@ server.listen(PORT, HOST, () => {
   console.log(`[gateway] auth path: ${authPath}`);
   console.log(`[gateway] analytics dashboard: http://localhost:${PORT}/dashboard`);
   console.log(`[gateway] analytics log: ${analyticsEventsPath}`);
+  console.log(`[gateway] SQL audit log: ${sqlAuditEventsPath}`);
+  console.log(`[gateway] SQL tool configured: ${resolveSqlToolExe() ? "yes" : "no"}`);
 });

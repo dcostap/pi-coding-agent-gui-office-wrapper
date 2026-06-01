@@ -12,8 +12,8 @@ files:
 asar: false
 npmRebuild: false
 extraResources:
-  - from: desktop/resources
-    to: resources
+  - from: desktop/resources/skills
+    to: resources/skills
   - from: build/native/windows-sandbox-helper
     to: windows-sandbox-helper
     filter:

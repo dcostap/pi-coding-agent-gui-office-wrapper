@@ -272,31 +272,19 @@ const OFFICE_AGENT_SQLSERVER_READONLY_CONTEXT = "# Acceso a base de datos SQL Se
 
 const OFFICE_AGENT_SQLSERVER_READONLY_EXTENSION_SOURCE = `import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { existsSync } from "node:fs";
-import path from "node:path";
 
-const exeName = "${OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME}";
-const toolDirName = "${OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME}";
-const exeEnvName = "${OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME}";
+const gatewayUrl = process.env.${OFFICE_AGENT_GATEWAY_URL_ENV_NAME} || "${OFFICE_AGENT_DEFAULT_GATEWAY_URL}";
+const gatewayToken = process.env.${OFFICE_AGENT_GATEWAY_TOKEN_ENV_NAME} || "${OFFICE_AGENT_DEFAULT_GATEWAY_TOKEN}";
+const clientKind = process.env.${OFFICE_AGENT_CLIENT_KIND_ENV_NAME} || "unknown";
+const windowsUser = process.env.${OFFICE_AGENT_WINDOWS_USER_ENV_NAME} || process.env.USERNAME || process.env.USER || "unknown-user";
+const windowsDomain = process.env.${OFFICE_AGENT_WINDOWS_DOMAIN_ENV_NAME} || process.env.USERDOMAIN || "";
+const windowsHost = process.env.${OFFICE_AGENT_WINDOWS_HOST_ENV_NAME} || process.env.COMPUTERNAME || process.env.HOSTNAME || "unknown-host";
+const identity = windowsDomain && windowsUser ? windowsDomain + "\\\\" + windowsUser : windowsUser;
 const sqlServerReadonlyContext = ${JSON.stringify(OFFICE_AGENT_SQLSERVER_READONLY_CONTEXT)};
 
 type SqlAction = "info" | "list_tables" | "describe" | "sample" | "query";
 
-function resolveToolExe(): string | undefined {
-  const configured = process.env[exeEnvName]?.trim();
-  if (configured && existsSync(configured)) return configured;
-
-  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  const candidates = [
-    ...(resourcesPath ? [path.join(resourcesPath, "resources", toolDirName, exeName)] : []),
-    path.resolve(process.cwd(), "resources", toolDirName, exeName),
-    path.resolve(process.cwd(), "apps", "gui", "desktop", "resources", toolDirName, exeName),
-    path.resolve(process.cwd(), "..", "..", "apps", "gui", "desktop", "resources", toolDirName, exeName),
-  ];
-  return candidates.find((candidate) => existsSync(candidate));
-}
-
-function buildArgs(params: {
+type SqlReadonlyParams = {
   action: SqlAction;
   database?: string;
   sql?: string;
@@ -304,47 +292,62 @@ function buildArgs(params: {
   table?: string;
   includeViews?: boolean;
   limit?: number;
-}): string[] {
-  const database = params.database?.trim() || "LOGIC";
-  const databaseArgs = ["--database", database];
-  switch (params.action) {
-    case "info":
-      return ["info", ...databaseArgs];
-    case "list_tables": {
-      const args = ["list-tables", ...databaseArgs];
-      if (params.schema) args.push("--schema", params.schema);
-      if (params.includeViews) args.push("--include-views");
-      return args;
-    }
-    case "describe":
-      if (!params.table) throw new Error("describe requires table");
-      return ["describe", ...databaseArgs, ...(params.schema ? ["--schema", params.schema] : []), "--table", params.table];
-    case "sample":
-      if (!params.table) throw new Error("sample requires table");
-      return [
-        "sample",
-        ...databaseArgs,
-        ...(params.schema ? ["--schema", params.schema] : []),
-        "--table",
-        params.table,
-        "--limit",
-        String(params.limit ?? 20),
-      ];
-    case "query": {
-      const sql = params.sql?.trim();
-      if (!sql) throw new Error("query requires sql");
-      return ["query", ...databaseArgs, sql];
-    }
-  }
+};
+
+function appendUrlPath(base: string, segment: string): string {
+  return base.replace(/\\/+$/, "") + "/" + segment.replace(/^\\/+/, "");
 }
 
-function summarize(action: SqlAction, payload: unknown): string {
-  const json = JSON.stringify(payload, null, 2);
-  return [
-    "SQL Server read-only tool completed action: " + action,
-    "",
-    json.length > 30000 ? json.slice(0, 30000) + "\\n... [truncated in display; full JSON is in details]" : json,
-  ].join("\\n");
+function createIdentityHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "X-OfficeAgent-Client": clientKind,
+    "X-OfficeAgent-User": windowsUser,
+    "X-OfficeAgent-Host": windowsHost,
+    "X-OfficeAgent-Identity": identity,
+  };
+  if (windowsDomain) headers["X-OfficeAgent-Domain"] = windowsDomain;
+  return headers;
+}
+
+function extractErrorMessage(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const record = payload as Record<string, unknown>;
+  if (typeof record.error === "string") return record.error;
+  if (record.error && typeof record.error === "object" && typeof (record.error as { message?: unknown }).message === "string") {
+    return (record.error as { message: string }).message;
+  }
+  if (typeof record.message === "string") return record.message;
+  return undefined;
+}
+
+async function postJsonWithAbort(url: string, body: SqlReadonlyParams, signal?: AbortSignal): Promise<unknown> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer " + gatewayToken,
+      ...createIdentityHeaders(),
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+  const text = await response.text();
+  let payload: unknown = undefined;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = { message: text };
+    }
+  }
+  if (!response.ok) {
+    throw new Error(extractErrorMessage(payload) || "OfficeAgent SQL gateway request failed with HTTP " + response.status);
+  }
+  return payload;
+}
+
+function assertToolResult(payload: unknown): payload is { content: unknown } {
+  return Boolean(payload && typeof payload === "object" && Array.isArray((payload as { content?: unknown }).content));
 }
 
 export default function (pi: ExtensionAPI) {
@@ -355,11 +358,11 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "castrosua_sql_read_only",
     label: "Castrosua SQL Read-only",
-    description: "Read-only access to Castrosua SQL Server databases, including ERP Logic/Sage and GLP4/APPi, through the bundled CLI executable. Use for schema inspection and safe SELECT queries.",
+    description: "Read-only access to Castrosua SQL Server databases, including ERP Logic/Sage and GLP4/APPi, through the OfficeAgent gateway. Use for schema inspection and safe SELECT queries.",
     promptSnippet: "Inspect Castrosua SQL Server metadata and run read-only SELECT/WITH queries for ERP Logic/Sage, GLP4/APPi, articles, suppliers, and delivery notes.",
     promptGuidelines: [
       "Use castrosua_sql_read_only when the user asks about ERP Logic/Sage, GLP4/APPi, SQL Server data, tables, views, schemas, samples, or read-only SQL query results.",
-      "The adapter always passes --database to the SQL CLI. Default to database LOGIC for ERP Logic/Sage; use database GLP4 for APPi/GLP4 questions.",
+      "The gateway always passes --database to the SQL adapter. Default to database LOGIC for ERP Logic/Sage; use database GLP4 for APPi/GLP4 questions.",
       "Use castrosua_sql_read_only for article/material codes from technical documentation when they look like Logic CodigoArticulo values, usually 6-digit numeric codes.",
       "castrosua_sql_read_only is read-only: use action=query only for SELECT or WITH queries, and prefer narrow projections, filters, and TOP clauses before broad exploration.",
       "For unknown tables, call castrosua_sql_read_only list_tables and describe before writing a query.",
@@ -369,20 +372,17 @@ export default function (pi: ExtensionAPI) {
         [Type.Literal("info"), Type.Literal("list_tables"), Type.Literal("describe"), Type.Literal("sample"), Type.Literal("query")],
         { description: "Operation to run: connection info, list tables/views, describe a table, sample rows, or execute a read-only query." },
       ),
-      database: Type.Optional(Type.String({ description: "Database name for this call. Defaults to LOGIC. Use GLP4 for APPi/GLP4 questions." })),
+      database: Type.Optional(Type.Union([Type.Literal("LOGIC"), Type.Literal("GLP4")], { description: "Database name for this call. Defaults to LOGIC. Use GLP4 for APPi/GLP4 questions." })),
       sql: Type.Optional(Type.String({ description: "SQL text for action=query. Must be a read-only SELECT or WITH query." })),
       schema: Type.Optional(Type.String({ description: "Schema name for list_tables, describe, or sample. Usually dbo." })),
       table: Type.Optional(Type.String({ description: "Table or view name for describe or sample." })),
       includeViews: Type.Optional(Type.Boolean({ description: "Include views for action=list_tables." })),
-      limit: Type.Optional(Type.Number({ description: "Maximum sample row count for action=sample. Default 20." })),
+      limit: Type.Optional(Type.Number({ description: "Maximum sample row count for action=sample. Must be an integer. Default 20." })),
     }),
     async execute(_toolCallId, params, signal, onUpdate) {
-      const exe = resolveToolExe();
-      if (!exe) {
-        throw new Error("Bundled SQL Server CLI was not found. Set " + exeEnvName + " or reinstall Castrosua IA with the sqlserver-readonly resource.");
-      }
       const action = params.action as SqlAction;
-      const args = buildArgs({
+      onUpdate?.({ content: [{ type: "text", text: "Requesting SQL Server read-only action on OfficeAgent gateway: " + action }] });
+      const payload = await postJsonWithAbort(appendUrlPath(gatewayUrl, "tools/castrosua_sql_read_only"), {
         action,
         database: params.database,
         sql: params.sql,
@@ -390,30 +390,11 @@ export default function (pi: ExtensionAPI) {
         table: params.table,
         includeViews: params.includeViews,
         limit: params.limit,
-      });
-      onUpdate?.({ content: [{ type: "text", text: "Running SQL Server read-only action: " + action }] });
-      const result = await pi.exec(exe, args, { cwd: path.dirname(exe), signal, timeout: 120000 });
-      const stdout = result.stdout?.trim() ?? "";
-      const stderr = result.stderr?.trim() ?? "";
-      let payload: unknown = stdout;
-      if (stdout) {
-        try {
-          payload = JSON.parse(stdout);
-        } catch {
-          payload = { stdout };
-        }
+      }, signal);
+      if (!assertToolResult(payload)) {
+        throw new Error("OfficeAgent SQL gateway returned an invalid tool result.");
       }
-      if (result.code !== 0) {
-        return {
-          isError: true,
-          content: [{ type: "text", text: stderr || stdout || "SQL Server read-only CLI failed with exit code " + result.code }],
-          details: { exe, args, exitCode: result.code, stderr, stdout: payload },
-        };
-      }
-      return {
-        content: [{ type: "text", text: summarize(action, payload) }],
-        details: { action, result: payload, stderr: stderr || undefined },
-      };
+      return payload;
     },
   });
 }

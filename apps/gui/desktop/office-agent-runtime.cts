@@ -17,9 +17,6 @@ import {
   OFFICE_AGENT_MODEL_ID,
   OFFICE_AGENT_PROVIDER_ID,
   OFFICE_AGENT_PROVIDER_LABEL,
-  OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME,
-  OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME,
-  OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME,
   getDefaultOfficeAgentEnabledModel,
   getOfficeAgentEnabledModel,
   normalizeOfficeAgentModelSelection,
@@ -93,7 +90,6 @@ export async function prepareOfficeAgentDesktopRuntime(): Promise<{
   process.env.HOWCODE_REPO_ROOT = process.env.HOWCODE_REPO_ROOT?.trim() || projectsDir;
   defaultWindowsSandboxBackendToV2();
   setSandboxHelperEnvIfPresent();
-  setSqlServerReadonlyToolEnvIfPresent();
 
   await ensureOfficeAgentManagedAgentDir(agentDir);
   await stageBundledRipgrepForPi(agentDir);
@@ -404,44 +400,6 @@ function resolveBundledRipgrepPath(): string | undefined {
     resolve(process.cwd(), "..", "..", ...buildRuntimePath),
   ];
   return candidates.find((candidate) => existsSync(candidate));
-}
-
-function setSqlServerReadonlyToolEnvIfPresent(): void {
-  if (process.env[OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME]?.trim()) {
-    return;
-  }
-
-  const resourcesPathValue = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  const resourcesPath = typeof resourcesPathValue === "string" ? resourcesPathValue : undefined;
-  const candidates = [
-    ...(resourcesPath
-      ? [join(resourcesPath, "resources", OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME, OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME)]
-      : []),
-    resolve(
-      process.cwd(),
-      "apps",
-      "gui",
-      "desktop",
-      "resources",
-      OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME,
-      OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME,
-    ),
-    resolve(
-      process.cwd(),
-      "..",
-      "..",
-      "apps",
-      "gui",
-      "desktop",
-      "resources",
-      OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME,
-      OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME,
-    ),
-  ];
-  const existingCandidate = candidates.find((candidate) => existsSync(candidate));
-  if (existingCandidate) {
-    process.env[OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME] = existingCandidate;
-  }
 }
 
 function setSandboxHelperEnvIfPresent(): void {

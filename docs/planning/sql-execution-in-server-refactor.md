@@ -343,11 +343,11 @@ Minimum coverage:
 - malformed/protocol-broken request returns `400`/`413`
 - invalid action/database returns HTTP `200` with `isError: true`
 - action-specific validation failures are caught before exe resolution
-- validation failures do not require `OFFICE_AGENT_SQLSERVER_TOOL_EXE`
-- `action: info` works when `OFFICE_AGENT_SQLSERVER_TOOL_EXE` is configured
+- validation failures do not require `OFFICE_AGENT_SQLSERVER_TOOL_EXE` and do not spawn the tool
+- `action: info` works when `OFFICE_AGENT_SQLSERVER_TOOL_EXE` is explicitly configured for the smoke environment
 - timeout/output-limit/concurrency-busy behavior returns controlled tool errors, if feasible
 
-If the real exe is environment-dependent, skip the live `info` portion unless `OFFICE_AGENT_SQLSERVER_TOOL_EXE` is set. If fake-exe coverage is added, design it deliberately for Windows and non-Windows with `shell: false`; otherwise keep fake coverage to validation paths that do not spawn.
+If the real exe is environment-dependent, skip the live `info` portion unless `OFFICE_AGENT_SQLSERVER_TOOL_EXE` is explicitly set. If fake-exe coverage is added, design it deliberately for Windows and non-Windows with `shell: false`; otherwise keep fake coverage to validation paths that do not spawn.
 
 ## Implementation sequence
 
