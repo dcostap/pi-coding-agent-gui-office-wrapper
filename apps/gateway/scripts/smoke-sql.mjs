@@ -80,12 +80,12 @@ try {
   await assertToolError({ action: "query", database: "LOGIC", sql: "SELECT 1; DROP TABLE T" }, "multiple_statements");
   await assertToolError({ action: "sample", database: "LOGIC", table: "CabeceraAlbaranProveedor", limit: 1.5 }, "invalid_limit");
 
-  if (process.env.OFFICE_AGENT_SQLSERVER_TOOL_EXE?.trim()) {
-    const info = await postTool({ action: "info", database: "LOGIC" });
+  const info = await postTool({ action: "info", database: "LOGIC" });
+  if (info.isError && info.details?.errorCode === "missing_sql_tool") {
+    console.log("[gateway:sql-smoke] skipped live info; no server-side SQL executable was found");
+  } else {
     assert(!info.isError, `live info returned tool error: ${JSON.stringify(info)}\nGateway output:\n${output}`);
     assert(Array.isArray(info.content), "live info missing content");
-  } else {
-    console.log("[gateway:sql-smoke] skipped live info; OFFICE_AGENT_SQLSERVER_TOOL_EXE is not set");
   }
 
   console.log("[gateway:sql-smoke] ok");

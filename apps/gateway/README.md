@@ -35,7 +35,7 @@ It accepts abstract models such as `assistant` and `gpt-5.5`, routes them to con
 
 Virtual root registry details live in `packages/office-agent-runtime/src/office-agent-vfs-roots.ts` so gateway and client use the same source of truth.
 - `OFFICE_AGENT_VFS_TIMEOUT_MS` - default `30000`
-- `OFFICE_AGENT_SQLSERVER_TOOL_EXE` - optional explicit path to the server-side `castrosua-readonly-sqlserver.exe`.
+- `OFFICE_AGENT_SQLSERVER_TOOL_EXE` - optional explicit path to the server-side SQL tool. If unset, the gateway auto-detects `apps/gateway/resources/sqlserver-readonly/castrosua-readonly-sqlserver` on Linux/macOS and `castrosua-readonly-sqlserver.exe` on Windows.
 - `OFFICE_AGENT_SQLSERVER_TIMEOUT_MS` - SQL tool process timeout; default `120000`.
 - `OFFICE_AGENT_SQLSERVER_MAX_STDOUT_BYTES` - SQL tool stdout limit; default `2097152`.
 - `OFFICE_AGENT_SQLSERVER_MAX_STDERR_BYTES` - SQL tool stderr limit; default `262144`.
@@ -71,9 +71,14 @@ This starts the gateway in mock mode with a temporary `OFFICE_AGENT_VFS_BASE_DIR
 npm run gateway:smoke:sql
 ```
 
-This starts the gateway in mock mode and verifies auth plus SQL-tool validation behavior without spawning the SQL executable. If `OFFICE_AGENT_SQLSERVER_TOOL_EXE` is configured for the smoke environment, it also verifies `action: "info"` against the real server-side tool.
+This starts the gateway in mock mode, verifies auth plus SQL-tool validation behavior, and verifies `action: "info"` when a server-side SQL tool is present. The repository includes default Windows and Linux x64 builds under `apps/gateway/resources/sqlserver-readonly/`, so no `OFFICE_AGENT_SQLSERVER_TOOL_EXE` override is normally required.
 
-The SQL Server executable and its native dependencies must be deployed on the gateway host, for example under `apps/gateway/resources/sqlserver-readonly/`. The currently bundled SQL tool is a Windows executable, so the gateway SQL endpoint must run on Windows unless a server-compatible non-Windows build is supplied.
+Default deployed resource paths:
+
+- Linux: `apps/gateway/resources/sqlserver-readonly/castrosua-readonly-sqlserver`
+- Windows: `apps/gateway/resources/sqlserver-readonly/castrosua-readonly-sqlserver.exe` plus `Microsoft.Data.SqlClient.SNI.dll`
+
+On Linux deployments, the binary must be executable. The checked-in file mode should handle this after `git pull`; if needed, run `chmod +x apps/gateway/resources/sqlserver-readonly/castrosua-readonly-sqlserver` once on the server.
 
 ## Pi-auth-backed bootstrap
 

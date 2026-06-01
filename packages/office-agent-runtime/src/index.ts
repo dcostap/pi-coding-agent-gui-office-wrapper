@@ -78,6 +78,7 @@ export const OFFICE_AGENT_PROJECT_CACHE_ENV_NAME = "OFFICE_AGENT_PROJECT_CACHE";
 export const OFFICE_AGENT_PROJECT_TOOLS_ENV_NAME = "OFFICE_AGENT_PROJECT_TOOLS";
 export const OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME = "OFFICE_AGENT_SQLSERVER_TOOL_EXE";
 export const OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME = "sqlserver-readonly";
+export const OFFICE_AGENT_SQLSERVER_TOOL_BINARY_NAME = "castrosua-readonly-sqlserver";
 export const OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME = "castrosua-readonly-sqlserver.exe";
 
 export type OfficeAgentClientKind = "gui" | "tui" | "unknown";

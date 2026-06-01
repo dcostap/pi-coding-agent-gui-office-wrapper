@@ -10,6 +10,7 @@ import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { streamSimple as piStreamSimple } from "@earendil-works/pi-ai";
 import {
   OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME,
+  OFFICE_AGENT_SQLSERVER_TOOL_BINARY_NAME,
   OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME,
   OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME,
   OFFICE_AGENT_VFS_ROOTS,
@@ -1554,11 +1555,16 @@ function buildSqlToolArgs(params) {
 function resolveSqlToolExe() {
   const configured = process.env[OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME]?.trim();
   if (configured && existsSync(configured)) return configured;
-  const candidates = [
-    path.join(gatewayRoot, "resources", OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME, OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME),
-    path.resolve(process.cwd(), "resources", OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME, OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME),
-    path.resolve(process.cwd(), "apps", "gateway", "resources", OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME, OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME),
+
+  const resourceRoots = [
+    path.join(gatewayRoot, "resources", OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME),
+    path.resolve(process.cwd(), "resources", OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME),
+    path.resolve(process.cwd(), "apps", "gateway", "resources", OFFICE_AGENT_SQLSERVER_TOOL_RESOURCE_DIR_NAME),
   ];
+  const fileNames = process.platform === "win32"
+    ? [OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME, OFFICE_AGENT_SQLSERVER_TOOL_BINARY_NAME]
+    : [OFFICE_AGENT_SQLSERVER_TOOL_BINARY_NAME, OFFICE_AGENT_SQLSERVER_TOOL_EXE_NAME];
+  const candidates = resourceRoots.flatMap((root) => fileNames.map((fileName) => path.join(root, fileName)));
   return candidates.find((candidate) => existsSync(candidate));
 }
 
