@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bot logo activity prototype</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="prototype-shell">
+      <aside class="controls">
+        <div class="intro">
+          <div class="eyebrow">Logo feedback lab</div>
+          <h1>Bot activity mark</h1>
+          <p>Prototype the small logo that appears below assistant messages while the bot is thinking, streaming, or working.</p>
+        </div>
+
+        <section class="panel">
+          <label>
+            Animation style
+            <select id="animationSelect">
+              <option value="pulse">Soft pulse</option>
+              <option value="orbit">Orbital tick</option>
+              <option value="scan">Executive scan</option>
+              <option value="stagger">Staggered lag</option>
+              <option value="focus">Focus breathe</option>
+              <option value="spark">Gold spark</option>
+              <option value="constellation">Constellation trace</option>
+              <option value="magnetic">Magnetic snap</option>
+              <option value="heartbeat">Enterprise heartbeat</option>
+              <option value="shimmer">Polished shimmer</option>
+              <option value="fold">Paper fold</option>
+              <option value="radar">Quiet radar</option>
+              <option value="breach">Data breach</option>
+              <option value="pendulum">Pendulum weight</option>
+              <option value="mosaic">Mosaic assemble</option>
+              <option value="signature">Signature draw</option>
+              <option value="idle">Static / complete</option>
+            </select>
+          </label>
+
+          <label>
+            Status text
+            <select id="statusSelect">
+              <option value="Thinking">Thinking</option>
+              <option value="Working">Working</option>
+              <option value="Sending">Sending</option>
+              <option value="Reviewing files">Reviewing files</option>
+              <option value="Done">Done</option>
+            </select>
+          </label>
+
+          <label>
+            Size <output id="sizeValue">34px</output>
+            <input id="sizeRange" type="range" min="22" max="58" value="34" />
+          </label>
+
+          <label>
+            Speed <output id="speedValue">1.0×</output>
+            <input id="speedRange" type="range" min="55" max="180" value="100" />
+          </label>
+
+          <label>
+            Glow <output id="glowValue">42%</output>
+            <input id="glowRange" type="range" min="0" max="100" value="42" />
+          </label>
+
+          <label class="switch">
+            Show label
+            <input id="labelToggle" type="checkbox" checked />
+          </label>
+
+          <label class="switch">
+            Use gold tint
+            <input id="goldToggle" type="checkbox" checked />
+          </label>
+        </section>
+
+        <section class="panel preset-grid">
+          <button data-preset="enterprise">Enterprise calm</button>
+          <button data-preset="friendly">Friendly pulse</button>
+          <button data-preset="technical">Technical scan</button>
+          <button data-preset="laggy">Laggy artisan</button>
+        </section>
+      </aside>
+
+      <main class="stage">
+        <div class="chat-window" id="chatWindow" data-animation="pulse" data-label="true" data-gold="true">
+          <header class="topbar">
+            <div>
+              <span class="eyebrow">Mock chat</span>
+              <strong>Castrosua IA</strong>
+            </div>
+            <span class="model-chip">Exo 2 · graphite</span>
+          </header>
+
+          <div class="messages">
+            <div class="message user">
+              Can you summarize the table and tell me if any values look out of range?
+            </div>
+
+            <article class="message assistant">
+              <p>Yes. The table looks internally consistent: the age column is numeric, names are unique, and there are no missing cells.</p>
+              <p>The only value I would manually verify is David at 45, depending on the intended age range for this dataset.</p>
+              <div class="assistant-tools">
+                <button>Copy</button><button>Like</button><button>Retry</button>
+              </div>
+              <div class="bot-activity" aria-label="Assistant activity indicator">
+                <span class="logo-wrap">
+                  <img src="./logo_white_no_letters.png" alt="" />
+                  <span class="logo-ghost ghost-a"></span>
+                  <span class="logo-ghost ghost-b"></span>
+                  <span class="orbit-dot"></span>
+                  <span class="scan-bar"></span>
+                  <span class="logo-fragment f1"></span><span class="logo-fragment f2"></span><span class="logo-fragment f3"></span><span class="logo-fragment f4"></span>
+                </span>
+                <span class="activity-label"><span class="status-text">Thinking</span><span class="dots"><i></i><i></i><i></i></span></span>
+              </div>
+            </article>
+
+            <div class="message user">
+              Nice. Show me the answer as a simple markdown table.
+            </div>
+
+            <article class="message assistant streaming">
+              <p>Here is the compact summary:</p>
+              <table>
+                <thead><tr><th>Name</th><th>Age</th><th>Note</th></tr></thead>
+                <tbody>
+                  <tr><td>Alice</td><td>28</td><td>Normal</td></tr>
+                  <tr><td>Bob</td><td>34</td><td>Normal</td></tr>
+                  <tr><td>Carol</td><td>22</td><td>Youngest</td></tr>
+                  <tr><td>David</td><td>45</td><td>Verify range</td></tr>
+                </tbody>
+              </table>
+              <div class="bot-activity" aria-label="Assistant activity indicator">
+                <span class="logo-wrap">
+                  <img src="./logo_white_no_letters.png" alt="" />
+                  <span class="logo-ghost ghost-a"></span>
+                  <span class="logo-ghost ghost-b"></span>
+                  <span class="orbit-dot"></span>
+                  <span class="scan-bar"></span>
+                  <span class="logo-fragment f1"></span><span class="logo-fragment f2"></span><span class="logo-fragment f3"></span><span class="logo-fragment f4"></span>
+                </span>
+                <span class="activity-label"><span class="status-text">Thinking</span><span class="dots"><i></i><i></i><i></i></span></span>
+              </div>
+            </article>
+          </div>
+
+          <footer class="composer">
+            <div class="input">Ask a follow-up…</div>
+            <button>↗</button>
+          </footer>
+        </div>
+      </main>
+    </div>
+
+    <script src="./script.js"></script>
+  </body>
+</html>
