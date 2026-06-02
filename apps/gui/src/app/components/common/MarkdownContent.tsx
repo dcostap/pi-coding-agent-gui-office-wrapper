@@ -55,6 +55,31 @@ function MarkdownLink(props: AnchorHTMLAttributes<HTMLAnchorElement>) {
           return;
         }
 
+        if (href === "office-agent://windows-sandbox/repair-secondary-logon") {
+          event.preventDefault();
+          showGlobalToast({ message: "Solicitando permisos de administrador para reparar la ejecución de comandos…", tone: "info" });
+          void window.piDesktop?.runWindowsSandboxRepairSecondaryLogon?.()
+            .then((result) => {
+              if (result?.readyAfterRun) {
+                showGlobalToast({ message: "Reparación completada. Ya puedes reintentar el comando.", tone: "success" });
+                return;
+              }
+              showGlobalToast({
+                message: result?.error ?? "No se pudo reparar la ejecución de comandos. Puede haber una política de Windows bloqueándolo.",
+                tone: "error",
+                timeoutMs: 12000,
+              });
+            })
+            .catch((error) => {
+              showGlobalToast({
+                message: error instanceof Error ? error.message : "No se pudo lanzar la reparación.",
+                tone: "error",
+                timeoutMs: 12000,
+              });
+            });
+          return;
+        }
+
         if (href === "office-agent://windows-sandbox/setup") {
           event.preventDefault();
           showGlobalToast({ message: "Solicitando permisos de administrador para configurar el sandbox… Se abrirá una ventana de PowerShell con el progreso.", tone: "info" });

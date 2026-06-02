@@ -19,6 +19,24 @@ export interface WindowsSandboxSetupStatus {
   readonly error?: string;
 }
 
+export interface WindowsSandboxRepairResult {
+  readonly ok: boolean;
+  readonly kind: "secondary-logon";
+  readonly launched?: boolean;
+  readonly exitCode?: number;
+  readonly readyAfterRun?: boolean;
+  readonly error?: string;
+}
+
+export interface WindowsSandboxLaunchStatus {
+  readonly ok: boolean;
+  readonly ready: boolean;
+  readonly status?: string;
+  readonly issue?: string;
+  readonly secondaryLogonLikelyBlocked?: boolean;
+  readonly error?: string;
+}
+
 export interface WindowsSandboxSetupHandoff {
   readonly ok: boolean;
   readonly action: WindowsSandboxSetupAction;

@@ -30,6 +30,33 @@ const PROJECT_FILES_DOCKED_MIN_WIDTH = 1180;
 
 let automaticWindowsSandboxSetupStarted = false;
 
+const SECONDARY_LOGON_TOAST_STORAGE_KEY = "office-agent:secondary-logon-warning-shown";
+
+function isSecondaryLogonLaunchErrorText(text: string | null | undefined) {
+  return Boolean(
+    text &&
+      text.includes("CreateProcessWithLogonW failed: Access is denied") &&
+      text.includes("CreateProcessWithTokenW fallback failed") &&
+      text.includes("CreateProcessAsUserW fallback failed"),
+  );
+}
+
+function getSecondaryLogonRepairMessage(intro: string) {
+  return `${intro}\n\nOfficeAgent ejecuta comandos dentro de un usuario seguro, pero Windows está bloqueando ese inicio. Normalmente pasa porque el servicio “Secondary Logon” está detenido o bloqueado.\n\nPuedes intentar repararlo ahora. Windows pedirá permisos de administrador.\n\n[Intentar reparar](office-agent://windows-sandbox/repair-secondary-logon)`;
+}
+
+function showSecondaryLogonToastOnce(intro: string, storageKey = SECONDARY_LOGON_TOAST_STORAGE_KEY) {
+  if (window.localStorage.getItem(storageKey) === "true") {
+    return;
+  }
+  window.localStorage.setItem(storageKey, "true");
+  showGlobalToast({
+    message: getSecondaryLogonRepairMessage(intro),
+    tone: "error",
+    timeoutMs: 20000,
+  });
+}
+
 function formatAutomaticSandboxSetupFailure(error: string | null | undefined) {
   const message = cleanUserErrorMessage(error, "No se pudo configurar el sandbox de Windows.");
   return `${message} La app volverá a intentarlo al abrirse de nuevo; también puedes configurarlo desde Ajustes.`;
@@ -48,7 +75,18 @@ function startAutomaticWindowsSandboxSetupIfNeeded() {
 
   void (async () => {
     const status = await desktopApi.getWindowsSandboxSetupStatus?.();
-    if (!status || status.ready) {
+    if (!status) {
+      return;
+    }
+    if (status.ready) {
+      const launchStatus = await desktopApi.getWindowsSandboxLaunchStatus?.();
+      if (launchStatus && !launchStatus.ready && launchStatus.secondaryLogonLikelyBlocked) {
+        showGlobalToast({
+          message: getSecondaryLogonRepairMessage("No se pueden ejecutar comandos todavía."),
+          tone: "error",
+          timeoutMs: 20000,
+        });
+      }
       return;
     }
     if (!status.available) {
@@ -291,6 +329,20 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
   useEffect(() => {
     startAutomaticWindowsSandboxSetupIfNeeded();
   }, []);
+
+  useEffect(() => {
+    const messages = controller.activeThreadData?.messages ?? [];
+    const latestMessage = messages[messages.length - 1] as
+      | { role?: string; content?: readonly string[]; output?: readonly string[] }
+      | undefined;
+    if (!latestMessage || (latestMessage.role !== "toolResult" && latestMessage.role !== "bashExecution")) {
+      return;
+    }
+    const text = [...(latestMessage.content ?? []), ...(latestMessage.output ?? [])].join("\n");
+    if (isSecondaryLogonLaunchErrorText(text)) {
+      showSecondaryLogonToastOnce("No se pudo ejecutar el comando.");
+    }
+  }, [controller.activeThreadData?.messages]);
 
   useEffect(() => {
     if (projectFilesDocked) {

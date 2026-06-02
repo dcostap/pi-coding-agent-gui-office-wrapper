@@ -3,6 +3,7 @@ import {
   checkOfficeAgentWindowsSandboxSetup,
   prepareOfficeAgentWindowsSandboxReset,
   prepareOfficeAgentWindowsSandboxSetup,
+  runOfficeAgentWindowsSandboxRunnerSelfTest,
 } from "../../../../../../../packages/pi-sdk-driver/src/windows-sandbox-helper-client";
 import { getOfficeAgentManagedRootDir } from "../../../../../../../packages/office-agent-runtime/src/index";
 import type { DesktopRequestHandlerMap } from "../../../../../shared/desktop-ipc";
@@ -13,7 +14,11 @@ import type {
 
 type WindowsSandboxHandlers = Pick<
   DesktopRequestHandlerMap,
-  "getWindowsSandboxSetupStatus" | "prepareWindowsSandboxSetup" | "runWindowsSandboxSetup"
+  | "getWindowsSandboxSetupStatus"
+  | "getWindowsSandboxLaunchStatus"
+  | "prepareWindowsSandboxSetup"
+  | "runWindowsSandboxSetup"
+  | "runWindowsSandboxRepairSecondaryLogon"
 >;
 
 function resultString(result: Readonly<Record<string, unknown>> | undefined, key: string): string | undefined {
@@ -65,6 +70,37 @@ function mapStatusResponse(response: Awaited<ReturnType<typeof checkOfficeAgentW
   };
 }
 
+function isSecondaryLogonLikelyBlocked(message: string | undefined) {
+  return Boolean(
+    message &&
+      message.includes("CreateProcessWithLogonW failed: Access is denied") &&
+      message.includes("CreateProcessWithTokenW fallback failed") &&
+      message.includes("CreateProcessAsUserW fallback failed"),
+  );
+}
+
+function mapLaunchStatusResponse(response: Awaited<ReturnType<typeof runOfficeAgentWindowsSandboxRunnerSelfTest>>) {
+  if (!response.ok) {
+    const error = response.error?.message ?? "Windows sandbox launch self-test failed.";
+    return {
+      ok: false,
+      ready: false,
+      error,
+      secondaryLogonLikelyBlocked: isSecondaryLogonLikelyBlocked(error),
+    };
+  }
+  const status = resultString(response.result, "status");
+  const issue = resultString(response.result, "issue");
+  const ready = status === "ok" || resultBoolean(response.result, "launched") === true;
+  return {
+    ok: true,
+    ready,
+    status,
+    issue,
+    secondaryLogonLikelyBlocked: isSecondaryLogonLikelyBlocked(issue),
+  };
+}
+
 function mapHandoffResponse(
   action: "setup" | "reset",
   response: Awaited<ReturnType<typeof prepareOfficeAgentWindowsSandboxSetup>>,
@@ -97,6 +133,21 @@ function quotePowerShellSingleQuotedString(value: string) {
 
 function encodePowerShellCommand(script: string) {
   return Buffer.from(script, "utf16le").toString("base64");
+}
+
+async function launchElevatedPowerShell(scriptBody: string) {
+  const elevatedPowerShell = `${process.env.SystemRoot ?? "C:\\Windows"}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
+  const argumentList = `-NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encodePowerShellCommand(scriptBody)}`;
+  const script = `$p = Start-Process -FilePath ${quotePowerShellSingleQuotedString(elevatedPowerShell)} -ArgumentList ${quotePowerShellSingleQuotedString(argumentList)} -Verb RunAs -Wait -PassThru; exit $p.ExitCode`;
+  return new Promise<number>((resolve, reject) => {
+    const child = spawn(
+      "powershell.exe",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+      { windowsHide: true },
+    );
+    child.once("error", reject);
+    child.once("exit", (code) => resolve(code ?? 0));
+  });
 }
 
 async function launchElevatedSandboxSetup(
@@ -136,19 +187,7 @@ if ($exitCode -eq 0) {
 }
 exit $exitCode
 `;
-  const encodedElevatedScript = encodePowerShellCommand(elevatedScript);
-  const elevatedPowerShell = `${process.env.SystemRoot ?? "C:\\Windows"}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
-  const argumentList = `-NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encodedElevatedScript}`;
-  const script = `$p = Start-Process -FilePath ${quotePowerShellSingleQuotedString(elevatedPowerShell)} -ArgumentList ${quotePowerShellSingleQuotedString(argumentList)} -Verb RunAs -Wait -PassThru; exit $p.ExitCode`;
-  const exitCode = await new Promise<number>((resolve, reject) => {
-    const child = spawn(
-      "powershell.exe",
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-      { windowsHide: true },
-    );
-    child.once("error", reject);
-    child.once("exit", (code) => resolve(code ?? 0));
-  });
+  const exitCode = await launchElevatedPowerShell(elevatedScript);
 
   const status = await checkOfficeAgentWindowsSandboxSetup(managedRootDir).catch(() => null);
   const readyAfterRun = status?.ok === true && status.result?.ready === true;
@@ -182,6 +221,58 @@ export function createWindowsSandboxHandlers(): WindowsSandboxHandlers {
       }
       const managedRootDir = getOfficeAgentManagedRootDir();
       return mapStatusResponse(await checkOfficeAgentWindowsSandboxSetup(managedRootDir));
+    },
+    getWindowsSandboxLaunchStatus: async () => {
+      if (process.platform !== "win32") {
+        return {
+          ok: false,
+          ready: false,
+          error: "Windows sandbox launch check is only available on Windows.",
+        };
+      }
+      const managedRootDir = getOfficeAgentManagedRootDir();
+      return mapLaunchStatusResponse(await runOfficeAgentWindowsSandboxRunnerSelfTest(managedRootDir));
+    },
+    runWindowsSandboxRepairSecondaryLogon: async () => {
+      if (process.platform !== "win32") {
+        return {
+          ok: false,
+          kind: "secondary-logon" as const,
+          error: "Windows sandbox repair is only available on Windows.",
+        };
+      }
+      const repairScript = `
+$ErrorActionPreference = 'Stop'
+Write-Host ''
+Write-Host 'Castrosua IA: reparando el servicio Secondary Logon...' -ForegroundColor Cyan
+Write-Host 'Se necesita para ejecutar comandos dentro del usuario seguro de OfficeAgent.' -ForegroundColor Gray
+Write-Host ''
+Set-Service -Name seclogon -StartupType Manual
+Start-Service -Name seclogon
+Write-Host ''
+Write-Host 'Servicio Secondary Logon iniciado correctamente.' -ForegroundColor Green
+Write-Host 'Puedes volver a Castrosua IA y reintentar el comando.' -ForegroundColor Gray
+Start-Sleep -Seconds 3
+`;
+      const exitCode = await launchElevatedPowerShell(repairScript);
+      const managedRootDir = getOfficeAgentManagedRootDir();
+      const launchStatus = await runOfficeAgentWindowsSandboxRunnerSelfTest(managedRootDir).catch(() => null);
+      const readyAfterRun = launchStatus ? mapLaunchStatusResponse(launchStatus).ready : false;
+      return {
+        ok: exitCode === 0 && readyAfterRun,
+        kind: "secondary-logon" as const,
+        launched: true,
+        exitCode,
+        readyAfterRun,
+        ...(!(exitCode === 0 && readyAfterRun)
+          ? {
+              error:
+                exitCode === 0
+                  ? "El servicio se intentó iniciar, pero la prueba de ejecución del sandbox sigue fallando. Puede haber una política de la empresa bloqueándolo."
+                  : `La reparación de Secondary Logon terminó con código ${exitCode}.`,
+            }
+          : {}),
+      };
     },
     prepareWindowsSandboxSetup: async ({ action }) => {
       const requestedAction = action === "reset" ? "reset" : "setup";

@@ -71,6 +71,8 @@ export type {
   SkillCreatorSessionState,
   Thread,
   ThreadData,
+  WindowsSandboxLaunchStatus,
+  WindowsSandboxRepairResult,
   WindowsSandboxSetupHandoff,
   WindowsSandboxSetupStatus,
 } from "../../../shared/desktop-contracts.js";

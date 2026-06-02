@@ -47,6 +47,8 @@ export function createDesktopApi() {
       invokeRequest("runTitleBarCommand", { commandId }).then(({ ok }) => ok),
     getAppUpdateState: () => invokeRequest("getAppUpdateState", {}),
     getWindowsSandboxSetupStatus: () => invokeRequest("getWindowsSandboxSetupStatus", {}),
+    getWindowsSandboxLaunchStatus: () => invokeRequest("getWindowsSandboxLaunchStatus", {}),
+    runWindowsSandboxRepairSecondaryLogon: () => invokeRequest("runWindowsSandboxRepairSecondaryLogon", {}),
     prepareWindowsSandboxSetup: (action: "setup" | "reset" = "setup") =>
       invokeRequest("prepareWindowsSandboxSetup", { action }),
     runWindowsSandboxSetup: (action: "setup" | "reset" = "setup") =>

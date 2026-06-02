@@ -50,6 +50,8 @@ import type {
   TerminalStatusSnapshot,
   Thread,
   ThreadData,
+  WindowsSandboxLaunchStatus,
+  WindowsSandboxRepairResult,
   WindowsSandboxSetupHandoff,
   WindowsSandboxSetupStatus,
 } from "./app/desktop/types";
@@ -71,6 +73,8 @@ declare global {
       installAppUpdate?: () => Promise<AppUpdateState>;
       restartAppUpdate?: () => Promise<AppUpdateState>;
       getWindowsSandboxSetupStatus?: () => Promise<WindowsSandboxSetupStatus>;
+      getWindowsSandboxLaunchStatus?: () => Promise<WindowsSandboxLaunchStatus>;
+      runWindowsSandboxRepairSecondaryLogon?: () => Promise<WindowsSandboxRepairResult>;
       prepareWindowsSandboxSetup?: (action?: "setup" | "reset") => Promise<WindowsSandboxSetupHandoff>;
       runWindowsSandboxSetup?: (action?: "setup" | "reset") => Promise<WindowsSandboxSetupHandoff>;
       clearClipboardImages?: () => Promise<{ clearedCount: number; clearFailedCount: number }>;

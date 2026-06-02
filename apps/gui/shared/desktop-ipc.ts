@@ -43,6 +43,8 @@ import type {
   SkillCreatorSessionState,
   Thread,
   ThreadData,
+  WindowsSandboxLaunchStatus,
+  WindowsSandboxRepairResult,
   WindowsSandboxSetupHandoff,
   WindowsSandboxSetupStatus,
 } from "./desktop-contracts";
@@ -91,6 +93,8 @@ export type DesktopRequestMap = {
   };
   getAppUpdateState: { params: Record<string, never>; response: AppUpdateState };
   getWindowsSandboxSetupStatus: { params: Record<string, never>; response: WindowsSandboxSetupStatus };
+  getWindowsSandboxLaunchStatus: { params: Record<string, never>; response: WindowsSandboxLaunchStatus };
+  runWindowsSandboxRepairSecondaryLogon: { params: Record<string, never>; response: WindowsSandboxRepairResult };
   prepareWindowsSandboxSetup: {
     params: { action?: "setup" | "reset" };
     response: WindowsSandboxSetupHandoff;
