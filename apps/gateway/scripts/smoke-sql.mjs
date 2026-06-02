@@ -76,11 +76,12 @@ try {
 
   await assertToolError({ action: "info", database: "master" }, "invalid_database");
   await assertToolError({ action: "drop" }, "invalid_action");
-  await assertToolError({ action: "describe", database: "LOGIC" }, "missing_table");
-  await assertToolError({ action: "query", database: "LOGIC", sql: "SELECT 1; DROP TABLE T" }, "multiple_statements");
-  await assertToolError({ action: "sample", database: "LOGIC", table: "CabeceraAlbaranProveedor", limit: 1.5 }, "invalid_limit");
+  await assertToolError({ action: "describe" }, "missing_table");
+  await assertToolError({ action: "query", sql: "SELECT 1; DROP TABLE T" }, "multiple_statements");
+  await assertToolError({ action: "sample", table: "LOGIC_CabeceraAlbaranProveedor", limit: 1.5 }, "invalid_limit");
+  await assertToolError({ action: "info", database: "LOGIC" }, "invalid_database");
 
-  const info = await postTool({ action: "info", database: "LOGIC" });
+  const info = await postTool({ action: "info" });
   if (info.isError && info.details?.errorCode === "missing_sql_tool") {
     console.log("[gateway:sql-smoke] skipped live info; no server-side SQL executable was found");
   } else {

@@ -43,6 +43,8 @@ Virtual root registry details live in `packages/office-agent-runtime/src/office-
 - `OFFICE_AGENT_SQLSERVER_MAX_SAMPLE_LIMIT` - maximum `sample` limit; default `200`.
 - `OFFICE_AGENT_SQLSERVER_MAX_SQL_CHARS` - maximum query length; default `20000`.
 
+SQL tool database policy: the gateway always uses the default SQL Server database `CastrosuaIA` and only accepts that database if a raw request includes `database`. The client-side Pi tool does not expose a database parameter. Agents have read-only access to the available contents of `CastrosuaIA`.
+
 ## Start
 
 ```bash

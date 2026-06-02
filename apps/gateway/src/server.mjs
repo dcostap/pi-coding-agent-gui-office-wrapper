@@ -66,7 +66,8 @@ const VFS_BASE_DIR = process.env.OFFICE_AGENT_VFS_BASE_DIR || "/srv/officeagent/
 const VFS_ROOT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 const SQL_TOOL_ENDPOINT_PATH = "/v1/tools/castrosua_sql_read_only";
 const SQL_ALLOWED_ACTIONS = new Set(["info", "list_tables", "describe", "sample", "query"]);
-const SQL_ALLOWED_DATABASES = new Set(["LOGIC", "GLP4"]);
+const SQL_DEFAULT_DATABASE = "CastrosuaIA";
+const SQL_ALLOWED_DATABASES = new Set([SQL_DEFAULT_DATABASE.toUpperCase()]);
 const SQL_IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_$#@]{0,127}$/;
 const SQL_DEFAULT_SAMPLE_LIMIT = 20;
 const SQL_MAX_SAMPLE_LIMIT = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_SAMPLE_LIMIT, 200);
@@ -1336,13 +1337,13 @@ function validateSqlReadonlyParams(body) {
     return sqlValidationError("invalid_action", "Invalid SQL tool action.", action || "unknown");
   }
 
-  const databaseInput = body.database == null || body.database === "" ? "LOGIC" : body.database;
+  const databaseInput = body.database == null || body.database === "" ? SQL_DEFAULT_DATABASE : body.database;
   if (typeof databaseInput !== "string") {
     return sqlValidationError("invalid_database", "SQL database must be a string.", action);
   }
-  const database = databaseInput.trim().toUpperCase();
-  if (!SQL_ALLOWED_DATABASES.has(database)) {
-    return sqlValidationError("invalid_database", "SQL database is not allowed.", action, database || "unknown");
+  const database = databaseInput.trim();
+  if (!SQL_ALLOWED_DATABASES.has(database.toUpperCase())) {
+    return sqlValidationError("invalid_database", "Only the default CastrosuaIA SQL database is supported.", action, database || "unknown");
   }
 
   if (body.includeViews != null && typeof body.includeViews !== "boolean") {
@@ -1400,7 +1401,7 @@ function validateSqlReadonlyParams(body) {
   };
 }
 
-function sqlValidationError(code, message, action = "unknown", database = "LOGIC") {
+function sqlValidationError(code, message, action = "unknown", database = SQL_DEFAULT_DATABASE) {
   return { ok: false, code, message, action, database };
 }
 
