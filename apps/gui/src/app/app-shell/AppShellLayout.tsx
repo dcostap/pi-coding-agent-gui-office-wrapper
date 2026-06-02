@@ -1,14 +1,16 @@
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { parseComposerAttachmentBlock } from "../../../shared/composer-attachment-prompt";
 import { getPersistedSessionPath, isLocalSessionPath } from "../../../shared/session-paths";
-import { isUnassignedChatProjectId } from "../../../shared/unassigned-chats";
 import { GlobalToasts } from "../components/common/GlobalToasts";
 import { TextSelectionContextMenu } from "../components/common/TextSelectionContextMenu";
 import { Tooltip } from "../components/common/Tooltip";
 import { Sidebar } from "../components/sidebar/Sidebar";
 import { TerminalPanel } from "../components/workspace/TerminalPanel";
 import { ProjectFileBrowserPanel } from "../components/workspace/project-files/ProjectFileBrowserPanel";
+import {
+  getAttachedFilePathsFromMessages,
+  getProjectFilesPanelLabels,
+} from "../components/workspace/project-files/projectFilePanelUtils";
 import { defaultDiffBaseline } from "../components/workspace/composer/diff-baseline";
 import { cleanUserErrorMessage } from "../desktop/error-messages";
 import type { ProjectDiffBaseline, ProjectDiffRenderMode } from "../desktop/types";
@@ -29,10 +31,7 @@ const PROJECT_FILES_DOCKED_MIN_WIDTH = 1180;
 let automaticWindowsSandboxSetupStarted = false;
 
 function formatAutomaticSandboxSetupFailure(error: string | null | undefined) {
-  const message = cleanUserErrorMessage(
-    error,
-    "No se pudo configurar el sandbox de Windows.",
-  );
+  const message = cleanUserErrorMessage(error, "No se pudo configurar el sandbox de Windows.");
   return `${message} La app volverá a intentarlo al abrirse de nuevo; también puedes configurarlo desde Ajustes.`;
 }
 
@@ -376,23 +375,9 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
   const { mainSectionRef, takeoverPresent, workspaceContentClass } = useAppShellLayoutState({
     takeoverVisible,
   });
-  const projectFilesPanelIsChat = isUnassignedChatProjectId(composerProjectId);
-  const projectFilesPanelTitle = projectFilesPanelIsChat
-    ? "Archivos del chat"
-    : "Archivos del proyecto";
+  const projectFilesPanelLabels = getProjectFilesPanelLabels(composerProjectId);
   const attachedFilePaths = useMemo(
-    () =>
-      new Set(
-        (activeThreadData?.messages ?? []).flatMap((message) => {
-          if (message.role !== "user") {
-            return [];
-          }
-
-          return message.content.flatMap(
-            (paragraph: string) => parseComposerAttachmentBlock(paragraph).attachmentPaths,
-          );
-        }),
-      ),
+    () => getAttachedFilePathsFromMessages(activeThreadData?.messages ?? []),
     [activeThreadData?.messages],
   );
   const projectFilesAvailable =
@@ -691,70 +676,72 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
             ref={mainSectionRef}
             className={cn(
               "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-tl-xl border-l border-[color:var(--border)] bg-[color:var(--workspace)] transition-[border-color,border-radius] duration-200 ease-out",
-              projectFilesOpen && projectFilesAvailable && "rounded-tr-xl border-r border-[color:var(--border)]",
+              projectFilesOpen &&
+                projectFilesAvailable &&
+                "rounded-tr-xl border-r border-[color:var(--border)]",
             )}
           >
-          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div
-              data-open={!takeoverVisible ? "true" : "false"}
-              className="motion-desktop-workspace flex min-h-0 flex-1 flex-col overflow-hidden"
-            >
-              <AppShellWorkspace
+            <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div
+                data-open={!takeoverVisible ? "true" : "false"}
+                className="motion-desktop-workspace flex min-h-0 flex-1 flex-col overflow-hidden"
+              >
+                <AppShellWorkspace
+                  controller={controller}
+                  activeComposerState={activeComposerState}
+                  activeThreadData={activeThreadData}
+                  composerProjectId={composerProjectId}
+                  currentProjectName={currentProjectName}
+                  diffBaseline={diffBaseline}
+                  diffRenderMode={diffRenderMode}
+                  terminalDrawerVisible={terminalDrawerVisible}
+                  terminalSessionPath={terminalSessionPath}
+                  workspaceContentClass={workspaceContentClass}
+                  onSetDiffBaseline={handleSetDiffBaseline}
+                  onSetDiffRenderMode={handleSetDiffRenderMode}
+                  sidebarCollapsed={sidebarCollapsed}
+                  projectFilesOpen={effectiveProjectFilesOpen}
+                  projectFilesDocked={projectFilesDocked}
+                  onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                  onToggleProjectFiles={handleToggleProjectFiles}
+                  onCloseProjectFiles={handleCloseProjectFiles}
+                />
+              </div>
+
+              <AppShellOverlays
                 controller={controller}
-                activeComposerState={activeComposerState}
-                activeThreadData={activeThreadData}
                 composerProjectId={composerProjectId}
-                currentProjectName={currentProjectName}
                 diffBaseline={diffBaseline}
-                diffRenderMode={diffRenderMode}
+                takeoverPresent={takeoverPresent}
+                takeoverVisible={takeoverVisible}
+                takeoverTerminalKey={takeoverTerminalKey}
                 terminalDrawerVisible={terminalDrawerVisible}
                 terminalSessionPath={terminalSessionPath}
                 workspaceContentClass={workspaceContentClass}
+                onOpenGitOps={handleOpenGitOpsFromTakeover}
                 onSetDiffBaseline={handleSetDiffBaseline}
-                onSetDiffRenderMode={handleSetDiffRenderMode}
-                sidebarCollapsed={sidebarCollapsed}
-                projectFilesOpen={effectiveProjectFilesOpen}
-                projectFilesDocked={projectFilesDocked}
-                onToggleSidebar={() => setSidebarCollapsed((collapsed) => !collapsed)}
-                onToggleProjectFiles={handleToggleProjectFiles}
-                onCloseProjectFiles={handleCloseProjectFiles}
               />
-            </div>
 
-            <AppShellOverlays
-              controller={controller}
-              composerProjectId={composerProjectId}
-              diffBaseline={diffBaseline}
-              takeoverPresent={takeoverPresent}
-              takeoverVisible={takeoverVisible}
-              takeoverTerminalKey={takeoverTerminalKey}
-              terminalDrawerVisible={terminalDrawerVisible}
-              terminalSessionPath={terminalSessionPath}
-              workspaceContentClass={workspaceContentClass}
-              onOpenGitOps={handleOpenGitOpsFromTakeover}
-              onSetDiffBaseline={handleSetDiffBaseline}
-            />
+              <TextSelectionContextMenu />
 
-            <TextSelectionContextMenu />
-
-            {terminalDrawerPresent ? (
-              <div
-                className="pointer-events-none absolute top-0 right-0 bottom-0 z-20 max-w-full overflow-hidden"
-                style={{ width: TERMINAL_DRAWER_WIDTH }}
-              >
+              {terminalDrawerPresent ? (
                 <div
-                  data-open={terminalDrawerVisible ? "true" : "false"}
-                  className={`motion-terminal-drawer absolute inset-0 min-h-0 min-w-0 ${terminalDrawerVisible ? "pointer-events-auto" : "pointer-events-none"}`}
+                  className="pointer-events-none absolute top-0 right-0 bottom-0 z-20 max-w-full overflow-hidden"
+                  style={{ width: TERMINAL_DRAWER_WIDTH }}
                 >
-                  <TerminalPanel
-                    projectId={composerProjectId}
-                    sessionPath={terminalSessionPath}
-                    onClose={controller.handleCloseTerminalDrawer}
-                  />
+                  <div
+                    data-open={terminalDrawerVisible ? "true" : "false"}
+                    className={`motion-terminal-drawer absolute inset-0 min-h-0 min-w-0 ${terminalDrawerVisible ? "pointer-events-auto" : "pointer-events-none"}`}
+                  >
+                    <TerminalPanel
+                      projectId={composerProjectId}
+                      sessionPath={terminalSessionPath}
+                      onClose={controller.handleCloseTerminalDrawer}
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
           </section>
 
           <ShellSideDock
@@ -769,8 +756,9 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
               docked
               open={projectFilesOpen && projectFilesAvailable}
               projectId={composerProjectId}
-              title={projectFilesPanelTitle}
-              subtitle={projectFilesPanelIsChat ? null : undefined}
+              title={projectFilesPanelLabels.title}
+              subtitle={projectFilesPanelLabels.subtitle}
+              closeLabel={projectFilesPanelLabels.closeLabel}
               attachedFilePaths={attachedFilePaths}
               onClose={() => setProjectFilesOpen(false)}
             />

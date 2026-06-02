@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-
 import type { Message } from "../../../types";
 import { BotActivityMark } from "../../common/BotActivityMark";
 import type { AssistantActivityState } from "../../common/ThreadMessage";
@@ -10,6 +9,7 @@ import { buildTimelineRows } from "./buildTimelineRows";
 import { CHAT_AUTO_SCROLL_BOTTOM_THRESHOLD_PX, isScrollContainerNearBottom } from "./chat-scroll";
 import { chatScrollableAreaClass, chatViewportClass } from "./thread-layout";
 import { buildThreadTimelineState } from "./thread-timeline-state";
+import { useRegisterThreadTimelineControls } from "./threadTimelineControls";
 import type { TimelineRow } from "./timeline-row";
 
 type ThreadTimelineProps = {
@@ -48,18 +48,18 @@ export function ThreadTimeline({
 }: ThreadTimelineProps) {
   const [collapsedRowIds, setCollapsedRowIds] = useState<Record<string, boolean>>({});
   const [expandedToolGroupIds, setExpandedToolGroupIds] = useState<Record<string, boolean>>({});
-  const [, setNearBottom] = useState(true);
+  const [nearBottom, setNearBottom] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
   const programmaticScrollFrameRef = useRef<number | null>(null);
   const shouldStickToBottomRef = useRef(true);
   const pendingHistoryPrependRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null);
-  const activeAgentTurnRef = useRef<{ startedAt: number; assistantMessageId: string | null } | null>(
-    null,
-  );
+  const activeAgentTurnRef = useRef<{
+    startedAt: number;
+    assistantMessageId: string | null;
+  } | null>(null);
   const [assistantDurations, setAssistantDurations] = useState<Record<string, number>>({});
-
 
   const rows = useMemo<TimelineRow[]>(
     () => buildTimelineRows({ messages, previousMessageCount }),
@@ -99,7 +99,10 @@ export function ThreadTimeline({
         return;
       }
 
-      if (streamingAssistantMessageId && activeTurn.assistantMessageId !== streamingAssistantMessageId) {
+      if (
+        streamingAssistantMessageId &&
+        activeTurn.assistantMessageId !== streamingAssistantMessageId
+      ) {
         activeAgentTurnRef.current = {
           ...activeTurn,
           assistantMessageId: streamingAssistantMessageId,
@@ -258,16 +261,16 @@ export function ThreadTimeline({
     window.requestAnimationFrame(scrollToBottom);
   }, [foldableRows, scrollToBottom, streamingTurnRowId]);
 
-  useEffect(() => {
-    const handleFoldAll = () => handleFoldEverything();
-    const handleScrollToBottom = () => scrollToBottom();
-    window.addEventListener("chat-timeline-fold-all", handleFoldAll);
-    window.addEventListener("chat-timeline-scroll-to-bottom", handleScrollToBottom);
-    return () => {
-      window.removeEventListener("chat-timeline-fold-all", handleFoldAll);
-      window.removeEventListener("chat-timeline-scroll-to-bottom", handleScrollToBottom);
-    };
-  }, [handleFoldEverything, scrollToBottom]);
+  const timelineControls = useMemo(
+    () => ({
+      canFoldAll: foldableRows.length > 0,
+      canScrollToBottom: !nearBottom,
+      foldAll: handleFoldEverything,
+      scrollToBottom,
+    }),
+    [foldableRows.length, handleFoldEverything, nearBottom, scrollToBottom],
+  );
+  useRegisterThreadTimelineControls(timelineControls);
 
   const handleToggleRowCollapse = useCallback(
     (rowId: string) => {
@@ -397,7 +400,6 @@ export function ThreadTimeline({
           </div>
         </div>
       ) : null}
-
     </div>
   );
 }

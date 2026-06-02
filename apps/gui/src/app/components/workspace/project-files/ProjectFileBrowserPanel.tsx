@@ -1,7 +1,17 @@
-import { ChevronDown, ChevronRight, Copy, ExternalLink, FolderOpen, PanelRightClose } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  FolderOpen,
+  PanelRightClose,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import type { ProjectFileEntry, ProjectFilePreviewResult } from "../../../../../shared/desktop-contracts";
+import type {
+  ProjectFileEntry,
+  ProjectFilePreviewResult,
+} from "../../../../../shared/desktop-contracts";
 import { cn } from "../../../utils/cn";
 import { FileTypeIcon } from "../../common/FileTypeIcon";
 import { Tooltip } from "../../common/Tooltip";
@@ -41,6 +51,7 @@ type ProjectFileBrowserPanelProps = {
   projectId: string;
   title?: string;
   subtitle?: string | null;
+  closeLabel?: string;
   attachedFilePaths?: Set<string>;
   onClose?: () => void;
 };
@@ -148,13 +159,25 @@ function ProjectFilePreviewPane({
     "inline-flex items-center gap-1.5 rounded-lg bg-white/[0.07] px-2.5 py-1.5 text-[13px] text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)] transition-[transform,background-color,box-shadow] duration-150 ease-out hover:bg-white/[0.11] hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06),0_8px_18px_rgba(0,0,0,0.18)] active:scale-[0.96] active:bg-white/[0.16] active:duration-75";
   const actions = (
     <div className="mt-3 flex flex-wrap justify-center gap-2 px-3 pb-3">
-      <button className={previewActionButtonClass} type="button" onClick={() => void openPathQuery(entry.path)}>
+      <button
+        className={previewActionButtonClass}
+        type="button"
+        onClick={() => void openPathQuery(entry.path)}
+      >
         <ExternalLink size={13} /> Abrir
       </button>
-      <button className={previewActionButtonClass} type="button" onClick={() => void revealPathQuery(entry.path)}>
+      <button
+        className={previewActionButtonClass}
+        type="button"
+        onClick={() => void revealPathQuery(entry.path)}
+      >
         <FolderOpen size={13} /> Mostrar en carpeta
       </button>
-      <button className={previewActionButtonClass} type="button" onClick={() => void copyTextToClipboardQuery(entry.path)}>
+      <button
+        className={previewActionButtonClass}
+        type="button"
+        onClick={() => void copyTextToClipboardQuery(entry.path)}
+      >
         <Copy size={13} /> Copiar ruta
       </button>
     </div>
@@ -164,15 +187,23 @@ function ProjectFilePreviewPane({
     return (
       <div className="flex h-full flex-col items-center justify-center px-4 text-center">
         <FileTypeIcon kind={entry.kind} name={entry.name} size={46} />
-        <div className="mt-3 max-w-full truncate text-[14px] font-medium text-[color:var(--text)]">{entry.name}</div>
-        <div className="mt-1 text-[13px] text-[color:var(--muted-2)]">La previsualización de carpetas no está disponible.</div>
+        <div className="mt-3 max-w-full truncate text-[14px] font-medium text-[color:var(--text)]">
+          {entry.name}
+        </div>
+        <div className="mt-1 text-[13px] text-[color:var(--muted-2)]">
+          La previsualización de carpetas no está disponible.
+        </div>
         {actions}
       </div>
     );
   }
 
   if (loading) {
-    return <div className="flex h-full items-center justify-center text-[13px] text-[color:var(--muted-2)]">Cargando previsualización…</div>;
+    return (
+      <div className="flex h-full items-center justify-center text-[13px] text-[color:var(--muted-2)]">
+        Cargando previsualización…
+      </div>
+    );
   }
 
   if (preview?.kind === "image") {
@@ -199,11 +230,19 @@ function ProjectFilePreviewPane({
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.06] px-3 py-2">
-          <div className="min-w-0 truncate text-[13px] font-medium text-[color:var(--text)]">{entry.name}</div>
+          <div className="min-w-0 truncate text-[13px] font-medium text-[color:var(--text)]">
+            {entry.name}
+          </div>
           {details}
         </div>
-        <pre className="m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[12px] leading-5 text-[color:var(--text)]">{preview.text}</pre>
-        {preview.truncated ? <div className="shrink-0 border-t border-white/[0.06] px-3 py-1.5 text-[12px] text-[color:var(--muted-2)]">Previsualización truncada.</div> : null}
+        <pre className="m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[12px] leading-5 text-[color:var(--text)]">
+          {preview.text}
+        </pre>
+        {preview.truncated ? (
+          <div className="shrink-0 border-t border-white/[0.06] px-3 py-1.5 text-[12px] text-[color:var(--muted-2)]">
+            Previsualización truncada.
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -218,7 +257,9 @@ function ProjectFilePreviewPane({
       >
         <FileTypeIcon kind={entry.kind} name={entry.name} size={54} />
       </div>
-      <div className="mt-3 max-w-full truncate text-[14px] font-medium text-[color:var(--text)]">{entry.name}</div>
+      <div className="mt-3 max-w-full truncate text-[14px] font-medium text-[color:var(--text)]">
+        {entry.name}
+      </div>
       {details}
       {preview?.kind === "unsupported" && preview.reason ? (
         <div className="mt-2 text-[13px] text-[color:var(--muted-2)]">{preview.reason}</div>
@@ -234,6 +275,7 @@ export function ProjectFileBrowserPanel({
   projectId,
   title = "Archivos del proyecto",
   subtitle = projectId,
+  closeLabel = "Contraer archivos del proyecto",
   attachedFilePaths = new Set(),
   onClose,
 }: ProjectFileBrowserPanelProps) {
@@ -341,10 +383,13 @@ export function ProjectFileBrowserPanel({
     return visibleRows.find((row) => row.entry.path === selectedPreviewPath) ?? null;
   }, [selectedPreviewPath, visibleRows]);
 
+  const selectedPreviewFilePath =
+    selectedPreviewRow?.entry.kind === "file" ? selectedPreviewRow.entry.path : null;
+
   useEffect(() => {
     let cancelled = false;
 
-    if (!selectedPreviewRow || selectedPreviewRow.entry.kind !== "file") {
+    if (!selectedPreviewFilePath) {
       setPreview(null);
       setPreviewLoading(false);
       return () => {
@@ -353,7 +398,7 @@ export function ProjectFileBrowserPanel({
     }
 
     setPreviewLoading(true);
-    void getProjectFilePreviewQuery({ projectId, filePath: selectedPreviewRow.entry.path })
+    void getProjectFilePreviewQuery({ projectId, filePath: selectedPreviewFilePath })
       .then((result) => {
         if (!cancelled) setPreview(result);
       })
@@ -367,7 +412,7 @@ export function ProjectFileBrowserPanel({
     return () => {
       cancelled = true;
     };
-  }, [projectId, selectedPreviewPath]);
+  }, [projectId, selectedPreviewFilePath]);
 
   async function loadDirectory(directoryPath: string) {
     setDirectories((current) => ({
@@ -375,7 +420,9 @@ export function ProjectFileBrowserPanel({
       [directoryPath]: { entries: current[directoryPath]?.entries ?? [], loading: true },
     }));
 
-    const result = await listProjectFileEntriesQuery({ projectId, directoryPath }).catch(() => null);
+    const result = await listProjectFileEntriesQuery({ projectId, directoryPath }).catch(
+      () => null,
+    );
     setDirectories((current) => ({
       ...current,
       [directoryPath]: { entries: result?.entries ?? [], loading: false },
@@ -485,7 +532,11 @@ export function ProjectFileBrowserPanel({
 
   function renderSortIndicator(key: SortKey) {
     if (sortKey !== key) return null;
-    return <span className="text-[11px] text-[color:var(--muted-2)]">{sortDirection === "asc" ? "↑" : "↓"}</span>;
+    return (
+      <span className="text-[11px] text-[color:var(--muted-2)]">
+        {sortDirection === "asc" ? "↑" : "↓"}
+      </span>
+    );
   }
 
   return (
@@ -503,20 +554,18 @@ export function ProjectFileBrowserPanel({
     >
       <header className="project-files-header">
         <div className="min-w-0 flex-1">
-          <h2 className="m-0 truncate text-[14px] font-medium text-[color:var(--text)]">
-            {title}
-          </h2>
+          <h2 className="m-0 truncate text-[14px] font-medium text-[color:var(--text)]">{title}</h2>
           {subtitle ? (
             <p className="m-0 truncate text-[12px] text-[color:var(--muted-2)]">{subtitle}</p>
           ) : null}
         </div>
         {onClose ? (
-          <Tooltip content="Contraer archivos del proyecto" placement="right">
+          <Tooltip content={closeLabel} placement="right">
             <button
               type="button"
               className="project-files-header-button"
               onClick={onClose}
-              aria-label="Contraer archivos del proyecto"
+              aria-label={closeLabel}
             >
               <PanelRightClose size={15} strokeWidth={2} />
             </button>
@@ -525,88 +574,104 @@ export function ProjectFileBrowserPanel({
       </header>
 
       <div className="project-files-column-header grid h-8 shrink-0 grid-cols-[minmax(0,1fr)_6.8rem] items-center px-2 text-[12px] font-medium uppercase tracking-[0.08em] text-[color:var(--muted-2)]">
-        <button type="button" className="flex min-w-0 items-center gap-1 px-1 text-left" onClick={() => toggleSort("name")}>
-          <span>Nombre</span>{renderSortIndicator("name")}
+        <button
+          type="button"
+          className="flex min-w-0 items-center gap-1 px-1 text-left"
+          onClick={() => toggleSort("name")}
+        >
+          <span>Nombre</span>
+          {renderSortIndicator("name")}
         </button>
-        <button type="button" className="flex items-center gap-1 px-1 text-left" onClick={() => toggleSort("modified")}>
-          <span>Modificado</span>{renderSortIndicator("modified")}
+        <button
+          type="button"
+          className="flex items-center gap-1 px-1 text-left"
+          onClick={() => toggleSort("modified")}
+        >
+          <span>Modificado</span>
+          {renderSortIndicator("modified")}
         </button>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="project-files-list min-h-0 flex-1 overflow-auto px-1 py-1.5">
-        {visibleRows.map((row) => {
-          const selected = selectedPaths.has(row.entry.path);
-          const attached = attachedFilePaths.has(row.entry.path);
-          const expanded = Boolean(expandedPaths[row.entry.path]);
-          const childDirectory = directories[row.entry.path];
-          return (
-            <div key={row.entry.path}>
-              <div
-                className={cn(
-                  "grid h-8 cursor-default grid-cols-[minmax(0,1fr)_6.8rem] items-center rounded-lg px-1 text-[13px] text-[color:var(--text)] transition-colors",
-                  selected
-                    ? "bg-[color:var(--accent-bg)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]"
-                    : "hover:bg-[color:var(--surface-hover)]",
-                )}
-                onClick={(event) => handleSelect(row, event)}
-                onDoubleClick={() => {
-                  if (row.entry.kind === "directory") void toggleDirectory(row.entry);
-                  else void openPathQuery(row.entry.path);
-                }}
-                draggable
-                onDragStart={(event) => handleDragStart(row, event)}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  const nextSelectionPaths = selectedPaths.has(row.entry.path)
-                    ? [...selectedPaths]
-                    : [row.entry.path];
-                  if (!selectedPaths.has(row.entry.path)) {
-                    setSelectedPaths(new Set(nextSelectionPaths));
-                    setAnchorSelectionPath(row.entry.path);
-                  }
-                  const menuPosition = getContextMenuPosition(event);
-                  setContextMenu({
-                    ...menuPosition,
-                    row,
-                    selectionPaths: nextSelectionPaths,
-                  });
-                }}
-              >
-                <div className="flex min-w-0 items-center gap-1.5" style={{ paddingLeft: row.depth * 14 }}>
-                  {row.entry.kind === "directory" ? (
-                    <button
-                      type="button"
-                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[color:var(--muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void toggleDirectory(row.entry);
-                      }}
-                      aria-label={expanded ? "Contraer carpeta" : "Expandir carpeta"}
-                    >
-                      {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                    </button>
-                  ) : (
-                    <span className="h-5 w-5 shrink-0" />
+          {visibleRows.map((row) => {
+            const selected = selectedPaths.has(row.entry.path);
+            const attached = attachedFilePaths.has(row.entry.path);
+            const expanded = Boolean(expandedPaths[row.entry.path]);
+            const childDirectory = directories[row.entry.path];
+            return (
+              <div key={row.entry.path}>
+                {/* biome-ignore lint/a11y/useKeyWithClickEvents: file rows are drag/select surfaces with nested controls. */}
+                <div
+                  className={cn(
+                    "grid h-8 cursor-default grid-cols-[minmax(0,1fr)_6.8rem] items-center rounded-lg px-1 text-[13px] text-[color:var(--text)] transition-colors",
+                    selected
+                      ? "bg-[color:var(--accent-bg)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]"
+                      : "hover:bg-[color:var(--surface-hover)]",
                   )}
-                  <span className="shrink-0"><FileTypeIcon kind={row.entry.kind} name={row.entry.name} size={16} /></span>
-                  <span className="min-w-0 truncate">{row.entry.name}</span>
-                  {attached ? (
-                    <span className="shrink-0 rounded-full bg-[color:var(--accent-bg)] px-1.5 py-0.5 text-[11px] font-medium text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]">
-                      adjunto
+                  onClick={(event) => handleSelect(row, event)}
+                  onDoubleClick={() => {
+                    if (row.entry.kind === "directory") void toggleDirectory(row.entry);
+                    else void openPathQuery(row.entry.path);
+                  }}
+                  draggable
+                  onDragStart={(event) => handleDragStart(row, event)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    const nextSelectionPaths = selectedPaths.has(row.entry.path)
+                      ? [...selectedPaths]
+                      : [row.entry.path];
+                    if (!selectedPaths.has(row.entry.path)) {
+                      setSelectedPaths(new Set(nextSelectionPaths));
+                      setAnchorSelectionPath(row.entry.path);
+                    }
+                    const menuPosition = getContextMenuPosition(event);
+                    setContextMenu({
+                      ...menuPosition,
+                      row,
+                      selectionPaths: nextSelectionPaths,
+                    });
+                  }}
+                >
+                  <div
+                    className="flex min-w-0 items-center gap-1.5"
+                    style={{ paddingLeft: row.depth * 14 }}
+                  >
+                    {row.entry.kind === "directory" ? (
+                      <button
+                        type="button"
+                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[color:var(--muted)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)]"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void toggleDirectory(row.entry);
+                        }}
+                        aria-label={expanded ? "Contraer carpeta" : "Expandir carpeta"}
+                      >
+                        {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                      </button>
+                    ) : (
+                      <span className="h-5 w-5 shrink-0" />
+                    )}
+                    <span className="shrink-0">
+                      <FileTypeIcon kind={row.entry.kind} name={row.entry.name} size={16} />
                     </span>
-                  ) : null}
+                    <span className="min-w-0 truncate">{row.entry.name}</span>
+                    {attached ? (
+                      <span className="shrink-0 rounded-full bg-[color:var(--accent-bg)] px-1.5 py-0.5 text-[11px] font-medium text-[color:var(--text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)]">
+                        adjunto
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="truncate px-1 text-[12px] text-[color:var(--muted)]">
+                    {formatModifiedTime(row.entry.modifiedMs)}
+                  </div>
                 </div>
-                <div className="truncate px-1 text-[12px] text-[color:var(--muted)]">
-                  {formatModifiedTime(row.entry.modifiedMs)}
-                </div>
+                {expanded && childDirectory?.loading ? (
+                  <div className="py-1 pl-8 text-[12px] text-[color:var(--muted-2)]">Cargando…</div>
+                ) : null}
               </div>
-              {expanded && childDirectory?.loading ? (
-                <div className="py-1 pl-8 text-[12px] text-[color:var(--muted-2)]">Cargando…</div>
-              ) : null}
-            </div>
-          );
-        })}
+            );
+          })}
         </div>
         <div className="project-files-preview-pane h-1/2 min-h-[190px] shrink-0">
           <ProjectFilePreviewPane
@@ -631,19 +696,39 @@ export function ProjectFileBrowserPanel({
                 const first = contextMenu.row.entry;
                 return (
                   <>
-                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void openProjectPath(first.path)}>
+                    <button
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]"
+                      type="button"
+                      onClick={() => void openProjectPath(first.path)}
+                    >
                       <ExternalLink size={13} /> Abrir
                     </button>
-                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void revealProjectPath(first.path)}>
+                    <button
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]"
+                      type="button"
+                      onClick={() => void revealProjectPath(first.path)}
+                    >
                       <FolderOpen size={13} /> Mostrar en carpeta
                     </button>
-                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyFiles(rows)}>
+                    <button
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]"
+                      type="button"
+                      onClick={() => void copyFiles(rows)}
+                    >
                       <Copy size={13} /> Copiar {rows.length > 1 ? "archivos" : "archivo"}
                     </button>
-                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyPaths(rows)}>
+                    <button
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]"
+                      type="button"
+                      onClick={() => void copyPaths(rows)}
+                    >
                       <Copy size={13} /> Copiar {rows.length > 1 ? "rutas" : "ruta"}
                     </button>
-                    <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]" type="button" onClick={() => void copyNames(rows)}>
+                    <button
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/[0.07]"
+                      type="button"
+                      onClick={() => void copyNames(rows)}
+                    >
                       <Copy size={13} /> Copiar {rows.length > 1 ? "nombres" : "nombre"}
                     </button>
                   </>
