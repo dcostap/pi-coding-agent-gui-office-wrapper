@@ -226,6 +226,7 @@ export function useComposerController({
     setExtensionCommandRunning: setLocalExtensionCommandRunning,
     setIsSending,
     setPendingSubmittedDraft,
+    onPendingSubmittedDraftChange,
     pendingSubmittedReplyActivityKeyRef,
     replyActivityKey,
     setOpenMenu,

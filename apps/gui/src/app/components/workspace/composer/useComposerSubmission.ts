@@ -39,6 +39,7 @@ type UseComposerSubmissionProps = {
   setExtensionCommandRunning: Dispatch<SetStateAction<boolean>>;
   setIsSending: Dispatch<SetStateAction<boolean>>;
   setPendingSubmittedDraft: Dispatch<SetStateAction<string | null>>;
+  onPendingSubmittedDraftChange?: (draft: string | null) => void;
   pendingSubmittedReplyActivityKeyRef: MutableRefObject<string | null>;
   replyActivityKey: string;
   setOpenMenu: Dispatch<SetStateAction<"model" | "picker" | null>>;
@@ -69,6 +70,7 @@ export function useComposerSubmission({
   setExtensionCommandRunning,
   setIsSending,
   setPendingSubmittedDraft,
+  onPendingSubmittedDraftChange,
   pendingSubmittedReplyActivityKeyRef,
   replyActivityKey,
   setOpenMenu,
@@ -200,6 +202,7 @@ export function useComposerSubmission({
         setErrorMessage(null);
         setOpenMenu(null);
         pendingSubmittedReplyActivityKeyRef.current = replyActivityKey;
+        onPendingSubmittedDraftChange?.(submittedRawDraft);
         setPendingSubmittedDraft(submittedRawDraft);
 
         const result = await submitComposerDraft({
@@ -305,6 +308,7 @@ export function useComposerSubmission({
     isSending,
     isStreaming,
     onAction,
+    onPendingSubmittedDraftChange,
     pendingSubmittedReplyActivityKeyRef,
     projectId,
     replyActivityKey,

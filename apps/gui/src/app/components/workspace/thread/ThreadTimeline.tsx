@@ -13,6 +13,19 @@ import { buildThreadTimelineState } from "./thread-timeline-state";
 import { useRegisterThreadTimelineControls } from "./threadTimelineControls";
 import type { TimelineRow } from "./timeline-row";
 
+const optimisticUserDisplayIdByText = new Map<string, string>();
+
+function getOptimisticUserDisplayId(text: string) {
+  const existingId = optimisticUserDisplayIdByText.get(text);
+  if (existingId) {
+    return existingId;
+  }
+
+  const nextId = `optimistic-user:${text}`;
+  optimisticUserDisplayIdByText.set(text, nextId);
+  return nextId;
+}
+
 type ThreadTimelineProps = {
   messages: Message[];
   previousMessageCount: number;
@@ -72,19 +85,22 @@ export function ThreadTimeline({
     if (optimisticText) {
       latestOptimisticUserMessageRef.current = {
         text: optimisticText,
-        id: `optimistic-user:${optimisticText}`,
+        id: getOptimisticUserDisplayId(optimisticText),
       };
     }
 
     const latestUserMessage = [...messages].reverse().find((message) => message.role === "user");
     const latestOptimisticUserMessage = latestOptimisticUserMessageRef.current;
+    const latestUserText =
+      latestUserMessage?.role === "user" ? latestUserMessage.content.join("\n\n").trim() : null;
+    const latestUserOptimisticDisplayId = latestUserText
+      ? latestOptimisticUserMessage?.text === latestUserText
+        ? latestOptimisticUserMessage.id
+        : optimisticUserDisplayIdByText.get(latestUserText)
+      : null;
 
-    if (
-      latestOptimisticUserMessage &&
-      latestUserMessage?.role === "user" &&
-      latestUserMessage.content.join("\n\n").trim() === latestOptimisticUserMessage.text
-    ) {
-      optimisticUserDisplayIdsRef.current[latestUserMessage.id] = latestOptimisticUserMessage.id;
+    if (latestUserMessage?.role === "user" && latestUserOptimisticDisplayId) {
+      optimisticUserDisplayIdsRef.current[latestUserMessage.id] = latestUserOptimisticDisplayId;
     }
 
     const messagesWithStableOptimisticIds = messages.map((message) => {
@@ -106,7 +122,7 @@ export function ThreadTimeline({
     return [
       ...messagesWithStableOptimisticIds,
       {
-        id: `optimistic-user:${optimisticText}`,
+        id: getOptimisticUserDisplayId(optimisticText),
         role: "user",
         content: [optimisticText],
       },
@@ -123,6 +139,7 @@ export function ThreadTimeline({
       latestRealUserMessage.content.join("\n\n").trim() === optimisticText,
   );
   const optimisticMessageRendered = Boolean(optimisticText) && !optimisticSuppressedByMatchingRealMessage;
+  const effectiveIsStreaming = isStreaming || optimisticMessageRendered;
 
   const rows = useMemo<TimelineRow[]>(
     () => buildTimelineRows({ messages: displayMessages, previousMessageCount }),
@@ -143,11 +160,11 @@ export function ThreadTimeline({
       buildThreadTimelineState({
         rows,
         messages: displayMessages,
-        isStreaming,
+        isStreaming: effectiveIsStreaming,
         collapsedRowIds,
         expandedToolGroupIds,
       }),
-    [collapsedRowIds, displayMessages, expandedToolGroupIds, isStreaming, rows],
+    [collapsedRowIds, displayMessages, effectiveIsStreaming, expandedToolGroupIds, rows],
   );
 
   useEffect(() => {
@@ -158,11 +175,14 @@ export function ThreadTimeline({
       displayMessageCount: displayMessages.length,
       previousMessageCount,
       isStreaming,
+      effectiveIsStreaming,
       streamingAssistantMessageId,
       streamingTurnRowId,
       optimisticText,
       optimisticMessageRendered,
       optimisticSuppressedByMatchingRealMessage,
+      latestOptimisticUserMessage: latestOptimisticUserMessageRef.current,
+      optimisticUserDisplayIds: optimisticUserDisplayIdsRef.current,
       rowCount: rows.length,
       bottomAnchorKey,
       rowStructureSignature,
@@ -190,6 +210,7 @@ export function ThreadTimeline({
   }, [
     bottomAnchorKey,
     displayMessages,
+    effectiveIsStreaming,
     isStreaming,
     messages,
     optimisticMessageRendered,
@@ -479,7 +500,7 @@ export function ThreadTimeline({
     ],
   );
 
-  const activeAssistantActivityLabel = isStreaming
+  const activeAssistantActivityLabel = effectiveIsStreaming
     ? streamingAssistantMessageId
       ? "Trabajando..."
       : "Enviando..."
