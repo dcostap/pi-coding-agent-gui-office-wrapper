@@ -40,6 +40,7 @@ type ProjectFileBrowserPanelProps = {
   open: boolean;
   projectId: string;
   title?: string;
+  subtitle?: string | null;
   attachedFilePaths?: Set<string>;
   onClose?: () => void;
 };
@@ -232,6 +233,7 @@ export function ProjectFileBrowserPanel({
   open,
   projectId,
   title = "Archivos del proyecto",
+  subtitle = projectId,
   attachedFilePaths = new Set(),
   onClose,
 }: ProjectFileBrowserPanelProps) {
@@ -504,7 +506,9 @@ export function ProjectFileBrowserPanel({
           <h2 className="m-0 truncate text-[14px] font-medium text-[color:var(--text)]">
             {title}
           </h2>
-          <p className="m-0 truncate text-[12px] text-[color:var(--muted-2)]">{projectId}</p>
+          {subtitle ? (
+            <p className="m-0 truncate text-[12px] text-[color:var(--muted-2)]">{subtitle}</p>
+          ) : null}
         </div>
         {onClose ? (
           <Tooltip content="Contraer archivos del proyecto" placement="right">

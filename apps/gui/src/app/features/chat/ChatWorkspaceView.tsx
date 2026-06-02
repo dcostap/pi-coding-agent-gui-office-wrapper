@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import { ArrowDownToLine, ListCollapse } from "lucide-react";
 import {
   getLocalDraftChatGroupId,
   getPersistedSessionPath,
 } from "../../../../shared/session-paths";
 import type { AppShellController } from "../../app-shell/useAppShellController";
+import { Tooltip } from "../../components/common/Tooltip";
 import { Composer } from "../../components/workspace/Composer";
 import { QueuedPromptsCard } from "../../components/workspace/composer/QueuedPromptsCard";
 import type { ProjectDiffBaseline, ProjectDiffRenderMode } from "../../desktop/types";
 import type { Message } from "../../types";
+import { compactIconButtonClass } from "../../ui/classes";
 import { cn } from "../../utils/cn";
 import { ChatView } from "./ChatView";
 import { ArtifactPanel } from "./artifacts/ArtifactPanel";
@@ -29,6 +32,8 @@ type ChatWorkspaceViewProps = {
 };
 
 const ARTIFACT_DRAWER_WIDTH = "min(760px, max(0px, calc(100% - 900px)))";
+const chatTimelineQuickActionButtonClass =
+  "pointer-events-auto h-6 w-6 shrink-0 rounded-full bg-[color:var(--brand-secondary-bg)] hover:bg-[color:var(--brand-secondary-bg-strong)]";
 
 function getReplyActivityKey(messages: readonly Message[]) {
   return messages
@@ -164,14 +169,14 @@ export function ChatWorkspaceView({
           )}
         >
           <div className="pointer-events-auto grid gap-2.5">
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(520px,840px)_minmax(0,1fr)] items-end gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,calc(840px+2rem+0.75rem))_minmax(0,1fr)] items-end gap-3">
               <div
                 className={cn(
                   "mb-1.5 min-w-0 self-end",
                   artifactsVisible && !artifactsFullscreen && "invisible",
                 )}
               />
-              <div className="grid w-full max-w-[840px] gap-0">
+              <div className="grid w-full max-w-[calc(840px+2rem+0.75rem)] gap-0">
                 <QueuedPromptsCard
                   prompts={activeComposerState?.queuedPrompts ?? []}
                   pendingPromptIds={pendingQueuedPromptIdsForSession}
@@ -182,8 +187,9 @@ export function ChatWorkspaceView({
                     void handleRemoveQueuedPrompt(prompt);
                   }}
                 />
-                <Composer
-                  activeView={state.activeView}
+                <div className="grid grid-cols-[minmax(0,840px)_2rem] items-center gap-3">
+                  <Composer
+                    activeView={state.activeView}
                   model={activeComposerState?.currentModel ?? null}
                   contextUsage={activeComposerState?.contextUsage ?? null}
                   availableModels={activeComposerState?.availableModels ?? []}
@@ -247,11 +253,39 @@ export function ChatWorkspaceView({
                   showTerminalControls={false}
                   artifactsVisible={artifactsVisible}
                   terminalVisible={state.terminalVisible}
-                  onListAttachmentEntries={listComposerAttachmentEntries}
-                  onAction={handleAction}
-                />
+                    onListAttachmentEntries={listComposerAttachmentEntries}
+                    onAction={handleAction}
+                  />
+                  <div className="pointer-events-none flex w-7 flex-col items-center gap-1.5 self-center">
+                    <Tooltip
+                      content="Contraer todos los mensajes de este chat"
+                      placement="top"
+                      className="pointer-events-auto"
+                    >
+                      <button
+                        type="button"
+                        className={cn(compactIconButtonClass, chatTimelineQuickActionButtonClass)}
+                        onClick={() => window.dispatchEvent(new Event("chat-timeline-fold-all"))}
+                        aria-label="Contraer todos los mensajes de este chat"
+                      >
+                        <ListCollapse size={13} strokeWidth={2} />
+                      </button>
+                    </Tooltip>
+                    <Tooltip content="Ir al final" placement="top" className="pointer-events-auto">
+                      <button
+                        type="button"
+                        className={cn(compactIconButtonClass, chatTimelineQuickActionButtonClass)}
+                        onClick={() =>
+                          window.dispatchEvent(new Event("chat-timeline-scroll-to-bottom"))
+                        }
+                        aria-label="Ir al final"
+                      >
+                        <ArrowDownToLine size={13} strokeWidth={2} />
+                      </button>
+                    </Tooltip>
+                  </div>
+                </div>
               </div>
-
             </div>
           </div>
         </footer>

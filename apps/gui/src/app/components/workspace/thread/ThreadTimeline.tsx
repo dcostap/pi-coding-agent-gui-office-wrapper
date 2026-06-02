@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownToLine, ListCollapse } from "lucide-react";
+
 import type { Message } from "../../../types";
 import { BotActivityMark } from "../../common/BotActivityMark";
-import { Tooltip } from "../../common/Tooltip";
 import type { AssistantActivityState } from "../../common/ThreadMessage";
-import { compactIconButtonClass } from "../../../ui/classes";
 import { CHAT_TEXT_MAX_WIDTH_CLASS } from "../../../ui/layout";
 import { cn } from "../../../utils/cn";
 import { ThreadTimelineRow } from "./ThreadTimelineRow";
@@ -22,9 +20,6 @@ type ThreadTimelineProps = {
   composerLayoutVersion: number;
   onLoadEarlierMessages: () => void;
 };
-
-const timelineQuickActionButtonClass =
-  "pointer-events-auto h-6 w-6 shrink-0 rounded-full bg-[color:var(--brand-secondary-bg)] hover:bg-[color:var(--brand-secondary-bg-strong)] disabled:cursor-not-allowed disabled:opacity-45";
 
 function formatAgentTurnDuration(durationMs: number) {
   const totalSeconds = Math.max(1, Math.round(durationMs / 1000));
@@ -53,7 +48,7 @@ export function ThreadTimeline({
 }: ThreadTimelineProps) {
   const [collapsedRowIds, setCollapsedRowIds] = useState<Record<string, boolean>>({});
   const [expandedToolGroupIds, setExpandedToolGroupIds] = useState<Record<string, boolean>>({});
-  const [nearBottom, setNearBottom] = useState(true);
+  const [, setNearBottom] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
@@ -64,6 +59,7 @@ export function ThreadTimeline({
     null,
   );
   const [assistantDurations, setAssistantDurations] = useState<Record<string, number>>({});
+
 
   const rows = useMemo<TimelineRow[]>(
     () => buildTimelineRows({ messages, previousMessageCount }),
@@ -262,6 +258,17 @@ export function ThreadTimeline({
     window.requestAnimationFrame(scrollToBottom);
   }, [foldableRows, scrollToBottom, streamingTurnRowId]);
 
+  useEffect(() => {
+    const handleFoldAll = () => handleFoldEverything();
+    const handleScrollToBottom = () => scrollToBottom();
+    window.addEventListener("chat-timeline-fold-all", handleFoldAll);
+    window.addEventListener("chat-timeline-scroll-to-bottom", handleScrollToBottom);
+    return () => {
+      window.removeEventListener("chat-timeline-fold-all", handleFoldAll);
+      window.removeEventListener("chat-timeline-scroll-to-bottom", handleScrollToBottom);
+    };
+  }, [handleFoldEverything, scrollToBottom]);
+
   const handleToggleRowCollapse = useCallback(
     (rowId: string) => {
       if (rowId === streamingTurnRowId) {
@@ -360,7 +367,7 @@ export function ThreadTimeline({
     <div className={`${chatViewportClass} relative`}>
       <div
         ref={containerRef}
-        className={cn(chatScrollableAreaClass, "ml-[2.95rem] mr-[2.05rem]")}
+        className={cn(chatScrollableAreaClass, "ml-[0.5rem] mr-[0.5rem]")}
         onScroll={handleScroll}
       >
         <div
@@ -390,34 +397,7 @@ export function ThreadTimeline({
           </div>
         </div>
       ) : null}
-      <div className="pointer-events-none absolute right-0 bottom-4 z-10 flex w-7 flex-col items-center gap-1.5">
-        <Tooltip
-          content="Contraer todos los mensajes de este chat"
-          placement="top"
-          className="pointer-events-auto"
-        >
-          <button
-            type="button"
-            className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
-            onClick={handleFoldEverything}
-            disabled={foldableRows.length === 0}
-            aria-label="Contraer todos los mensajes de este chat"
-          >
-            <ListCollapse size={13} strokeWidth={2} />
-          </button>
-        </Tooltip>
-        <Tooltip content="Ir al final" placement="top" className="pointer-events-auto">
-          <button
-            type="button"
-            className={cn(compactIconButtonClass, timelineQuickActionButtonClass)}
-            onClick={scrollToBottom}
-            disabled={nearBottom}
-            aria-label="Ir al final"
-          >
-            <ArrowDownToLine size={13} strokeWidth={2} />
-          </button>
-        </Tooltip>
-      </div>
+
     </div>
   );
 }

@@ -376,7 +376,8 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
   const { mainSectionRef, takeoverPresent, workspaceContentClass } = useAppShellLayoutState({
     takeoverVisible,
   });
-  const projectFilesPanelTitle = isUnassignedChatProjectId(composerProjectId)
+  const projectFilesPanelIsChat = isUnassignedChatProjectId(composerProjectId);
+  const projectFilesPanelTitle = projectFilesPanelIsChat
     ? "Archivos del chat"
     : "Archivos del proyecto";
   const attachedFilePaths = useMemo(
@@ -769,6 +770,7 @@ export function AppShellLayout({ controller }: AppShellLayoutProps) {
               open={projectFilesOpen && projectFilesAvailable}
               projectId={composerProjectId}
               title={projectFilesPanelTitle}
+              subtitle={projectFilesPanelIsChat ? null : undefined}
               attachedFilePaths={attachedFilePaths}
               onClose={() => setProjectFilesOpen(false)}
             />
