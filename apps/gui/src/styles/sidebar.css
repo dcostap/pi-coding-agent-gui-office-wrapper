@@ -470,6 +470,9 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   flex: 1;
   flex-direction: column;
   gap: 0.625rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .sidebar-toolbar {
@@ -541,6 +544,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
 
 .sidebar-scroll-region {
   min-height: 0;
+  flex: 1;
   overflow-y: auto;
 }
 
@@ -555,6 +559,7 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   overflow-x: hidden;
   overflow-y: auto;
   padding-right: 0.25rem;
+  scrollbar-gutter: stable;
 }
 
 .sidebar-tree-item {
