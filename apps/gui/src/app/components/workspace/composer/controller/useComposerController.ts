@@ -151,9 +151,14 @@ export function useComposerController({
   useEffect(() => {
     if (pendingSubmittedDraftScopeKeyRef.current === composerScopeKey) return;
     pendingSubmittedDraftScopeKeyRef.current = composerScopeKey;
+
+    if (pendingSubmittedDraft && (isSending || isStreaming)) {
+      return;
+    }
+
     pendingSubmittedReplyActivityKeyRef.current = null;
     setPendingSubmittedDraft(null);
-  }, [composerScopeKey]);
+  }, [composerScopeKey, isSending, isStreaming, pendingSubmittedDraft]);
 
   useEffect(() => {
     void composerScopeKey;

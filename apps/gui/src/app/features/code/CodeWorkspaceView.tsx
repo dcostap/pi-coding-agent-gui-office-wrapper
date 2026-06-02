@@ -23,6 +23,7 @@ import { useAnimatedPresence } from "../../hooks/useAnimatedPresence";
 import { useDesktopDiff } from "../../hooks/useDesktopDiff";
 import { compactIconButtonClass, mainPanelClass } from "../../ui/classes";
 import { cn } from "../../utils/cn";
+import { logFirstMessageLayoutDebug } from "../../utils/firstMessageLayoutDebug";
 import { CodeWorkspaceMainView } from "./CodeWorkspaceMainView";
 import { useDiffCommentController } from "./useDiffCommentController";
 import { useQueuedPromptRestore } from "./useQueuedPromptRestore";
@@ -77,6 +78,7 @@ export function CodeWorkspaceView({
   >({});
   const [composerLayoutVersion, setComposerLayoutVersion] = useState(0);
   const [pendingSubmittedDraft, setPendingSubmittedDraft] = useState<string | null>(null);
+  const previousDebugSnapshotRef = useRef<string | null>(null);
   const projectFilesOverlayPresent = useAnimatedPresence(!projectFilesDocked && projectFilesOpen);
   const footerRef = useRef<HTMLElement>(null);
   const mainViewRef = useRef<HTMLElement>(null);
@@ -126,6 +128,59 @@ export function CodeWorkspaceView({
   const timelineContentVisible = threadContentVisible || Boolean(pendingSubmittedDraft);
   const centerThreadFooter = showPromptComposer && !hasThreadConversation;
   const footerInset = showWorkspaceFooter && !centerThreadFooter ? footerHeight : 0;
+
+  useEffect(() => {
+    const latestMessage = activeThreadData?.messages[activeThreadData.messages.length - 1];
+    const snapshot = {
+      activeView: state.activeView,
+      activeSessionPath: activeThreadData?.sessionPath ?? null,
+      terminalSessionPath,
+      messageCount: activeThreadData?.messages.length ?? 0,
+      latestMessage: latestMessage
+        ? {
+            id: latestMessage.id,
+            role: latestMessage.role,
+            content:
+              "content" in latestMessage
+                ? (latestMessage as { content?: string[] }).content?.join("\\n\\n")
+                : null,
+          }
+        : null,
+      pendingSubmittedDraft,
+      showThreadFooter,
+      hasThreadConversation,
+      showLandingComposer,
+      threadContentVisible,
+      timelineContentVisible,
+      centerThreadFooter,
+      footerHeight,
+      footerInset,
+      showWorkspaceFooter,
+      isStreaming: activeThreadData?.isStreaming ?? false,
+      isCompacting: activeThreadData?.isCompacting ?? false,
+    };
+    const snapshotKey = JSON.stringify(snapshot);
+    if (previousDebugSnapshotRef.current === snapshotKey) return;
+    previousDebugSnapshotRef.current = snapshotKey;
+    logFirstMessageLayoutDebug("CodeWorkspaceView state", snapshot);
+  }, [
+    activeThreadData?.isCompacting,
+    activeThreadData?.isStreaming,
+    activeThreadData?.messages,
+    activeThreadData?.sessionPath,
+    centerThreadFooter,
+    footerHeight,
+    footerInset,
+    hasThreadConversation,
+    pendingSubmittedDraft,
+    showLandingComposer,
+    showThreadFooter,
+    showWorkspaceFooter,
+    state.activeView,
+    terminalSessionPath,
+    threadContentVisible,
+    timelineContentVisible,
+  ]);
 
   useEffect(() => {
     const pendingText = pendingSubmittedDraft?.trim();
