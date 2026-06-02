@@ -100,7 +100,7 @@ export function WorkspacePromptComposerDock({
         onEditPrompt={onEditPrompt}
         onRemovePrompt={onRemovePrompt}
       />
-      <div className="grid grid-cols-[minmax(0,840px)_2rem] items-center gap-3">
+      <div className="grid grid-cols-[minmax(0,840px)_2rem] items-center gap-1">
         <Composer {...composerProps} />
         {showTimelineQuickActions ? <ThreadTimelineQuickActions /> : <div className="w-7" />}
       </div>

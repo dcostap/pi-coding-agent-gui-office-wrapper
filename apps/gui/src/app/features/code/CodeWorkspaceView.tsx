@@ -415,7 +415,7 @@ export function CodeWorkspaceView({
           <footer
             ref={footerRef}
             className={cn(
-              "motion-terminal-drawer-offset pointer-events-none absolute inset-x-0 z-10 px-5 pb-4",
+              "motion-terminal-drawer-offset pointer-events-none absolute inset-x-0 z-10 pl-6 pr-0 pb-4",
               showPromptComposer ? "transition-[top,transform] duration-300 ease-out" : "bottom-0",
               centerThreadFooter && "-translate-y-1/2",
               showPromptComposer && !centerThreadFooter && "translate-y-0",
