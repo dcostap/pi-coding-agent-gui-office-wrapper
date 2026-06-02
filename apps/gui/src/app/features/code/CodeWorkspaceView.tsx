@@ -76,6 +76,7 @@ export function CodeWorkspaceView({
     Record<string, boolean>
   >({});
   const [composerLayoutVersion, setComposerLayoutVersion] = useState(0);
+  const [pendingSubmittedDraft, setPendingSubmittedDraft] = useState<string | null>(null);
   const projectFilesOverlayPresent = useAnimatedPresence(!projectFilesDocked && projectFilesOpen);
   const footerRef = useRef<HTMLElement>(null);
   const mainViewRef = useRef<HTMLElement>(null);
@@ -117,12 +118,26 @@ export function CodeWorkspaceView({
     footerRef,
     visible: showWorkspaceFooter,
   });
-  const hasThreadConversation = showThreadFooter && (activeThreadData?.messages.length ?? 0) > 0;
+  const hasThreadConversation =
+    showThreadFooter && ((activeThreadData?.messages.length ?? 0) > 0 || Boolean(pendingSubmittedDraft));
   const showLandingComposer =
     state.activeView === "code" || (showThreadFooter && !hasThreadConversation);
   const threadContentVisible = useThreadContentVisibility(hasThreadConversation);
+  const timelineContentVisible = threadContentVisible || Boolean(pendingSubmittedDraft);
   const centerThreadFooter = showPromptComposer && !hasThreadConversation;
   const footerInset = showWorkspaceFooter && !centerThreadFooter ? footerHeight : 0;
+
+  useEffect(() => {
+    const pendingText = pendingSubmittedDraft?.trim();
+    if (!pendingText) return;
+
+    const latestUserMessage = [...(activeThreadData?.messages ?? [])]
+      .reverse()
+      .find((message) => message.role === "user");
+    if (latestUserMessage?.role === "user" && latestUserMessage.content.join("\n\n").trim() === pendingText) {
+      setPendingSubmittedDraft(null);
+    }
+  }, [activeThreadData?.messages, pendingSubmittedDraft]);
 
   useEffect(() => {
     if (!projectFilesOpen || projectFilesDocked) {
@@ -180,7 +195,7 @@ export function CodeWorkspaceView({
       }
     : terminalRightInsetStyle;
   const visibleThreadData =
-    state.activeView === "thread" && activeThreadData && !threadContentVisible
+    state.activeView === "thread" && activeThreadData && !timelineContentVisible
       ? { ...activeThreadData, messages: [] }
       : activeThreadData;
   const projectFilesPanelLabels = getProjectFilesPanelLabels(composerProjectId);
@@ -264,6 +279,7 @@ export function CodeWorkspaceView({
                   workspaceContentClass={workspaceContentClass}
                   threadData={visibleThreadData}
                   composerLayoutVersion={composerLayoutVersion}
+                  optimisticUserMessageText={pendingSubmittedDraft}
                   onAction={handleAction}
                   onDismissInboxThread={controller.handleDismissInboxThread}
                   onListAttachmentEntries={listComposerAttachmentEntries}
@@ -495,6 +511,7 @@ export function CodeWorkspaceView({
                   onOpenGitOpsView: handleOpenGitOpsView,
                   onOpenSettingsView: () => controller.handleShowView("settings"),
                   onRestoredQueuedPromptApplied: markRestoredQueuedPromptApplied,
+                  onPendingSubmittedDraftChange: setPendingSubmittedDraft,
                   onToggleTerminal: handleToggleTerminal,
                   terminalVisible: state.terminalVisible,
                   onListAttachmentEntries: listComposerAttachmentEntries,

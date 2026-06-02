@@ -10,6 +10,7 @@ import { ThreadTimelineControlsProvider } from "../../components/workspace/threa
 import { useThreadContentVisibility } from "../../components/workspace/thread/useThreadContentVisibility";
 import type { ProjectDiffBaseline, ProjectDiffRenderMode } from "../../desktop/types";
 import { cn } from "../../utils/cn";
+import { logFirstMessageLayoutDebug } from "../../utils/firstMessageLayoutDebug";
 import { useQueuedPromptRestore } from "../code/useQueuedPromptRestore";
 import { useWorkspaceFooterHeight } from "../code/useWorkspaceFooterHeight";
 import { ThreadView } from "../../views/ThreadView";
@@ -48,6 +49,7 @@ export function ChatWorkspaceView({
     Record<string, boolean>
   >({});
   const [artifactsFullscreen, setArtifactsFullscreen] = useState(false);
+  const [pendingSubmittedDraft, setPendingSubmittedDraft] = useState<string | null>(null);
   const footerRef = useRef<HTMLElement>(null);
   const mainViewRef = useRef<HTMLElement>(null);
   const {
@@ -61,7 +63,7 @@ export function ChatWorkspaceView({
   } = controller;
   const footerHeight = useWorkspaceFooterHeight({ footerRef, visible: true });
   const conversationId = activeThreadData?.sessionPath ?? terminalSessionPath;
-  const hasConversation = (activeThreadData?.messages.length ?? 0) > 0;
+  const hasConversation = (activeThreadData?.messages.length ?? 0) > 0 || Boolean(pendingSubmittedDraft);
   const hasPersistedChatSession = getPersistedSessionPath(terminalSessionPath) !== null;
   const draftChatGroupId = getLocalDraftChatGroupId(terminalSessionPath);
   const artifactsVisible = conversationId
@@ -69,7 +71,9 @@ export function ChatWorkspaceView({
     : false;
   const artifactDrawerInsetStyle = artifactsVisible ? { right: ARTIFACT_DRAWER_WIDTH } : undefined;
   const conversationContentVisible = useThreadContentVisibility(hasConversation);
+  const timelineContentVisible = conversationContentVisible || Boolean(pendingSubmittedDraft);
   const previousConversationIdRef = useRef<string | null | undefined>(conversationId);
+  const previousDebugSnapshotRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!window.piDesktop?.subscribe) return;
@@ -92,6 +96,61 @@ export function ChatWorkspaceView({
   useEffect(() => {
     if (!artifactsVisible) setArtifactsFullscreen(false);
   }, [artifactsVisible]);
+
+  useEffect(() => {
+    const latestMessage = activeThreadData?.messages[activeThreadData.messages.length - 1];
+    const snapshot = {
+      activeSessionPath: activeThreadData?.sessionPath ?? null,
+      terminalSessionPath,
+      conversationId: conversationId ?? null,
+      messageCount: activeThreadData?.messages.length ?? 0,
+      latestMessage: latestMessage
+        ? {
+            id: latestMessage.id,
+            role: latestMessage.role,
+            content:
+              "content" in latestMessage
+                ? (latestMessage as { content?: string[] }).content?.join("\\n\\n")
+                : null,
+          }
+        : null,
+      pendingSubmittedDraft,
+      hasConversation,
+      conversationContentVisible,
+      timelineContentVisible,
+      footerHeight,
+      isStreaming: activeThreadData?.isStreaming ?? false,
+      isCompacting: activeThreadData?.isCompacting ?? false,
+    };
+    const snapshotKey = JSON.stringify(snapshot);
+    if (previousDebugSnapshotRef.current === snapshotKey) return;
+    previousDebugSnapshotRef.current = snapshotKey;
+    logFirstMessageLayoutDebug("ChatWorkspaceView state", snapshot);
+  }, [
+    activeThreadData?.isCompacting,
+    activeThreadData?.isStreaming,
+    activeThreadData?.messages,
+    activeThreadData?.sessionPath,
+    conversationContentVisible,
+    conversationId,
+    footerHeight,
+    hasConversation,
+    pendingSubmittedDraft,
+    terminalSessionPath,
+    timelineContentVisible,
+  ]);
+
+  useEffect(() => {
+    const pendingText = pendingSubmittedDraft?.trim();
+    if (!pendingText) return;
+
+    const latestUserMessage = [...(activeThreadData?.messages ?? [])]
+      .reverse()
+      .find((message) => message.role === "user");
+    if (latestUserMessage?.role === "user" && latestUserMessage.content.join("\n\n").trim() === pendingText) {
+      setPendingSubmittedDraft(null);
+    }
+  }, [activeThreadData?.messages, pendingSubmittedDraft]);
   const {
     handleEditQueuedPrompt,
     handleRemoveQueuedPrompt,
@@ -120,10 +179,10 @@ export function ChatWorkspaceView({
           >
             <main ref={mainViewRef} className="h-full min-h-0 overflow-hidden pt-1.5">
               <ThreadView
-                key={activeThreadData?.sessionPath ?? "new-chat"}
-                messages={conversationContentVisible ? (activeThreadData?.messages ?? []) : []}
+                messages={timelineContentVisible ? (activeThreadData?.messages ?? []) : []}
                 previousMessageCount={activeThreadData?.previousMessageCount ?? 0}
                 isStreaming={activeThreadData?.isStreaming ?? false}
+                optimisticUserMessageText={pendingSubmittedDraft}
                 isCompacting={activeThreadData?.isCompacting ?? false}
                 composerLayoutVersion={composerLayoutVersion}
                 onLoadEarlierMessages={handleLoadEarlierMessages}
@@ -203,6 +262,7 @@ export function ChatWorkspaceView({
                 onOpenGitOpsView: () => {},
                 onOpenSettingsView: () => controller.handleShowView("settings"),
                 onRestoredQueuedPromptApplied: markRestoredQueuedPromptApplied,
+                onPendingSubmittedDraftChange: setPendingSubmittedDraft,
                 onToggleTerminal: handleToggleTerminal,
                 onToggleArtifacts:
                   hasConversation && conversationId

@@ -54,6 +54,7 @@ export type ComposerProps = {
   onRestoredQueuedPromptApplied: () => void;
   onToggleTerminal: () => void;
   onToggleArtifacts?: () => void;
+  onPendingSubmittedDraftChange?: (draft: string | null) => void;
   showTerminalControls?: boolean;
   artifactsVisible?: boolean;
   artifactsAvailable?: boolean;

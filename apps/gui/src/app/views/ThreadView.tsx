@@ -7,6 +7,7 @@ type ThreadViewProps = {
   isStreaming: boolean;
   isCompacting: boolean;
   composerLayoutVersion: number;
+  optimisticUserMessageText?: string | null;
   onLoadEarlierMessages: () => void;
 };
 
@@ -16,9 +17,12 @@ export function ThreadView({
   isStreaming,
   isCompacting,
   composerLayoutVersion,
+  optimisticUserMessageText,
   onLoadEarlierMessages,
 }: ThreadViewProps) {
-  if (messages.length === 0) {
+  const hasOptimisticUserMessage = Boolean(optimisticUserMessageText?.trim());
+
+  if (messages.length === 0 && !hasOptimisticUserMessage) {
     return <div className="h-full" />;
   }
 
@@ -29,6 +33,7 @@ export function ThreadView({
       isStreaming={isStreaming}
       isCompacting={isCompacting}
       composerLayoutVersion={composerLayoutVersion}
+      optimisticUserMessageText={optimisticUserMessageText}
       onLoadEarlierMessages={() => {
         if (previousMessageCount === 0) {
           return;

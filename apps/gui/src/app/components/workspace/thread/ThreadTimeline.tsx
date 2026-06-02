@@ -4,6 +4,7 @@ import { BotActivityMark } from "../../common/BotActivityMark";
 import type { AssistantActivityState } from "../../common/ThreadMessage";
 import { CHAT_TEXT_MAX_WIDTH_CLASS } from "../../../ui/layout";
 import { cn } from "../../../utils/cn";
+import { logFirstMessageLayoutDebug } from "../../../utils/firstMessageLayoutDebug";
 import { ThreadTimelineRow } from "./ThreadTimelineRow";
 import { buildTimelineRows } from "./buildTimelineRows";
 import { CHAT_AUTO_SCROLL_BOTTOM_THRESHOLD_PX, isScrollContainerNearBottom } from "./chat-scroll";
@@ -18,6 +19,7 @@ type ThreadTimelineProps = {
   isStreaming: boolean;
   isCompacting: boolean;
   composerLayoutVersion: number;
+  optimisticUserMessageText?: string | null;
   onLoadEarlierMessages: () => void;
 };
 
@@ -44,6 +46,7 @@ export function ThreadTimeline({
   isStreaming,
   isCompacting,
   composerLayoutVersion,
+  optimisticUserMessageText,
   onLoadEarlierMessages,
 }: ThreadTimelineProps) {
   const [collapsedRowIds, setCollapsedRowIds] = useState<Record<string, boolean>>({});
@@ -60,10 +63,70 @@ export function ThreadTimeline({
     assistantMessageId: string | null;
   } | null>(null);
   const [assistantDurations, setAssistantDurations] = useState<Record<string, number>>({});
+  const previousDebugSnapshotRef = useRef<string | null>(null);
+  const optimisticUserDisplayIdsRef = useRef<Record<string, string>>({});
+  const latestOptimisticUserMessageRef = useRef<{ text: string; id: string } | null>(null);
+
+  const displayMessages = useMemo<Message[]>(() => {
+    const optimisticText = optimisticUserMessageText?.trim();
+    if (optimisticText) {
+      latestOptimisticUserMessageRef.current = {
+        text: optimisticText,
+        id: `optimistic-user:${optimisticText}`,
+      };
+    }
+
+    const latestUserMessage = [...messages].reverse().find((message) => message.role === "user");
+    const latestOptimisticUserMessage = latestOptimisticUserMessageRef.current;
+
+    if (
+      latestOptimisticUserMessage &&
+      latestUserMessage?.role === "user" &&
+      latestUserMessage.content.join("\n\n").trim() === latestOptimisticUserMessage.text
+    ) {
+      optimisticUserDisplayIdsRef.current[latestUserMessage.id] = latestOptimisticUserMessage.id;
+    }
+
+    const messagesWithStableOptimisticIds = messages.map((message) => {
+      const optimisticDisplayId = optimisticUserDisplayIdsRef.current[message.id];
+      return optimisticDisplayId ? { ...message, id: optimisticDisplayId } : message;
+    });
+
+    if (!optimisticText) {
+      return messagesWithStableOptimisticIds;
+    }
+
+    if (
+      latestUserMessage?.role === "user" &&
+      latestUserMessage.content.join("\n\n").trim() === optimisticText
+    ) {
+      return messagesWithStableOptimisticIds;
+    }
+
+    return [
+      ...messagesWithStableOptimisticIds,
+      {
+        id: `optimistic-user:${optimisticText}`,
+        role: "user",
+        content: [optimisticText],
+      },
+    ];
+  }, [messages, optimisticUserMessageText]);
+
+  const optimisticText = optimisticUserMessageText?.trim() ?? "";
+  const latestRealUserMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "user");
+  const optimisticSuppressedByMatchingRealMessage = Boolean(
+    optimisticText &&
+      latestRealUserMessage?.role === "user" &&
+      latestRealUserMessage.content.join("\n\n").trim() === optimisticText,
+  );
+  const optimisticMessageRendered = Boolean(optimisticText) && !optimisticSuppressedByMatchingRealMessage;
 
   const rows = useMemo<TimelineRow[]>(
-    () => buildTimelineRows({ messages, previousMessageCount }),
-    [messages, previousMessageCount],
+    () => buildTimelineRows({ messages: displayMessages, previousMessageCount }),
+    [displayMessages, previousMessageCount],
   );
 
   const {
@@ -79,13 +142,65 @@ export function ThreadTimeline({
     () =>
       buildThreadTimelineState({
         rows,
-        messages,
+        messages: displayMessages,
         isStreaming,
         collapsedRowIds,
         expandedToolGroupIds,
       }),
-    [collapsedRowIds, expandedToolGroupIds, isStreaming, messages, rows],
+    [collapsedRowIds, displayMessages, expandedToolGroupIds, isStreaming, rows],
   );
+
+  useEffect(() => {
+    const lastRealMessage = messages[messages.length - 1];
+    const lastDisplayMessage = displayMessages[displayMessages.length - 1];
+    const snapshot = {
+      realMessageCount: messages.length,
+      displayMessageCount: displayMessages.length,
+      previousMessageCount,
+      isStreaming,
+      streamingAssistantMessageId,
+      streamingTurnRowId,
+      optimisticText,
+      optimisticMessageRendered,
+      optimisticSuppressedByMatchingRealMessage,
+      rowCount: rows.length,
+      bottomAnchorKey,
+      rowStructureSignature,
+      lastRealMessage: lastRealMessage
+        ? {
+            id: lastRealMessage.id,
+            role: lastRealMessage.role,
+            content:
+              "content" in lastRealMessage
+                ? (lastRealMessage as { content?: string[] }).content?.join("\\n\\n")
+                : null,
+          }
+        : null,
+      lastDisplayMessage: lastDisplayMessage
+        ? {
+            id: lastDisplayMessage.id,
+            role: lastDisplayMessage.role,
+          }
+        : null,
+    };
+    const snapshotKey = JSON.stringify(snapshot);
+    if (previousDebugSnapshotRef.current === snapshotKey) return;
+    previousDebugSnapshotRef.current = snapshotKey;
+    logFirstMessageLayoutDebug("ThreadTimeline state", snapshot);
+  }, [
+    bottomAnchorKey,
+    displayMessages,
+    isStreaming,
+    messages,
+    optimisticMessageRendered,
+    optimisticSuppressedByMatchingRealMessage,
+    optimisticText,
+    previousMessageCount,
+    rowStructureSignature,
+    rows.length,
+    streamingAssistantMessageId,
+    streamingTurnRowId,
+  ]);
 
   useEffect(() => {
     const activeTurn = activeAgentTurnRef.current;

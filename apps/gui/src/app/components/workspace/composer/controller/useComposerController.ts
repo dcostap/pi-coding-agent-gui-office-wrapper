@@ -48,6 +48,7 @@ type UseComposerControllerProps = {
   streamingBehaviorPreference: ComposerStreamingBehavior;
   onAction: DesktopActionInvoker;
   onRestoredQueuedPromptApplied: () => void;
+  onPendingSubmittedDraftChange?: (draft: string | null) => void;
 };
 
 export function useComposerController({
@@ -66,6 +67,7 @@ export function useComposerController({
   streamingBehaviorPreference,
   onAction,
   onRestoredQueuedPromptApplied,
+  onPendingSubmittedDraftChange,
 }: UseComposerControllerProps) {
   const [openMenu, setOpenMenu] = useState<"model" | "picker" | null>(null);
   const [localExtensionCommandRunning, setLocalExtensionCommandRunning] = useState(false);
@@ -130,6 +132,10 @@ export function useComposerController({
     pendingSubmittedReplyActivityKeyRef.current = null;
     setPendingSubmittedDraft(null);
   }, [draftValueRef, pendingSubmittedDraft, replyActivityKey, setDraftValue]);
+
+  useEffect(() => {
+    onPendingSubmittedDraftChange?.(pendingSubmittedDraft);
+  }, [onPendingSubmittedDraftChange, pendingSubmittedDraft]);
 
   useEffect(() => {
     if (!pendingSubmittedDraft || isSending || isStreaming) return;

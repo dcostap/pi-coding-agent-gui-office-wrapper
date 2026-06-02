@@ -46,6 +46,7 @@ type CodeWorkspaceMainViewProps = {
   workspaceContentClass: string;
   threadData: ThreadData | null;
   composerLayoutVersion: number;
+  optimisticUserMessageText?: string | null;
   onAction: DesktopActionInvoker;
   onDismissInboxThread: (thread: InboxThread) => void;
   onListAttachmentEntries: (request: {
@@ -80,6 +81,7 @@ export function CodeWorkspaceMainView({
   workspaceContentClass,
   threadData,
   composerLayoutVersion,
+  optimisticUserMessageText,
   onAction,
   onDismissInboxThread,
   onListAttachmentEntries,
@@ -92,7 +94,7 @@ export function CodeWorkspaceMainView({
   onSelectProject,
 }: CodeWorkspaceMainViewProps) {
   if (activeView === "thread") {
-    if ((threadData?.messages.length ?? 0) === 0) {
+    if ((threadData?.messages.length ?? 0) === 0 && !optimisticUserMessageText) {
       return (
         <div className="grid h-full content-start justify-items-center overflow-y-auto px-4 pb-6">
           <LandingView
@@ -110,12 +112,12 @@ export function CodeWorkspaceMainView({
 
     return (
       <ThreadView
-        key={threadData?.sessionPath ?? "new-thread"}
         messages={threadData?.messages ?? []}
         previousMessageCount={threadData?.previousMessageCount ?? 0}
         isStreaming={threadData?.isStreaming ?? false}
         isCompacting={threadData?.isCompacting ?? false}
         composerLayoutVersion={composerLayoutVersion}
+        optimisticUserMessageText={optimisticUserMessageText}
         onLoadEarlierMessages={onLoadEarlierMessages}
       />
     );

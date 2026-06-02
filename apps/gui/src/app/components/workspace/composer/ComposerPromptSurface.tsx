@@ -48,6 +48,7 @@ export function ComposerPromptSurface({
   onToggleArtifacts,
   onOpenSettingsView,
   onRestoredQueuedPromptApplied,
+  onPendingSubmittedDraftChange,
   onAction,
   terminalVisible,
   artifactsVisible,
@@ -100,6 +101,7 @@ export function ComposerPromptSurface({
     streamingBehaviorPreference,
     onAction,
     onRestoredQueuedPromptApplied,
+    onPendingSubmittedDraftChange,
   });
   const [attachmentDragActive, setAttachmentDragActive] = useState(false);
   const dragDepthRef = useRef(0);
