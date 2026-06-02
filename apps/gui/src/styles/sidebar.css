@@ -18,6 +18,10 @@
   opacity: 1;
 }
 
+.shell-side-dock[data-shell-side-dock="left"] {
+  will-change: auto;
+}
+
 @media (max-width: 1179.98px) {
   .shell-side-dock[data-shell-side-dock="right"] {
     width: 0;
@@ -694,7 +698,6 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   color: var(--text);
   font-size: 14.5px;
   font-weight: 500;
-  opacity: 0.92;
 }
 
 .sidebar-project-actions {

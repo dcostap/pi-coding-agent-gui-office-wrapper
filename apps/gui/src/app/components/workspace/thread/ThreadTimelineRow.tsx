@@ -1,4 +1,4 @@
-import { ThreadMessage } from "../../common/ThreadMessage";
+import { ThreadMessage, type AssistantActivityState } from "../../common/ThreadMessage";
 import {
   FoldedTimelineRow,
   RowLeadToggleSurface,
@@ -14,6 +14,7 @@ type ThreadTimelineRowProps = {
   streamingAssistantMessageId: string | null;
   streamingToolGroupId: string | null;
   expandedToolGroupIds: Record<string, boolean>;
+  getAssistantActivity: (messageId: string) => AssistantActivityState | null;
   onToggleRowCollapse: (rowId: string) => void;
   onToggleToolCallExpansion: () => void;
   onToggleToolGroupExpansion: (groupId: string) => void;
@@ -26,6 +27,7 @@ export function ThreadTimelineRow({
   streamingAssistantMessageId,
   streamingToolGroupId,
   expandedToolGroupIds,
+  getAssistantActivity,
   onToggleRowCollapse,
   onToggleToolCallExpansion,
   onToggleToolGroupExpansion,
@@ -51,6 +53,7 @@ export function ThreadTimelineRow({
         key={item.id}
         message={item.message}
         autoExpandThinking={item.message.id === streamingAssistantMessageId}
+        assistantActivity={getAssistantActivity(item.message.id)}
         onToggleExpanded={onToggleToolCallExpansion}
       />
     );
@@ -128,6 +131,7 @@ export function ThreadTimelineRow({
                   key={`lead:${item.id}`}
                   message={item.message}
                   autoExpandThinking={item.message.id === streamingAssistantMessageId}
+                  assistantActivity={getAssistantActivity(item.message.id)}
                   onToggleExpanded={onToggleTurnCollapse}
                   primaryToggleAction={onToggleTurnCollapse}
                 />

@@ -15,11 +15,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans, "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif);
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.5;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 button,

@@ -88,7 +88,7 @@ export function Sidebar({
     <aside
       aria-label="Workspace sidebar"
       data-pulse-active={projectScopeLockActive ? "true" : "false"}
-      className="sidebar-shell motion-surface-pulse motion-sidebar-selection-pulse relative"
+      className="sidebar-shell relative"
     >
       {showModeSelection ? (
         <nav className="sidebar-mode-nav" aria-label="Primary navigation">

@@ -4,10 +4,17 @@ import type { Message } from "../../types";
 import { getThinkingPreview } from "../../utils/thread-previews";
 import { ExpandablePanel } from "./ExpandablePanel";
 import { MarkdownContent } from "./MarkdownContent";
+import { BotActivityMark } from "./BotActivityMark";
 import { UserMessageAttachments } from "./UserMessageAttachments";
+
+export type AssistantActivityState = {
+  state: "active" | "complete";
+  label?: string | null;
+};
 
 type ThreadMessageProps = {
   message: Message;
+  assistantActivity?: AssistantActivityState | null;
   autoExpandThinking?: boolean;
   onToggleExpanded?: () => void;
   firstCardOnly?: boolean;
@@ -111,7 +118,7 @@ function AssistantThinkingBlock({
       showChevron={interactive}
       header={
         <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-          <span className="shrink-0 truncate text-[13.5px] leading-[1.2] font-medium text-[color:var(--text)]/92">
+          <span className="shrink-0 truncate text-[13.5px] leading-[1.2] font-medium text-[color:var(--text)]">
             {label}
           </span>
           <span className="shrink-0 text-[12px] leading-[1.2] text-[color:var(--muted-2)]/80">
@@ -143,7 +150,7 @@ function SummaryBlock({
 }) {
   return (
     <div className="w-full overflow-hidden rounded-xl border border-[rgba(169,178,215,0.06)] bg-[rgba(255,255,255,0.018)]">
-      <div className="border-b border-[rgba(169,178,215,0.05)] px-3 py-2 text-[13.5px] font-medium text-[color:var(--text)]/82">
+      <div className="border-b border-[rgba(169,178,215,0.05)] px-3 py-2 text-[13.5px] font-medium text-[color:var(--text)]">
         {label}
       </div>
       <div className="px-3 py-3">{renderThinking(content)}</div>
@@ -158,6 +165,7 @@ export const ThreadMessage = memo(function ThreadMessage({
   firstCardOnly,
   disableInnerExpansion,
   primaryToggleAction,
+  assistantActivity,
 }: ThreadMessageProps) {
   if (message.role === "user") {
     const parsedParagraphs = message.content.map((paragraph) =>
@@ -169,14 +177,14 @@ export const ThreadMessage = memo(function ThreadMessage({
     };
 
     return (
-      <div className="ml-auto w-fit max-w-[min(70%,36rem)] min-w-0 rounded-2xl bg-white/[0.075] px-4 py-2.5 text-[15px] leading-[1.55] text-[color:var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+      <div className="ml-auto w-fit max-w-[min(70%,36rem)] min-w-0 rounded-2xl bg-white/[0.075] px-4 py-2.5 text-[16px] leading-[1.6] text-[color:var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
         <div className="grid min-w-0 gap-3 [overflow-wrap:anywhere]">
           {parsedUserContent.paragraphs.map((paragraph) => (
             <MarkdownContent
               key={paragraph}
               markdown={paragraph}
               tone="user"
-              className="text-[15px] leading-[1.58]"
+              className="text-[16px] leading-[1.6]"
             />
           ))}
         </div>
@@ -203,9 +211,16 @@ export const ThreadMessage = memo(function ThreadMessage({
           />
         ) : null}
         {showAssistantContent ? (
-          <div className="w-full max-w-full px-0 text-[15px] leading-[1.62] text-[color:var(--text)]">
+          <div className="w-full max-w-full px-0 text-[16px] leading-[1.68] text-[color:var(--text)]">
             {renderProse(message.content, message.format)}
           </div>
+        ) : null}
+        {assistantActivity ? (
+          <BotActivityMark
+            state={assistantActivity.state}
+            label={assistantActivity.label}
+            className={showAssistantContent || hasThinking ? "mt-4" : undefined}
+          />
         ) : null}
       </div>
     );
@@ -221,7 +236,7 @@ export const ThreadMessage = memo(function ThreadMessage({
           className={
             message.isError
               ? "min-w-0 text-[14px] text-[#f2a7a7]"
-              : "min-w-0 text-[14px] text-[color:var(--text)]/88"
+              : "min-w-0 text-[14px] text-[color:var(--text)]"
           }
         >
           {renderProse(message.content)}
@@ -232,7 +247,7 @@ export const ThreadMessage = memo(function ThreadMessage({
 
   if (message.role === "bashExecution") {
     return (
-      <div className="grid min-w-0 gap-2 rounded-2xl border border-[color:var(--border)] bg-[rgba(17,19,27,0.7)] px-4 py-3 font-mono text-[13px] text-[color:var(--text)]/86">
+      <div className="grid min-w-0 gap-2 rounded-2xl border border-[color:var(--border)] bg-[rgba(17,19,27,0.7)] px-4 py-3 font-mono text-[13px] text-[color:var(--text)]">
         <div className="whitespace-pre-wrap break-all text-[color:var(--muted)]">
           $ {message.command}
         </div>
@@ -258,7 +273,7 @@ export const ThreadMessage = memo(function ThreadMessage({
 
   if (message.role === "custom") {
     return (
-      <div className="grid min-w-0 gap-2 rounded-2xl border border-dashed border-[color:var(--border)] bg-[rgba(255,255,255,0.012)] px-4 py-3 text-[14px] text-[color:var(--text)]/84">
+      <div className="grid min-w-0 gap-2 rounded-2xl border border-dashed border-[color:var(--border)] bg-[rgba(255,255,255,0.012)] px-4 py-3 text-[14px] text-[color:var(--text)]">
         <div className="break-words text-[13px] uppercase tracking-[0.08em] text-[color:var(--muted)] [overflow-wrap:anywhere]">
           {message.customType}
         </div>

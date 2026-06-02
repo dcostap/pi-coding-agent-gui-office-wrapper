@@ -17,6 +17,30 @@
   }
 }
 
+@keyframes botActivityPulseLogo {
+  0%,
+  100% {
+    opacity: 0.82;
+    transform: scale(0.96);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes botActivityPulseBox {
+  0%,
+  100% {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  50% {
+    border-color: rgba(199, 170, 72, 0.32);
+  }
+}
+
 @keyframes activitySpinnerRotate {
   8.3% {
     transform: rotate(30deg);
@@ -67,13 +91,94 @@
   }
 }
 
+.bot-activity-mark {
+  --bot-activity-size: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5625rem;
+  color: var(--muted-2);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.bot-activity-mark__logo-wrap {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  height: var(--bot-activity-size);
+  width: var(--bot-activity-size);
+  place-items: center;
+  border-radius: 13px;
+}
+
+.bot-activity-mark__logo-wrap::before {
+  position: absolute;
+  inset: -4px;
+  z-index: -2;
+  border-radius: 16px;
+  background: rgba(199, 170, 72, 0.3);
+  content: "";
+  filter: blur(14px);
+  opacity: 0.3;
+}
+
+.bot-activity-mark__logo-wrap::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.025);
+  content: "";
+}
+
+.bot-activity-mark__logo {
+  height: 70%;
+  width: 70%;
+  filter: sepia(1) saturate(1.7) hue-rotate(2deg) brightness(1.08);
+  object-fit: contain;
+}
+
+.bot-activity-mark__label {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--bot-activity-size);
+  color: var(--muted-2);
+  white-space: nowrap;
+}
+
+.bot-activity-mark--active .bot-activity-mark__logo {
+  animation: botActivityPulseLogo 0.83s ease-in-out infinite;
+}
+
+.bot-activity-mark--active .bot-activity-mark__logo-wrap::after {
+  animation: botActivityPulseBox 0.83s ease-in-out infinite;
+}
+
+.bot-activity-mark--active .bot-activity-mark__label::after {
+  display: inline-flex;
+  width: 1.25rem;
+  margin-left: 0.125rem;
+  color: var(--muted-2);
+  content: "…";
+  animation: threeDotsSpinnerPulse 0.8s linear infinite;
+}
+
+.bot-activity-mark--complete {
+  opacity: 0.72;
+}
+
+.bot-activity-mark--complete .bot-activity-mark__logo-wrap::before {
+  opacity: 0.08;
+}
+
 .composer-howcode-surface {
   --panel: #191d22;
   --panel-2: #15191e;
   --panel-3: #1f2328;
   --border: rgba(255, 255, 255, 0.1);
   --border-strong: rgba(255, 255, 255, 0.19);
-  --text: rgba(240, 242, 244, 0.88);
+  --text: #f0f2f4;
   --muted: rgba(240, 242, 244, 0.62);
   --muted-2: rgba(240, 242, 244, 0.46);
   --accent: #c7aa48;
@@ -149,8 +254,6 @@
   transition:
     opacity 170ms ease,
     transform 170ms ease;
-  backdrop-filter: blur(2px) saturate(115%);
-  -webkit-backdrop-filter: blur(2px) saturate(115%);
 }
 
 .composer-attachment-drop-target--active .composer-attachment-drop-label {
@@ -268,8 +371,6 @@ body[data-app-resizing="true"] *:not(.shell-side-dock):not(.shell-side-dock *) {
 .app-titlebar {
   -webkit-app-region: drag;
   background: var(--bg);
-  backdrop-filter: blur(34px) saturate(160%);
-  -webkit-backdrop-filter: blur(34px) saturate(160%);
 }
 
 .app-titlebar button,

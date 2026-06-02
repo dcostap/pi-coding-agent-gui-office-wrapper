@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownToLine, ListCollapse } from "lucide-react";
 import type { Message } from "../../../types";
+import { BotActivityMark } from "../../common/BotActivityMark";
 import { Tooltip } from "../../common/Tooltip";
+import type { AssistantActivityState } from "../../common/ThreadMessage";
 import { compactIconButtonClass } from "../../../ui/classes";
 import { CHAT_TEXT_MAX_WIDTH_CLASS } from "../../../ui/layout";
 import { cn } from "../../../utils/cn";
@@ -24,6 +26,23 @@ type ThreadTimelineProps = {
 const timelineQuickActionButtonClass =
   "pointer-events-auto h-6 w-6 shrink-0 rounded-full bg-[color:var(--brand-secondary-bg)] hover:bg-[color:var(--brand-secondary-bg-strong)] disabled:cursor-not-allowed disabled:opacity-45";
 
+function formatAgentTurnDuration(durationMs: number) {
+  const totalSeconds = Math.max(1, Math.round(durationMs / 1000));
+  if (totalSeconds < 60) {
+    return `Terminado en ${totalSeconds} ${totalSeconds === 1 ? "segundo" : "segundos"}`;
+  }
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (seconds === 0) {
+    return `Terminado en ${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
+  }
+
+  return `Terminado en ${minutes} ${minutes === 1 ? "minuto" : "minutos"} ${seconds} ${
+    seconds === 1 ? "segundo" : "segundos"
+  }`;
+}
+
 export function ThreadTimeline({
   messages,
   previousMessageCount,
@@ -41,6 +60,10 @@ export function ThreadTimeline({
   const programmaticScrollFrameRef = useRef<number | null>(null);
   const shouldStickToBottomRef = useRef(true);
   const pendingHistoryPrependRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null);
+  const activeAgentTurnRef = useRef<{ startedAt: number; assistantMessageId: string | null } | null>(
+    null,
+  );
+  const [assistantDurations, setAssistantDurations] = useState<Record<string, number>>({});
 
   const rows = useMemo<TimelineRow[]>(
     () => buildTimelineRows({ messages, previousMessageCount }),
@@ -67,6 +90,38 @@ export function ThreadTimeline({
       }),
     [collapsedRowIds, expandedToolGroupIds, isStreaming, messages, rows],
   );
+
+  useEffect(() => {
+    const activeTurn = activeAgentTurnRef.current;
+
+    if (isStreaming) {
+      if (!activeTurn) {
+        activeAgentTurnRef.current = {
+          startedAt: Date.now(),
+          assistantMessageId: streamingAssistantMessageId,
+        };
+        return;
+      }
+
+      if (streamingAssistantMessageId && activeTurn.assistantMessageId !== streamingAssistantMessageId) {
+        activeAgentTurnRef.current = {
+          ...activeTurn,
+          assistantMessageId: streamingAssistantMessageId,
+        };
+      }
+      return;
+    }
+
+    if (activeTurn?.assistantMessageId) {
+      const durationMs = Date.now() - activeTurn.startedAt;
+      setAssistantDurations((current) => ({
+        ...current,
+        [activeTurn.assistantMessageId as string]: durationMs,
+      }));
+    }
+
+    activeAgentTurnRef.current = null;
+  }, [isStreaming, streamingAssistantMessageId]);
 
   useEffect(() => {
     setCollapsedRowIds((current) => {
@@ -241,6 +296,21 @@ export function ThreadTimeline({
     [streamingToolGroupId],
   );
 
+  const getAssistantActivity = useCallback(
+    (messageId: string): AssistantActivityState | null => {
+      if (messageId === streamingAssistantMessageId) {
+        return { state: "active", label: "Trabajando" };
+      }
+
+      const durationMs = assistantDurations[messageId];
+      return {
+        state: "complete",
+        label: durationMs ? formatAgentTurnDuration(durationMs) : null,
+      };
+    },
+    [assistantDurations, streamingAssistantMessageId],
+  );
+
   const handleJumpToEarlierMessages = useCallback(() => {
     const container = containerRef.current;
     if (container) {
@@ -263,6 +333,7 @@ export function ThreadTimeline({
           streamingAssistantMessageId={streamingAssistantMessageId}
           streamingToolGroupId={streamingToolGroupId}
           expandedToolGroupIds={expandedToolGroupIds}
+          getAssistantActivity={getAssistantActivity}
           onToggleRowCollapse={handleToggleRowCollapse}
           onToggleToolCallExpansion={handleToggleToolCallExpansion}
           onToggleToolGroupExpansion={handleToggleToolGroupExpansion}
@@ -273,6 +344,7 @@ export function ThreadTimeline({
     [
       effectiveCollapsedRowIds,
       expandedToolGroupIds,
+      getAssistantActivity,
       handleJumpToEarlierMessages,
       handleToggleRowCollapse,
       handleToggleToolCallExpansion,
@@ -281,6 +353,8 @@ export function ThreadTimeline({
       streamingToolGroupId,
     ],
   );
+
+  const showPendingAssistantActivity = isStreaming && !streamingAssistantMessageId;
 
   return (
     <div className={`${chatViewportClass} relative`}>
@@ -293,7 +367,16 @@ export function ThreadTimeline({
           ref={contentRef}
           className={`mx-auto flex min-h-full w-full min-w-0 flex-col justify-end ${CHAT_TEXT_MAX_WIDTH_CLASS} overflow-x-hidden px-4 pt-4 pb-4`}
         >
-          <div className="grid min-w-0 gap-4">{rows.map(renderRow)}</div>
+          <div className="grid min-w-0 gap-4">
+            {rows.map(renderRow)}
+            {showPendingAssistantActivity ? (
+              <div className="grid w-full min-w-0 grid-cols-[24px_minmax(0,1fr)_24px] items-start gap-0 overflow-visible">
+                <div />
+                <BotActivityMark state="active" label="Trabajando" />
+                <div />
+              </div>
+            ) : null}
+          </div>
           <div ref={bottomSentinelRef} aria-hidden="true" className="h-px w-full" />
         </div>
       </div>

@@ -18,9 +18,9 @@ function getToneTextClass(tone: MarkdownTone) {
     case "thinking":
       return "text-[color:var(--muted-2)]/78 italic";
     case "user":
-      return "text-[color:var(--text)]/94";
+      return "text-[color:var(--text)]";
     default:
-      return "text-[color:var(--text)]/92";
+      return "text-[color:var(--text)]";
   }
 }
 
@@ -29,7 +29,7 @@ function getToneStrongClass(tone: MarkdownTone) {
     case "thinking":
       return "text-[color:var(--muted)]/88";
     case "user":
-      return "text-[color:var(--text)]/96";
+      return "text-[color:var(--text)]";
     default:
       return "text-[color:var(--text)]";
   }
@@ -135,7 +135,7 @@ export function MarkdownContent({ markdown, tone = "default", className }: Markd
   return (
     <div
       className={cn(
-        "grid min-w-0 gap-1.5 text-[15px] leading-[1.68] [overflow-wrap:anywhere] [&_code]:break-all [&_pre_code]:break-normal [&_pre_code]:text-inherit",
+        "grid min-w-0 gap-1.5 text-[16px] leading-[1.68] [overflow-wrap:anywhere] [&_code]:break-all [&_pre_code]:break-normal [&_pre_code]:text-inherit",
         className,
       )}
     >
@@ -149,22 +149,22 @@ export function MarkdownContent({ markdown, tone = "default", className }: Markd
             </p>
           ),
           h1: ({ children }) => (
-            <h1 className="m-0 text-[15px] font-semibold leading-[1.68] text-[#f0c674]">
+            <h1 className="m-0 text-[16px] font-semibold leading-[1.68] text-[#f0c674]">
               {children}
             </h1>
           ),
           h2: ({ children }) => (
-            <h2 className="m-0 text-[15px] font-semibold leading-[1.68] text-[#f0c674]">
+            <h2 className="m-0 text-[16px] font-semibold leading-[1.68] text-[#f0c674]">
               {children}
             </h2>
           ),
           h3: ({ children }) => (
-            <h3 className="m-0 text-[15px] font-semibold leading-[1.68] text-[#f0c674]">
+            <h3 className="m-0 text-[16px] font-semibold leading-[1.68] text-[#f0c674]">
               {children}
             </h3>
           ),
           h4: ({ children }) => (
-            <h4 className="m-0 text-[15px] font-semibold leading-[1.68] text-[#f0c674]">
+            <h4 className="m-0 text-[16px] font-semibold leading-[1.68] text-[#f0c674]">
               {children}
             </h4>
           ),
@@ -190,7 +190,7 @@ export function MarkdownContent({ markdown, tone = "default", className }: Markd
           ),
           table: ({ children }) => (
             <div className="overflow-x-auto rounded-[12px] border border-[rgba(128,128,128,0.28)]">
-              <table className="min-w-full border-collapse text-left text-[14px]">{children}</table>
+              <table className="min-w-full border-collapse text-left text-[15px]">{children}</table>
             </div>
           ),
           thead: ({ children }) => (
