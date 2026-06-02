@@ -87,30 +87,31 @@
   background-image: linear-gradient(
     90deg,
     var(--muted-2) 0%,
-    var(--muted-2) 32%,
-    rgba(255, 255, 255, 0.96) 48%,
-    var(--muted-2) 64%,
+    var(--muted-2) 42%,
+    rgba(255, 255, 255, 0.96) 50%,
+    var(--muted-2) 58%,
     var(--muted-2) 100%
   );
-  background-size: 220% 100%;
-  background-position: 120% 0;
+  background-size: 300% 100%;
+  background-position: 0 0;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: bot-activity-label-pulse 1.45s linear infinite;
+  animation: bot-activity-label-shimmer 1.5s linear infinite;
 }
 
 .bot-activity-mark--complete {
   opacity: 0.72;
 }
 
-@keyframes bot-activity-label-pulse {
+@keyframes bot-activity-label-shimmer {
   0% {
-    background-position: 120% 0;
+    background-position: 100% 0;
   }
 
+  90%,
   100% {
-    background-position: -120% 0;
+    background-position: 0% 0;
   }
 }
 
