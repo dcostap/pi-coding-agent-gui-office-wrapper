@@ -7,6 +7,10 @@ type BotActivityMarkProps = {
 };
 
 export function BotActivityMark({ state, label, className }: BotActivityMarkProps) {
+  if (!label) {
+    return null;
+  }
+
   return (
     <div
       className={cn(
@@ -14,12 +18,8 @@ export function BotActivityMark({ state, label, className }: BotActivityMarkProp
         state === "active" ? "bot-activity-mark--active" : "bot-activity-mark--complete",
         className,
       )}
-      aria-label={label ?? (state === "active" ? "El asistente está trabajando" : "Respuesta terminada")}
     >
-      <span className="bot-activity-mark__logo-wrap" aria-hidden="true">
-        <img src="/logo_white_no_letters.png" alt="" className="bot-activity-mark__logo" />
-      </span>
-      {label ? <span className="bot-activity-mark__label">{label}</span> : null}
+      <span className="bot-activity-mark__label">{label}</span>
     </div>
   );
 }

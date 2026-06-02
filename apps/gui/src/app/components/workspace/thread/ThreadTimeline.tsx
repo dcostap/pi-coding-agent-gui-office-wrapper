@@ -309,7 +309,7 @@ export function ThreadTimeline({
   const getAssistantActivity = useCallback(
     (messageId: string): AssistantActivityState | null => {
       if (messageId === streamingAssistantMessageId) {
-        return { state: "active", label: "Trabajando" };
+        return null;
       }
 
       const durationMs = assistantDurations[messageId];
@@ -364,7 +364,11 @@ export function ThreadTimeline({
     ],
   );
 
-  const showPendingAssistantActivity = isStreaming && !streamingAssistantMessageId;
+  const activeAssistantActivityLabel = isStreaming
+    ? streamingAssistantMessageId
+      ? "Trabajando..."
+      : "Enviando..."
+    : null;
 
   return (
     <div className={`${chatViewportClass} relative`}>
@@ -379,10 +383,10 @@ export function ThreadTimeline({
         >
           <div className="grid min-w-0 gap-4">
             {rows.map(renderRow)}
-            {showPendingAssistantActivity ? (
+            {activeAssistantActivityLabel ? (
               <div className="grid w-full min-w-0 grid-cols-[24px_minmax(0,1fr)_24px] items-start gap-0 overflow-visible">
                 <div />
-                <BotActivityMark state="active" label="Trabajando" />
+                <BotActivityMark state="active" label={activeAssistantActivityLabel} />
                 <div />
               </div>
             ) : null}
