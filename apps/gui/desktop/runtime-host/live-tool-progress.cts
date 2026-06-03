@@ -53,6 +53,8 @@ export function getLiveToolProgressMessages(runtime: PiRuntime) {
     return {
       role: "toolResult",
       toolName: entry.toolName,
+      toolCallId: entry.toolCallId,
+      args: entry.args,
       isError: Boolean(entry.isError),
       content: displayContent,
       timestamp: `tool-progress:${entry.toolCallId}`,

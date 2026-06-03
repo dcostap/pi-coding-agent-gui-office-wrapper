@@ -29,8 +29,8 @@ export function getToolCallTitle(message: ToolCallMessage) {
 
 export function getToolCallPreview(message: ToolCallMessage) {
   if (message.role === "toolResult") {
-    return stripAnsi(message.content[0] ?? (message.isError ? "Tool failed." : "Tool finished."));
+    return stripAnsi(message.content[0] ?? (message.isError ? "La herramienta falló." : "Herramienta finalizada."));
   }
 
-  return stripAnsi(message.command || "No command");
+  return stripAnsi(message.command || "Sin comando");
 }

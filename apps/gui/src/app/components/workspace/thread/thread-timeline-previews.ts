@@ -24,7 +24,7 @@ export function getMessagePreview(message: Message) {
 function getToolGroupPreview(item: Extract<TimelineTurnItem, { kind: "tool-group" }>) {
   const firstMessage = item.messages[0];
   if (!firstMessage) {
-    return "Tool call";
+    return "Llamada a herramienta";
   }
 
   if (firstMessage.role === "toolResult") {

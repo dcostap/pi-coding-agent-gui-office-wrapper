@@ -75,6 +75,8 @@ export type ToolResultMessage = {
   id: string;
   role: "toolResult";
   toolName: string;
+  toolCallId?: string;
+  toolInput?: unknown;
   content: string[];
   images?: ToolResultImage[];
   isError: boolean;

@@ -12,6 +12,18 @@ type ThinkingPart = {
   redacted?: boolean;
 };
 
+type ToolCallPart = {
+  type?: string;
+  id?: string;
+  callId?: string;
+  toolCallId?: string;
+  name?: string;
+  toolName?: string;
+  input?: unknown;
+  args?: unknown;
+  arguments?: unknown;
+};
+
 type RuntimeMessage = {
   role?: string;
   content?:
@@ -23,14 +35,15 @@ type RuntimeMessage = {
             mimeType?: string;
             data?: string;
           }
-        | {
-            type?: string;
-            name?: string;
-          }
+        | ToolCallPart
       >;
   timestamp?: string | number;
   errorMessage?: string;
   toolName?: string;
+  toolCallId?: string;
+  input?: unknown;
+  args?: unknown;
+  arguments?: unknown;
   isError?: boolean;
   command?: string;
   output?: string;
@@ -121,6 +134,34 @@ function getImageCount(content: RuntimeMessage["content"]) {
   }
 
   return imageCount;
+}
+
+function getToolCallParts(content: RuntimeMessage["content"]) {
+  if (!Array.isArray(content)) {
+    return [] as Array<{ id: string; name: string; arguments: unknown }>;
+  }
+
+  const toolCalls: Array<{ id: string; name: string; arguments: unknown }> = [];
+  for (const part of content) {
+    if (part?.type !== "toolCall" && part?.type !== "tool_use" && part?.type !== "toolUse") {
+      continue;
+    }
+
+    const toolCall = part as ToolCallPart;
+    const id = toolCall.id ?? toolCall.callId ?? toolCall.toolCallId;
+    const name = toolCall.name ?? toolCall.toolName;
+    if (typeof id !== "string" || typeof name !== "string") {
+      continue;
+    }
+
+    toolCalls.push({
+      id,
+      name,
+      arguments: toolCall.arguments ?? toolCall.input ?? toolCall.args ?? {},
+    });
+  }
+
+  return toolCalls;
 }
 
 function getToolResultImages(content: RuntimeMessage["content"]): ToolResultImage[] {
@@ -271,7 +312,7 @@ export function mapAgentMessageToUiMessage(message: AgentMessage, index: number)
       const { thinkingContent, thinkingHeaders, thinkingRedacted } =
         extractAssistantThinking(runtimeMessage);
 
-      if (content.length === 0 && thinkingContent.length === 0) {
+      if (content.length === 0 && thinkingContent.length === 0 && getToolCallParts(runtimeMessage.content).length === 0) {
         return null;
       }
 
@@ -292,8 +333,12 @@ export function mapAgentMessageToUiMessage(message: AgentMessage, index: number)
         id,
         role: "toolResult",
         toolName: runtimeMessage.toolName ?? "tool",
+        ...(runtimeMessage.toolCallId ? { toolCallId: runtimeMessage.toolCallId } : {}),
+        ...(runtimeMessage.input !== undefined || runtimeMessage.args !== undefined || runtimeMessage.arguments !== undefined
+          ? { toolInput: runtimeMessage.input ?? runtimeMessage.args ?? runtimeMessage.arguments }
+          : {}),
         content:
-          text.length > 0 ? text : [runtimeMessage.isError ? "Tool failed." : "Tool finished."],
+          text.length > 0 ? text : [runtimeMessage.isError ? "La herramienta falló." : "Herramienta finalizada."],
         images: images.length > 0 ? images : undefined,
         isError: Boolean(runtimeMessage.isError),
       };
@@ -369,9 +414,59 @@ export function mapAgentMessageToUiMessage(message: AgentMessage, index: number)
 }
 
 export function mapAgentMessagesToUiMessages(messages: AgentMessage[]) {
-  return messages
-    .map((message, index) => mapAgentMessageToUiMessage(message, index))
-    .filter((message): message is Message => message !== null);
+  const toolCallsById = new Map<string, { name: string; arguments: unknown }>();
+  const pendingToolCallsByName = new Map<string, Array<{ id: string; arguments: unknown }>>();
+  const pendingToolCalls: Array<{ id: string; name: string; arguments: unknown }> = [];
+  const uiMessages: Message[] = [];
+
+  for (const [index, message] of messages.entries()) {
+    const runtimeMessage = message as RuntimeMessage;
+
+    for (const toolCall of getToolCallParts(runtimeMessage.content)) {
+      toolCallsById.set(toolCall.id, { name: toolCall.name, arguments: toolCall.arguments });
+      pendingToolCalls.push(toolCall);
+      const pendingForName = pendingToolCallsByName.get(toolCall.name) ?? [];
+      pendingForName.push({ id: toolCall.id, arguments: toolCall.arguments });
+      pendingToolCallsByName.set(toolCall.name, pendingForName);
+    }
+
+    const uiMessage = mapAgentMessageToUiMessage(message, index);
+    if (!uiMessage) {
+      continue;
+    }
+
+    if (uiMessage.role === "toolResult") {
+      const toolCall = uiMessage.toolCallId ? toolCallsById.get(uiMessage.toolCallId) : undefined;
+      const pendingForName = pendingToolCallsByName.get(uiMessage.toolName);
+      const pendingToolCall = toolCall
+        ? { id: uiMessage.toolCallId, arguments: toolCall.arguments }
+        : pendingForName?.shift() ?? pendingToolCalls.shift();
+
+      if (pendingToolCall) {
+        const pendingIndex = pendingToolCalls.findIndex((candidate) => candidate.id === pendingToolCall.id);
+        if (pendingIndex >= 0) {
+          pendingToolCalls.splice(pendingIndex, 1);
+        }
+      }
+
+      if (pendingForName && pendingForName.length === 0) {
+        pendingToolCallsByName.delete(uiMessage.toolName);
+      }
+
+      if (pendingToolCall) {
+        uiMessages.push({
+          ...uiMessage,
+          toolCallId: uiMessage.toolCallId ?? pendingToolCall.id,
+          toolInput: uiMessage.toolInput ?? pendingToolCall.arguments,
+        });
+        continue;
+      }
+    }
+
+    uiMessages.push(uiMessage);
+  }
+
+  return uiMessages;
 }
 
 export function getFirstUserTurnTitle(messages: Message[]) {
