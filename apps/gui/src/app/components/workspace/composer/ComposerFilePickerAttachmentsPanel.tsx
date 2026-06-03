@@ -79,7 +79,7 @@ export function ComposerFilePickerAttachmentsPanel({
                 type="button"
                 className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded p-0 text-[color:var(--muted)] transition-colors hover:text-[color:var(--text)]"
                 onClick={() => onRemoveAttachment(attachment.path)}
-                aria-label={`Remove ${attachment.name}`}
+                aria-label={`Quitar ${attachment.name}`}
               >
                 <X size={11} className="block -translate-y-px" />
               </button>
@@ -93,7 +93,7 @@ export function ComposerFilePickerAttachmentsPanel({
                 "border-white/10 bg-white/[0.05] text-[color:var(--text)]",
             )}
           >
-            {draggedAttachments.length > 0 ? "Drop to attach" : "No attachments yet."}
+            {draggedAttachments.length > 0 ? "Suelta para adjuntar" : "Sin adjuntos todavía."}
           </div>
         )}
       </div>

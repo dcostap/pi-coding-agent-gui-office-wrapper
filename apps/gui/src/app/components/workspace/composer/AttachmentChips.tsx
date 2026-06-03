@@ -29,8 +29,8 @@ export function AttachmentChips({
             size === "compact" ? "px-2 py-0.5 text-[12px]" : "px-2.5 py-1 text-[13px]",
           )}
           onClick={() => onRemove(attachment.path)}
-          aria-label={`Remove ${attachment.name}`}
-          data-tooltip="Remove file"
+          aria-label={`Quitar ${attachment.name}`}
+          data-tooltip="Quitar archivo"
         >
           <span>{attachment.name}</span>
         </button>

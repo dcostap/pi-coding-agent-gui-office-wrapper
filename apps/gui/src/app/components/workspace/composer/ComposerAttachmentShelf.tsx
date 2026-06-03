@@ -16,7 +16,7 @@ export function ComposerAttachmentShelf({ attachments, onRemove }: ComposerAttac
   return (
     <div
       className="border-t border-[color:var(--border)] px-4 pt-2 pb-3"
-      aria-label="Files attached to this prompt"
+      aria-label="Archivos adjuntos a este mensaje"
     >
       <div className="flex flex-wrap gap-2">
         {attachments.map((attachment) => (
@@ -39,8 +39,8 @@ export function ComposerAttachmentShelf({ attachments, onRemove }: ComposerAttac
               type="button"
               className="ml-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[color:var(--border)] bg-[color:var(--panel)] text-[color:var(--muted)] opacity-75 transition hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-hover)] hover:text-[color:var(--text)] hover:opacity-100"
               onClick={() => onRemove(attachment.path)}
-              aria-label={`Remove ${attachment.name}`}
-              data-tooltip="Remove attachment"
+              aria-label={`Quitar ${attachment.name}`}
+              data-tooltip="Quitar adjunto"
             >
               <X size={11} />
             </button>

@@ -177,18 +177,21 @@ export const ThreadMessage = memo(function ThreadMessage({
     };
 
     return (
-      <div className="ml-auto w-fit max-w-[min(70%,36rem)] min-w-0 rounded-2xl bg-white/[0.075] px-4 py-2.5 text-[16px] leading-[1.6] text-[color:var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
-        <div className="grid min-w-0 gap-3 [overflow-wrap:anywhere]">
-          {parsedUserContent.paragraphs.map((paragraph) => (
-            <MarkdownContent
-              key={paragraph}
-              markdown={paragraph}
-              tone="user"
-              className="text-[16px] leading-[1.6]"
-            />
-          ))}
+      <div className="grid min-w-0 gap-3">
+        <div className="h-px w-full bg-white/10" />
+        <div className="ml-auto w-fit max-w-[min(70%,36rem)] min-w-0 rounded-2xl bg-white/[0.075] px-4 py-2.5 text-[16px] leading-[1.6] text-[color:var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+          <div className="grid min-w-0 gap-3 [overflow-wrap:anywhere]">
+            {parsedUserContent.paragraphs.map((paragraph) => (
+              <MarkdownContent
+                key={paragraph}
+                markdown={paragraph}
+                tone="user"
+                className="text-[16px] leading-[1.6]"
+              />
+            ))}
+          </div>
+          <UserMessageAttachments attachmentPaths={parsedUserContent.attachmentPaths} />
         </div>
-        <UserMessageAttachments attachmentPaths={parsedUserContent.attachmentPaths} />
       </div>
     );
   }
@@ -230,7 +233,7 @@ export const ThreadMessage = memo(function ThreadMessage({
     return (
       <div className="grid min-w-0 gap-2 rounded-2xl border border-[color:var(--border)] bg-[rgba(255,255,255,0.025)] px-4 py-3">
         <div className="break-words text-[13px] uppercase tracking-[0.08em] text-[color:var(--muted)] [overflow-wrap:anywhere]">
-          Tool · {message.toolName}
+          Herramienta · {message.toolName}
         </div>
         <div
           className={
@@ -260,12 +263,12 @@ export const ThreadMessage = memo(function ThreadMessage({
             ))}
           </div>
         ) : (
-          <div className="text-[color:var(--muted)]">No output</div>
+          <div className="text-[color:var(--muted)]">Sin salida</div>
         )}
         <div className="text-[color:var(--muted)]">
-          exit {message.exitCode ?? "?"}
-          {message.cancelled ? " · cancelled" : ""}
-          {message.truncated ? " · truncated" : ""}
+          código de salida {message.exitCode ?? "?"}
+          {message.cancelled ? " · cancelado" : ""}
+          {message.truncated ? " · truncado" : ""}
         </div>
       </div>
     );

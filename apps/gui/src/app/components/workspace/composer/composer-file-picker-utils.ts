@@ -59,10 +59,10 @@ export function filterFilePickerEntries(
 
 export function getOpenAttachmentLabel(attachment: ComposerAttachment) {
   if (isSafeExternalUrl(attachment.path)) {
-    return `Open ${attachment.name} in browser`;
+    return `Abrir ${attachment.name} en el navegador`;
   }
 
-  return `Open ${attachment.name}`;
+  return `Abrir ${attachment.name}`;
 }
 
 export function getAttachmentDisplayLabel(attachment: ComposerAttachment) {

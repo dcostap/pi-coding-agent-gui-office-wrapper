@@ -21,9 +21,9 @@ export function UserMessageAttachments({ attachmentPaths }: UserMessageAttachmen
   }
 
   return (
-    <div className="mt-2 grid gap-1.5 border-t border-white/10 pt-2" aria-label="Message attachments">
+    <div className="mt-2 grid gap-1.5 border-t border-white/10 pt-2" aria-label="Archivos adjuntos del mensaje">
       <div className="text-[12px] font-medium uppercase tracking-[0.12em] text-[color:var(--muted-2)]">
-        Attached files
+        Archivos adjuntos
       </div>
       <div className="flex flex-wrap gap-1.5">
         {attachmentPaths.map((pathValue) => {
@@ -35,8 +35,8 @@ export function UserMessageAttachments({ attachmentPaths }: UserMessageAttachmen
               className="inline-flex max-w-[16rem] items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-left text-[12.5px] text-[color:var(--text)] transition hover:border-white/18 hover:bg-white/[0.07]"
               title={pathValue}
               onClick={() => void openPathQuery(pathValue)}
-              aria-label={`Open attached file ${name}`}
-              data-tooltip="Open attached file"
+              aria-label={`Abrir archivo adjunto ${name}`}
+              data-tooltip="Abrir archivo adjunto"
             >
               <span className="shrink-0 text-[color:var(--muted)]">
                 {isImagePath(pathValue) ? <Image size={12} /> : <File size={12} />}
