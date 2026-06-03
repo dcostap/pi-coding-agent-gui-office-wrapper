@@ -80,8 +80,8 @@ export function SidebarChatSection({
   );
 
   return (
-    <div ref={containerRef} className="sidebar-project-tree">
-      <div className="sidebar-toolbar mb-2">
+    <div ref={containerRef} className="sidebar-section sidebar-section--fixed-toolbar">
+      <div className="sidebar-toolbar">
         <label
           className="sidebar-search-field"
           data-active={searchQuery.trim().length > 0 ? "true" : "false"}
@@ -125,34 +125,35 @@ export function SidebarChatSection({
         </form>
       ) : null}
 
-      <div className="sidebar-tree-item mb-2">
-        <button
-          type="button"
-          className="sidebar-row-surface sidebar-project-row w-full"
-          onClick={() => {
-            onSelectGroup(null);
-            onNewChat(null);
-          }}
+      <div className="sidebar-project-tree">
+        <div className="sidebar-tree-item mb-2">
+          <button
+            type="button"
+            className="sidebar-row-surface sidebar-project-row w-full"
+            onClick={() => {
+              onSelectGroup(null);
+              onNewChat(null);
+            }}
+          >
+            <span className="sidebar-project-toggle" data-can-toggle="false">
+              <Plus size={14} className="sidebar-project-icon sidebar-project-origin-icon" />
+            </span>
+            <span className="sidebar-project-button cursor-pointer">
+              <span className="sidebar-project-title">New chat</span>
+            </span>
+          </button>
+        </div>
+
+        <div
+          className="sidebar-tree-item"
+          id="chat-ungrouped-threads"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => handleThreadDrop(event, null)}
         >
-          <span className="sidebar-project-toggle" data-can-toggle="false">
-            <Plus size={14} className="sidebar-project-icon sidebar-project-origin-icon" />
-          </span>
-          <span className="sidebar-project-button cursor-pointer">
-            <span className="sidebar-project-title">New chat</span>
-          </span>
-        </button>
-      </div>
+          {ungroupedThreads.map((thread) => renderThread(thread, null))}
+        </div>
 
-      <div
-        className="sidebar-tree-item"
-        id="chat-ungrouped-threads"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => handleThreadDrop(event, null)}
-      >
-        {ungroupedThreads.map((thread) => renderThread(thread, null))}
-      </div>
-
-      <DndContext
+        <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
         modifiers={[restrictToVerticalAxis, restrictToParentElement]}
@@ -251,7 +252,8 @@ export function SidebarChatSection({
             );
           })}
         </SortableContext>
-      </DndContext>
+        </DndContext>
+      </div>
     </div>
   );
 }

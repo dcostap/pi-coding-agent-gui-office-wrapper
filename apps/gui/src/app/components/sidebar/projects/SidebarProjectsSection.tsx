@@ -7,7 +7,7 @@ import type { Project, Thread, View } from "../../../types";
 import { cn } from "../../../utils/cn";
 import { ProjectTree } from "../ProjectTree";
 import { ProjectRow } from "../project-tree/ProjectRow";
-import { ProjectThreadsGroup } from "../project-tree/ProjectThreadsList";
+import { OldSessionsRow, ProjectThreadsGroup } from "../project-tree/ProjectThreadsList";
 import { ThreadRow } from "../project-tree/ThreadRow";
 import { SidebarProjectsCreatePopover } from "./SidebarProjectsCreatePopover";
 import {
@@ -29,6 +29,24 @@ type PendingProject = {
 type UnassignedChatThread = Thread & {
   projectId: string;
 };
+
+const OLD_THREAD_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+
+function partitionUnassignedChatThreads(threads: UnassignedChatThread[]) {
+  const cutoffMs = Date.now() - OLD_THREAD_THRESHOLD_MS;
+  const recentThreads: UnassignedChatThread[] = [];
+  const oldThreads: UnassignedChatThread[] = [];
+
+  for (const thread of threads) {
+    if (thread.pinned || (thread.lastModifiedMs ?? Number.MAX_SAFE_INTEGER) >= cutoffMs) {
+      recentThreads.push(thread);
+    } else {
+      oldThreads.push(thread);
+    }
+  }
+
+  return { recentThreads, oldThreads };
+}
 
 type SidebarProjectsSectionProps = {
   activeView: View;
@@ -98,6 +116,7 @@ export function SidebarProjectsSection({
   const lastProjectCreateRequestIdRef = useRef(0);
   const createPanelRef = useRef<HTMLDivElement>(null);
   const [unassignedChatsExpanded, setUnassignedChatsExpanded] = useState(true);
+  const [oldUnassignedChatsExpandedByUser, setOldUnassignedChatsExpandedByUser] = useState(false);
 
   const regularProjects = useMemo(
     () => projects.filter((project) => !isUnassignedChatProjectId(project.id)),
@@ -131,6 +150,18 @@ export function SidebarProjectsSection({
     [normalizedSearchQuery, unassignedChatThreads],
   );
   const hasUnassignedChats = visibleUnassignedChatThreads.length > 0;
+  const { recentThreads: recentUnassignedChatThreads, oldThreads: oldUnassignedChatThreads } =
+    useMemo(
+      () => partitionUnassignedChatThreads(visibleUnassignedChatThreads),
+      [visibleUnassignedChatThreads],
+    );
+  const selectedOldUnassignedChatVisible = oldUnassignedChatThreads.some(
+    (thread) => thread.id === selectedThreadId,
+  );
+  const oldUnassignedChatsExpanded =
+    normalizedSearchQuery.length > 0 ||
+    selectedOldUnassignedChatVisible ||
+    oldUnassignedChatsExpandedByUser;
 
   const { projects: visibleProjects, autoExpandedProjectIds } = useMemo(
     () =>
@@ -275,12 +306,48 @@ export function SidebarProjectsSection({
     }
   };
 
+  const renderUnassignedChatThread = (thread: UnassignedChatThread) => (
+    <ThreadRow
+      key={`${thread.projectId}:${thread.id}`}
+      age={thread.age}
+      pinned={Boolean(thread.pinned)}
+      running={Boolean(thread.running)}
+      terminalRunning={Boolean(
+        thread.sessionPath && terminalRunningSessionPaths.has(thread.sessionPath),
+      )}
+      unread={Boolean(thread.unread)}
+      isSelected={
+        selectedThreadId === thread.id && (activeView === "thread" || activeView === "gitops")
+      }
+      title={thread.title}
+      onArchive={() =>
+        onAction("thread.archive", {
+          projectId: thread.projectId,
+          threadId: thread.id,
+        })
+      }
+      onOpen={() => {
+        if (!thread.sessionPath) {
+          return;
+        }
+
+        onThreadOpen(thread.projectId, thread.id, thread.sessionPath);
+      }}
+      onPin={() =>
+        onAction("thread.pin", {
+          projectId: thread.projectId,
+          threadId: thread.id,
+        })
+      }
+    />
+  );
+
   if (!showProjects) {
     return <section className="sidebar-section" aria-hidden="true" />;
   }
 
   return (
-    <section className="sidebar-section" data-block-composer-attachment-drop="true">
+    <section className="sidebar-section sidebar-section--fixed-toolbar" data-block-composer-attachment-drop="true">
       <div className="sidebar-toolbar">
         <label
           className="sidebar-search-field"
@@ -319,8 +386,9 @@ export function SidebarProjectsSection({
         />
       ) : null}
 
-      {visibleProjects.length > 0 || pendingProject || hasUnassignedChats ? (
-        <>
+      <div className="sidebar-project-tree">
+        {visibleProjects.length > 0 || pendingProject || hasUnassignedChats ? (
+          <>
           {pendingProject ? (
             <div className="sidebar-tree-item" aria-live="polite">
               <div className="sidebar-project-row sidebar-row-surface motion-surface-pulse">
@@ -372,42 +440,34 @@ export function SidebarProjectsSection({
                 threadGroupId={UNASSIGNED_CHATS_FAKE_PROJECT_ID}
                 projectName={UNASSIGNED_CHAT_PROJECT_NAME}
               >
-                {visibleUnassignedChatThreads.map((thread) => (
-                      <ThreadRow
-                        key={`${thread.projectId}:${thread.id}`}
-                        age={thread.age}
-                        pinned={Boolean(thread.pinned)}
-                        running={Boolean(thread.running)}
-                        terminalRunning={Boolean(
-                          thread.sessionPath && terminalRunningSessionPaths.has(thread.sessionPath),
-                        )}
-                        unread={Boolean(thread.unread)}
-                        isSelected={
-                          selectedThreadId === thread.id &&
-                          (activeView === "thread" || activeView === "gitops")
-                        }
-                        title={thread.title}
-                        onArchive={() =>
-                          onAction("thread.archive", {
-                            projectId: thread.projectId,
-                            threadId: thread.id,
-                          })
-                        }
-                        onOpen={() => {
-                          if (!thread.sessionPath) {
-                            return;
-                          }
+                {recentUnassignedChatThreads.map(renderUnassignedChatThread)}
+                {oldUnassignedChatThreads.length > 0 ? (
+                  <>
+                    <OldSessionsRow
+                      expanded={oldUnassignedChatsExpanded}
+                      onToggle={() =>
+                        setOldUnassignedChatsExpandedByUser(!oldUnassignedChatsExpanded)
+                      }
+                      onArchiveAll={() => {
+                        const threadsByProjectId = oldUnassignedChatThreads.reduce<
+                          Record<string, string[]>
+                        >((result, thread) => {
+                          result[thread.projectId] = [...(result[thread.projectId] ?? []), thread.id];
+                          return result;
+                        }, {});
 
-                          onThreadOpen(thread.projectId, thread.id, thread.sessionPath);
-                        }}
-                        onPin={() =>
-                          onAction("thread.pin", {
-                            projectId: thread.projectId,
-                            threadId: thread.id,
-                          })
-                        }
-                      />
-                ))}
+                        void Promise.all(
+                          Object.entries(threadsByProjectId).map(([projectId, threadIds]) =>
+                            onAction("thread.archive-many", { projectId, threadIds }),
+                          ),
+                        );
+                      }}
+                    />
+                    {oldUnassignedChatsExpanded
+                      ? oldUnassignedChatThreads.map(renderUnassignedChatThread)
+                      : null}
+                  </>
+                ) : null}
               </ProjectThreadsGroup>
             </div>
           ) : null}
@@ -429,22 +489,23 @@ export function SidebarProjectsSection({
               onToggleProjectCollapse={onToggleProjectCollapse}
             />
           ) : null}
-        </>
-      ) : !desktopBridgeAvailable ? (
-        <div className="px-2.5 py-2 text-[13px] leading-5 text-[color:var(--muted-2)]">
+          </>
+        ) : !desktopBridgeAvailable ? (
+          <div className="px-2.5 py-2 text-[13px] leading-5 text-[color:var(--muted-2)]">
           Project sync needs the desktop bridge. Restart the dev server or use{" "}
           <code>bun run dev</code>.
-        </div>
-      ) : (
-        <div
-          className={cn(
+          </div>
+        ) : (
+          <div
+            className={cn(
             "px-2.5 py-2 text-[14px] text-[color:var(--muted-2)]",
             searchQuery.trim().length > 0 || filterMode !== "all" ? "" : "hidden",
           )}
         >
-          No matching projects
-        </div>
-      )}
+            No matching projects
+          </div>
+        )}
+      </div>
     </section>
   );
 }

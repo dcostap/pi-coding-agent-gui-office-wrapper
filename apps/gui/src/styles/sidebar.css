@@ -475,6 +475,10 @@ body[data-app-resizing="true"] .sidebar-popover-panel {
   scrollbar-gutter: stable;
 }
 
+.sidebar-section--fixed-toolbar {
+  overflow-y: hidden;
+}
+
 .sidebar-toolbar {
   position: relative;
   display: grid;

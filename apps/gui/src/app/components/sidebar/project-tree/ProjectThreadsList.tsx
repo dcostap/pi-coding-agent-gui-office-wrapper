@@ -67,7 +67,7 @@ export function ProjectThreadsGroup({
   );
 }
 
-function OldSessionsRow({
+export function OldSessionsRow({
   expanded,
   onArchiveAll,
   onToggle,
