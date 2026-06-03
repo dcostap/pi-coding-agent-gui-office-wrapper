@@ -382,7 +382,13 @@ function WindowsSandboxSetupSection() {
             ? "border-emerald-400/35 bg-emerald-400/10 text-emerald-200"
             : "border-amber-400/35 bg-amber-400/10 text-amber-100",
         )}>
-          {status?.ready ? "Ready" : status?.available === false ? "Unavailable" : "Setup required"}
+          {status?.ready
+            ? "Ready"
+            : status?.available === false
+              ? "Unavailable"
+              : status?.status === "repair-required"
+                ? "Repair required"
+                : "Setup required"}
         </div>
       </div>
 

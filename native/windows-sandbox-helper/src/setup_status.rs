@@ -139,11 +139,56 @@ fn check_marker(managed_root: &Path, result: &mut CheckSandboxSetupResult) {
                     .issues
                     .push("setup marker unexpectedly claims networkRestricted=true".to_string());
             }
+            check_marker_read_roots(&marker, result);
         }
         Err(error) => result.issues.push(format!(
             "parse setup marker {} failed: {error}",
             path.display()
         )),
+    }
+}
+
+fn check_marker_read_roots(marker: &SetupMarker, result: &mut CheckSandboxSetupResult) {
+    let expected_roots = match v2_paths::standard_user_read_roots() {
+        Ok(roots) => roots,
+        Err(error) => {
+            result.issues.push(format!(
+                "standard read roots could not be resolved: {error}"
+            ));
+            return;
+        }
+    };
+
+    let marker_roots: Vec<PathBuf> = marker
+        .read_roots
+        .iter()
+        .filter_map(|root| v2_paths::canonicalize_existing_or_parent(root).ok())
+        .map(|root| root.canonical().to_path_buf())
+        .collect();
+
+    for expected_root in expected_roots {
+        if !expected_root.exists() {
+            continue;
+        }
+        let expected = match v2_paths::canonicalize_existing_or_parent(&expected_root) {
+            Ok(path) => path,
+            Err(error) => {
+                result.issues.push(format!(
+                    "expected read root could not be canonicalized: {} ({error})",
+                    expected_root.display()
+                ));
+                continue;
+            }
+        };
+        if !marker_roots
+            .iter()
+            .any(|root| same_path(root, expected.canonical()))
+        {
+            result.issues.push(format!(
+                "setup marker is missing readable user root: {}",
+                expected.canonical().display()
+            ));
+        }
     }
 }
 

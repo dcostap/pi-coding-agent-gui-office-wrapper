@@ -62,6 +62,26 @@ function formatAutomaticSandboxSetupFailure(error: string | null | undefined) {
   return `${message} La app volverá a intentarlo al abrirse de nuevo; también puedes configurarlo desde Ajustes.`;
 }
 
+function needsWindowsSandboxReadableRootRepair(issues: readonly string[] | undefined) {
+  return Boolean(
+    issues?.some((issue) =>
+      issue.includes("setup marker is missing readable user root") ||
+      issue.includes("read root") ||
+      issue.includes("readRoot"),
+    ),
+  );
+}
+
+function getReadableRootRepairMessage() {
+  return [
+    "OfficeAgent necesita actualizar los permisos de lectura del sandbox para poder acceder a salidas grandes de herramientas guardadas en la carpeta temporal de Windows.",
+    "",
+    "Esto requiere permisos de administrador y no da permiso de escritura fuera del espacio gestionado.",
+    "",
+    "[Actualizar permisos del sandbox](office-agent://windows-sandbox/setup)",
+  ].join("\n");
+}
+
 function startAutomaticWindowsSandboxSetupIfNeeded() {
   if (automaticWindowsSandboxSetupStarted) {
     return;
@@ -94,6 +114,14 @@ function startAutomaticWindowsSandboxSetupIfNeeded() {
         message: formatAutomaticSandboxSetupFailure(status.error),
         tone: "error",
         timeoutMs: 9000,
+      });
+      return;
+    }
+    if (needsWindowsSandboxReadableRootRepair(status.issues)) {
+      showGlobalToast({
+        message: getReadableRootRepairMessage(),
+        tone: "warning",
+        timeoutMs: 20000,
       });
       return;
     }

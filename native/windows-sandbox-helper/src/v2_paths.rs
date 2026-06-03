@@ -178,14 +178,14 @@ pub fn validate_read_root(path: &Path, managed_root: &Path) -> Result<(), String
     }
 
     Err(format!(
-        "readRoot must be inside managedRoot or a standard user folder (Desktop, Documents, Downloads, Pictures, Videos, Music): {}",
+        "readRoot must be inside managedRoot or a standard user folder (Desktop, Documents, Downloads, Pictures, Videos, Music, Temp): {}",
         candidate.canonical().display()
     ))
 }
 
 pub fn standard_user_read_roots() -> Result<Vec<PathBuf>, String> {
     let user_profile = user_profile_dir()?;
-    Ok([
+    let mut roots: Vec<PathBuf> = [
         "Desktop",
         "Documents",
         "Downloads",
@@ -195,7 +195,17 @@ pub fn standard_user_read_roots() -> Result<Vec<PathBuf>, String> {
     ]
     .iter()
     .map(|name| user_profile.join(name))
-    .collect())
+    .collect();
+    roots.push(real_user_temp_dir(&user_profile));
+    Ok(roots)
+}
+
+fn real_user_temp_dir(user_profile: &Path) -> PathBuf {
+    std::env::var_os("TEMP")
+        .or_else(|| std::env::var_os("TMP"))
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("LOCALAPPDATA").map(|value| PathBuf::from(value).join("Temp")))
+        .unwrap_or_else(|| user_profile.join("AppData").join("Local").join("Temp"))
 }
 
 pub fn validate_inside_managed(

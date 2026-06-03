@@ -68,6 +68,7 @@ export const OFFICE_AGENT_REAL_USER_DOWNLOADS_ENV_NAME = "OFFICE_AGENT_REAL_USER
 export const OFFICE_AGENT_REAL_USER_PICTURES_ENV_NAME = "OFFICE_AGENT_REAL_USER_PICTURES";
 export const OFFICE_AGENT_REAL_USER_VIDEOS_ENV_NAME = "OFFICE_AGENT_REAL_USER_VIDEOS";
 export const OFFICE_AGENT_REAL_USER_MUSIC_ENV_NAME = "OFFICE_AGENT_REAL_USER_MUSIC";
+export const OFFICE_AGENT_REAL_USER_TEMP_ENV_NAME = "OFFICE_AGENT_REAL_USER_TEMP";
 export const OFFICE_AGENT_SANDBOX_PROFILE_ENV_NAME = "OFFICE_AGENT_SANDBOX_PROFILE";
 export const OFFICE_AGENT_MANAGED_ROOT_ENV_NAME = "OFFICE_AGENT_MANAGED_ROOT";
 export const OFFICE_AGENT_WORKSPACE_ENV_NAME = "OFFICE_AGENT_WORKSPACE";
@@ -793,6 +794,7 @@ export function getOfficeAgentManagedSessionEnv(
     [OFFICE_AGENT_REAL_USER_PICTURES_ENV_NAME]: realUserFolders.pictures,
     [OFFICE_AGENT_REAL_USER_VIDEOS_ENV_NAME]: realUserFolders.videos,
     [OFFICE_AGENT_REAL_USER_MUSIC_ENV_NAME]: realUserFolders.music,
+    [OFFICE_AGENT_REAL_USER_TEMP_ENV_NAME]: realUserFolders.temp,
     [OFFICE_AGENT_SANDBOX_PROFILE_ENV_NAME]: paths.profileDir,
     [OFFICE_AGENT_MANAGED_ROOT_ENV_NAME]: managedRootDir,
     ...(options.activeProjectDir ? { [OFFICE_AGENT_WORKSPACE_ENV_NAME]: options.activeProjectDir } : {}),
@@ -841,6 +843,7 @@ export interface OfficeAgentRealUserFolders {
   readonly pictures: string;
   readonly videos: string;
   readonly music: string;
+  readonly temp: string;
 }
 
 export function getOfficeAgentRealUserFolders(env: NodeJS.ProcessEnv = process.env): OfficeAgentRealUserFolders {
@@ -858,6 +861,12 @@ export function getOfficeAgentRealUserFolders(env: NodeJS.ProcessEnv = process.e
     pictures: env[OFFICE_AGENT_REAL_USER_PICTURES_ENV_NAME] ?? path.join(userProfile, "Pictures"),
     videos: env[OFFICE_AGENT_REAL_USER_VIDEOS_ENV_NAME] ?? path.join(userProfile, "Videos"),
     music: env[OFFICE_AGENT_REAL_USER_MUSIC_ENV_NAME] ?? path.join(userProfile, "Music"),
+    temp:
+      env[OFFICE_AGENT_REAL_USER_TEMP_ENV_NAME]
+      ?? env.TEMP
+      ?? env.TMP
+      ?? env.TMPDIR
+      ?? (env.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, "Temp") : path.join(userProfile, "AppData", "Local", "Temp")),
   };
 }
 

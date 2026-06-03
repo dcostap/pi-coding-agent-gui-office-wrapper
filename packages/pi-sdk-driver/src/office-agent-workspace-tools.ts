@@ -48,7 +48,7 @@ export function createCopyFileIntoWorkspaceToolDefinition(options: {
     promptSnippet:
       "Copy a real user file into the active OfficeAgent workspace before modifying, transforming, deeply inspecting, or running tools against it.",
     promptGuidelines: [
-      "Use OFFICE_AGENT_REAL_USER_* env vars to locate real user folders. When you need to modify, transform, deeply inspect, or run tools against a user file, first call copy_file_into_workspace and then operate on the returned workspace path.",
+      "Use OFFICE_AGENT_REAL_USER_* env vars to locate real user folders, including OFFICE_AGENT_REAL_USER_TEMP for the real Windows temp folder. When you need to modify, transform, deeply inspect, or run tools against a user file, first call copy_file_into_workspace and then operate on the returned workspace path.",
       "copy_file_into_workspace creates a copy in OFFICE_AGENT_WORKSPACE/the current project; the original user file is left untouched.",
     ],
     parameters: COPY_FILE_INTO_WORKSPACE_PARAMS,
@@ -190,6 +190,7 @@ async function assertAllowedSourcePath(sourceRealPath: string, managedRootDir: s
     folders.pictures,
     folders.videos,
     folders.music,
+    folders.temp,
   ];
   const allowedRoots: string[] = [];
   for (const root of candidateRoots) {
@@ -205,8 +206,8 @@ async function assertAllowedSourcePath(sourceRealPath: string, managedRootDir: s
   throw new Error(
     [
       `Source file is outside OfficeAgent readable roots: ${sourceRealPath}`,
-      "Allowed roots are the active OfficeAgent managed tree plus real user Desktop, Documents, Downloads, Pictures, Videos, and Music folders.",
-      "Use OFFICE_AGENT_REAL_USER_DESKTOP, OFFICE_AGENT_REAL_USER_DOCUMENTS, OFFICE_AGENT_REAL_USER_DOWNLOADS, OFFICE_AGENT_REAL_USER_PICTURES, OFFICE_AGENT_REAL_USER_VIDEOS, or OFFICE_AGENT_REAL_USER_MUSIC to locate user files.",
+      "Allowed roots are the active OfficeAgent managed tree plus real user Desktop, Documents, Downloads, Pictures, Videos, Music, and Temp folders.",
+      "Use OFFICE_AGENT_REAL_USER_DESKTOP, OFFICE_AGENT_REAL_USER_DOCUMENTS, OFFICE_AGENT_REAL_USER_DOWNLOADS, OFFICE_AGENT_REAL_USER_PICTURES, OFFICE_AGENT_REAL_USER_VIDEOS, OFFICE_AGENT_REAL_USER_MUSIC, or OFFICE_AGENT_REAL_USER_TEMP to locate user files.",
     ].join("\n"),
   );
 }

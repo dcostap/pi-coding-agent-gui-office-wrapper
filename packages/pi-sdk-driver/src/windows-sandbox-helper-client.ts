@@ -683,8 +683,8 @@ export function getOfficeAgentSandboxShellPromptContext(shellConfig: OfficeAgent
     `The tool named \`bash\` is currently OfficeAgent Windows shell exec, not necessarily GNU Bash. Actual backend: ${shellDisplay}.`,
     `Commands are launched as: ${invocation}.`,
     syntax,
-    "Commands run as real Windows processes with OfficeAgent write containment. They can modify only the OfficeAgent AgentData/managed project tree. Standard user folders (Desktop, Documents, Downloads, Pictures, Videos, Music) are intended to be readable after sandbox setup; other outside reads may fail according to Windows permissions.",
-    "USERPROFILE/HOME/APPDATA/LOCALAPPDATA are sandbox-private per-session locations. For the active workspace, use %OFFICE_AGENT_WORKSPACE% in commands. Use %OFFICE_AGENT_SCRATCH% for hidden temporary scripts/intermediate files. For user-facing folders, use OFFICE_AGENT_REAL_USER_DESKTOP, OFFICE_AGENT_REAL_USER_DOWNLOADS, OFFICE_AGENT_REAL_USER_DOCUMENTS, OFFICE_AGENT_REAL_USER_PICTURES, OFFICE_AGENT_REAL_USER_VIDEOS, and OFFICE_AGENT_REAL_USER_MUSIC.",
+    "Commands run as real Windows processes with OfficeAgent write containment. They can modify only the OfficeAgent AgentData/managed project tree. Standard user folders (Desktop, Documents, Downloads, Pictures, Videos, Music, Temp) are intended to be readable after sandbox setup; other outside reads may fail according to Windows permissions.",
+    "USERPROFILE/HOME/APPDATA/LOCALAPPDATA are sandbox-private per-session locations. For the active workspace, use %OFFICE_AGENT_WORKSPACE% in commands. Use %OFFICE_AGENT_SCRATCH% for hidden temporary scripts/intermediate files. For user-facing folders, use OFFICE_AGENT_REAL_USER_DESKTOP, OFFICE_AGENT_REAL_USER_DOWNLOADS, OFFICE_AGENT_REAL_USER_DOCUMENTS, OFFICE_AGENT_REAL_USER_PICTURES, OFFICE_AGENT_REAL_USER_VIDEOS, OFFICE_AGENT_REAL_USER_MUSIC, and OFFICE_AGENT_REAL_USER_TEMP.",
     "Python commands are routed through OfficeAgent's hidden managed Python environment. Use normal python/py/pip/python -m pip/uv pip commands; do not create pylibs or .venv folders in the visible workspace.",
   ].join("\n");
 }
@@ -825,6 +825,7 @@ export function getOfficeAgentStandardReadableRoots(env: NodeJS.ProcessEnv = pro
     folders.pictures,
     folders.videos,
     folders.music,
+    folders.temp,
   ]);
 }
 
@@ -1609,6 +1610,7 @@ const OFFICE_AGENT_SANDBOX_ENV_KEYS = [
   "OFFICE_AGENT_REAL_USER_PICTURES",
   "OFFICE_AGENT_REAL_USER_VIDEOS",
   "OFFICE_AGENT_REAL_USER_MUSIC",
+  "OFFICE_AGENT_REAL_USER_TEMP",
   "OFFICE_AGENT_SANDBOX_PROFILE",
   "OFFICE_AGENT_MANAGED_ROOT",
   "OFFICE_AGENT_WORKSPACE",
