@@ -93,6 +93,7 @@ export interface OfficeAgentEnabledModel {
   readonly modelId: string;
   readonly label: string;
   readonly reasoning: boolean;
+  readonly thinkingLevelMap?: Partial<Record<OfficeAgentThinkingLevel, string | null>>;
   readonly input: readonly ("text" | "image")[];
   readonly contextWindow: number;
   readonly maxTokens: number;
@@ -114,6 +115,7 @@ export const OFFICE_AGENT_ENABLED_MODELS = [
     modelId: OFFICE_AGENT_MODEL_ID,
     label: OFFICE_AGENT_MODEL_LABEL,
     reasoning: true,
+    thinkingLevelMap: { minimal: "low", xhigh: "xhigh" },
     input: ["text", "image"],
     contextWindow: 200000,
     maxTokens: 16384,
@@ -208,6 +210,7 @@ function toProviderModelDefinition(model: OfficeAgentEnabledModel) {
     id: model.modelId,
     name: model.label,
     reasoning: model.reasoning,
+    ...(model.thinkingLevelMap ? { thinkingLevelMap: model.thinkingLevelMap } : {}),
     input: model.input,
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens,
@@ -412,7 +415,7 @@ const identity = windowsDomain && windowsUser ? windowsDomain + "\\\\" + windows
 export default function (pi: ExtensionAPI) {
   pi.registerProvider("${OFFICE_AGENT_PROVIDER_ID}", {
     baseUrl: gatewayUrl,
-    api: "openai-completions",
+    api: "openai-responses",
     apiKey: gatewayToken,
     authHeader: true,
     headers: {

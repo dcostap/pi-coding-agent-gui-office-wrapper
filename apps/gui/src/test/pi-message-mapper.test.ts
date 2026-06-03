@@ -191,6 +191,23 @@ describe("pi message mapper", () => {
         {
           role: "assistant",
           timestamp: 1,
+          content: [{ type: "thinking", redacted: true }],
+        },
+      ] as never[]),
+    ).toEqual([
+      {
+        id: "1-assistant",
+        role: "assistant",
+        content: [],
+        thinkingRedacted: true,
+      },
+    ]);
+
+    expect(
+      mapAgentMessagesToUiMessages([
+        {
+          role: "assistant",
+          timestamp: 1,
           content: [
             {
               type: "thinking",

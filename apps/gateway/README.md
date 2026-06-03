@@ -10,6 +10,8 @@ This first version exposes:
 - `GET /analytics/summary?range=30m|24h|7d|all`
 - `GET /v1/models`
 - `POST /v1/chat/completions`
+- `POST /v1/responses`
+- `POST /v1/codex/responses`
 - `GET /v1/vfs/roots`
 - `POST /v1/vfs/read`
 - `POST /v1/vfs/list`
@@ -17,7 +19,7 @@ This first version exposes:
 - `POST /v1/vfs/grep`
 - `POST /v1/tools/castrosua_sql_read_only`
 
-It accepts abstract models such as `assistant` and `gpt-5.5`, routes them to configured upstream Pi models, exposes read-only server resources, and writes practical request analytics to append-only JSONL ledgers. The dashboard focuses on request volume, estimated input/output tokens, processing time, users, models, and tools; health/latency are present but secondary.
+It accepts abstract models such as `assistant` and `gpt-5.5`, routes them to configured upstream Pi models, proxies Responses/Codex streams for reasoning-capable models, exposes read-only server resources, and writes practical request analytics to append-only JSONL ledgers. The dashboard focuses on request volume, estimated input/output tokens, processing time, users, models, and tools; health/latency are present but secondary.
 
 ## Environment variables
 

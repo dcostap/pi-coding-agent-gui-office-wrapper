@@ -197,7 +197,9 @@ export const ThreadMessage = memo(function ThreadMessage({
   }
 
   if (message.role === "assistant") {
-    const hasThinking = Boolean(message.thinkingContent && message.thinkingContent.length > 0);
+    const hasThinking = Boolean(
+      (message.thinkingContent && message.thinkingContent.length > 0) || message.thinkingRedacted,
+    );
     const showAssistantContent = message.content.length > 0 && (!firstCardOnly || !hasThinking);
 
     return (

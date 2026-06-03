@@ -113,7 +113,10 @@ function getThinkingParts(content: RuntimeMessage["content"]) {
 
   const thinkingParts: ThinkingPart[] = [];
   for (const part of content) {
-    if (part?.type === "thinking" && typeof (part as ThinkingPart).thinking === "string") {
+    if (
+      part?.type === "thinking" &&
+      (typeof (part as ThinkingPart).thinking === "string" || Boolean((part as ThinkingPart).redacted))
+    ) {
       thinkingParts.push(part as ThinkingPart);
     }
   }
@@ -312,7 +315,12 @@ export function mapAgentMessageToUiMessage(message: AgentMessage, index: number)
       const { thinkingContent, thinkingHeaders, thinkingRedacted } =
         extractAssistantThinking(runtimeMessage);
 
-      if (content.length === 0 && thinkingContent.length === 0 && getToolCallParts(runtimeMessage.content).length === 0) {
+      if (
+        content.length === 0 &&
+        thinkingContent.length === 0 &&
+        !thinkingRedacted &&
+        getToolCallParts(runtimeMessage.content).length === 0
+      ) {
         return null;
       }
 
