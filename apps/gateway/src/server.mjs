@@ -7,7 +7,6 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
-import { streamSimple as piStreamSimple } from "@earendil-works/pi-ai";
 import {
   OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME,
   OFFICE_AGENT_SQLSERVER_TOOL_BINARY_NAME,
@@ -348,14 +347,6 @@ function getRoutedModel(abstractModel = "assistant") {
   return model;
 }
 
-function tryParseJson(value, fallback = {}) {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
-
 function extractTextFromContent(content) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -363,148 +354,6 @@ function extractTextFromContent(content) {
     .filter((part) => part?.type === "text")
     .map((part) => part.text || "")
     .join("\n");
-}
-
-function convertUserContent(content) {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-
-  const parts = [];
-  for (const part of content) {
-    if (!part) continue;
-    if (part.type === "text") {
-      parts.push({ type: "text", text: part.text || "" });
-      continue;
-    }
-    if (part.type === "image_url") {
-      const url = part.image_url?.url || "";
-      const match = /^data:([^;]+);base64,(.*)$/s.exec(url);
-      if (match) {
-        parts.push({ type: "image", mimeType: match[1], data: match[2] });
-      } else if (url) {
-        parts.push({ type: "text", text: `[image url omitted: ${url}]` });
-      }
-    }
-  }
-
-  if (parts.length === 0) return "";
-  if (parts.every((part) => part.type === "text")) {
-    return parts.map((part) => part.text).join("\n");
-  }
-  return parts;
-}
-
-function convertToolResultContent(content) {
-  if (typeof content === "string") return [{ type: "text", text: content }];
-  if (!Array.isArray(content)) return [{ type: "text", text: String(content ?? "") }];
-
-  const parts = [];
-  for (const part of content) {
-    if (!part) continue;
-    if (part.type === "text") {
-      parts.push({ type: "text", text: part.text || "" });
-      continue;
-    }
-    if (part.type === "image_url") {
-      const url = part.image_url?.url || "";
-      const match = /^data:([^;]+);base64,(.*)$/s.exec(url);
-      if (match) {
-        parts.push({ type: "image", mimeType: match[1], data: match[2] });
-      }
-    }
-  }
-
-  return parts.length > 0 ? parts : [{ type: "text", text: "" }];
-}
-
-function convertTools(tools) {
-  if (!Array.isArray(tools) || tools.length === 0) return undefined;
-  return tools
-    .filter((tool) => tool?.type === "function" && tool.function?.name)
-    .map((tool) => ({
-      name: tool.function.name,
-      description: tool.function.description || "",
-      parameters: tool.function.parameters || { type: "object", properties: {} },
-    }));
-}
-
-function convertChatRequestToContext(body) {
-  const systemParts = [];
-  const messages = [];
-  const timestampBase = Date.now();
-  let index = 0;
-
-  for (const message of Array.isArray(body.messages) ? body.messages : []) {
-    const timestamp = timestampBase + index++;
-    if (!message || !message.role) continue;
-
-    if (message.role === "system" || message.role === "developer") {
-      const text = extractTextFromContent(message.content);
-      if (text) systemParts.push(text);
-      continue;
-    }
-
-    if (message.role === "user") {
-      messages.push({
-        role: "user",
-        content: convertUserContent(message.content),
-        timestamp,
-      });
-      continue;
-    }
-
-    if (message.role === "assistant") {
-      const content = [];
-      const text = extractTextFromContent(message.content);
-      if (text) content.push({ type: "text", text });
-
-      for (const toolCall of message.tool_calls || []) {
-        if (toolCall?.type !== "function" || !toolCall.function?.name) continue;
-        content.push({
-          type: "toolCall",
-          id: toolCall.id || `call_${timestamp}_${content.length}`,
-          name: toolCall.function.name,
-          arguments: tryParseJson(toolCall.function.arguments || "{}", {}),
-        });
-      }
-
-      messages.push({
-        role: "assistant",
-        content,
-        api: "openai-completions",
-        provider: "corp",
-        model: body.model || "assistant",
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-        stopReason: message.tool_calls?.length ? "toolUse" : "stop",
-        timestamp,
-      });
-      continue;
-    }
-
-    if (message.role === "tool") {
-      messages.push({
-        role: "toolResult",
-        toolCallId: message.tool_call_id || `tool_${timestamp}`,
-        toolName: message.name || "tool",
-        content: convertToolResultContent(message.content),
-        isError: false,
-        timestamp,
-      });
-    }
-  }
-
-  return {
-    systemPrompt: systemParts.length > 0 ? systemParts.join("\n\n") : undefined,
-    messages,
-    tools: convertTools(body.tools),
-  };
 }
 
 function buildMockText(body) {
@@ -521,6 +370,49 @@ function buildMockText(body) {
       : "";
 
   return `Mock gateway response from A. Requested abstract model: ${body.model || "assistant"}. Last user message: ${content || "<empty>"}`;
+}
+
+function buildMockChatResult(body, text) {
+  return {
+    status: "success",
+    finishReason: "stop",
+    outputChars: text.length,
+    toolCalls: 0,
+    toolCallNames: [],
+    firstTokenMs: 0,
+    routing: {
+      provider: "mock",
+      model: body.model || "assistant",
+      api: "mock",
+    },
+  };
+}
+
+function sendMockChatCompletionJson(res, body) {
+  const text = buildMockText(body);
+  const payload = {
+    id: `chatcmpl_mock_${Date.now()}`,
+    object: "chat.completion",
+    created: Math.floor(Date.now() / 1000),
+    model: body.model || "assistant",
+    choices: [
+      {
+        index: 0,
+        message: { role: "assistant", content: text },
+        finish_reason: "stop",
+      },
+    ],
+    usage: {
+      prompt_tokens: estimateTokensFromChars(estimatePromptChars(body.messages)),
+      completion_tokens: estimateTokensFromChars(text.length),
+      total_tokens: estimateTokensFromChars(estimatePromptChars(body.messages)) + estimateTokensFromChars(text.length),
+    },
+  };
+  sendJson(res, 200, payload);
+  return {
+    ...buildMockChatResult(body, text),
+    outputTokens: payload.usage.completion_tokens,
+  };
 }
 
 function sendMockStream(res, body) {
@@ -565,36 +457,7 @@ function sendMockStream(res, body) {
   res.write("data: [DONE]\n\n");
   res.end();
 
-  return {
-    status: "success",
-    finishReason: "stop",
-    outputChars: text.length,
-    toolCalls: 0,
-    toolCallNames: [],
-    firstTokenMs: 0,
-    routing: {
-      provider: "mock",
-      model: "assistant",
-      api: "mock",
-    },
-  };
-}
-
-function mapFinishReason(reason) {
-  if (reason === "toolUse") return "tool_calls";
-  if (reason === "length") return "length";
-  return "stop";
-}
-
-function writeOpenAIChunk(res, id, modelName, delta, finishReason = null) {
-  const chunk = {
-    id,
-    object: "chat.completion.chunk",
-    created: Math.floor(Date.now() / 1000),
-    model: modelName,
-    choices: [{ index: 0, delta, finish_reason: finishReason }],
-  };
-  res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+  return buildMockChatResult(body, text);
 }
 
 function resolveCodexUrl(baseUrl) {
@@ -630,175 +493,303 @@ function firstHeaderValue(value) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-async function streamViaPiAuth(res, body) {
-  const model = getRoutedModel(body.model);
+function resolveOpenAIChatCompletionsUrl(baseUrl) {
+  const raw = baseUrl && baseUrl.trim().length > 0 ? baseUrl : "https://api.openai.com/v1";
+  const normalized = raw.replace(/\/+$/, "");
+  if (normalized.endsWith("/chat/completions")) return normalized;
+  return `${normalized}/chat/completions`;
+}
+
+function copyFetchHeaders(headers) {
+  const output = {};
+  const hopByHop = new Set([
+    "connection",
+    "content-encoding",
+    "content-length",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+  ]);
+  for (const [key, value] of headers.entries()) {
+    if (!hopByHop.has(key.toLowerCase())) output[key] = value;
+  }
+  return output;
+}
+
+function buildOpenAIChatProxyHeaders(req, model, resolvedAuth) {
+  const headers = new Headers();
+
+  const accept = firstHeaderValue(req.headers.accept);
+  if (typeof accept === "string" && accept.trim()) headers.set("accept", accept.trim());
+  else headers.set("accept", "text/event-stream");
+  headers.set("content-type", "application/json");
+  headers.set("accept-encoding", "identity");
+
+  for (const [key, value] of Object.entries(resolvedAuth.headers || {})) {
+    if (value != null) headers.set(key, String(value));
+  }
+
+  if (resolvedAuth.apiKey && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${resolvedAuth.apiKey}`);
+  }
+
+  const sessionId = firstHeaderValue(req.headers.session_id) || firstHeaderValue(req.headers["x-client-request-id"]);
+  if (typeof sessionId === "string" && sessionId.trim()) {
+    headers.set("session_id", sessionId.trim());
+    headers.set("x-client-request-id", sessionId.trim());
+  }
+
+  headers.set("User-Agent", `office-agent-gateway (${os.platform()} ${os.release()}; ${os.arch()})`);
+
+  if (!resolvedAuth.apiKey && !headers.has("Authorization")) {
+    throw new Error(`Auth resolution returned no API token for ${model.provider}/${model.id}`);
+  }
+
+  return headers;
+}
+
+function trackOpenAIChatToolCall(stats, key, name) {
+  if (!key) return;
+  const cleanName = cleanMetricName(name, "unknown");
+  const existing = stats.toolCallsByKey.get(key);
+  if (!existing) {
+    stats.toolCallsByKey.set(key, cleanName);
+    stats.toolCalls = stats.toolCallsByKey.size;
+    if (stats.firstTokenMs == null) stats.firstTokenMs = Math.max(0, Date.now() - stats.startedAtMs);
+    return;
+  }
+  if (existing === "unknown" && cleanName !== "unknown") {
+    stats.toolCallsByKey.set(key, cleanName);
+  }
+}
+
+function analyzeOpenAIChatCompletionEvent(event, stats) {
+  if (!event || typeof event !== "object") return;
+
+  const usage = event.usage;
+  if (usage && typeof usage === "object") {
+    const outputTokens = usage.completion_tokens ?? usage.output_tokens;
+    const promptTokens = usage.prompt_tokens ?? usage.input_tokens;
+    if (outputTokens != null) stats.outputTokens = Number(outputTokens || 0);
+    if (promptTokens != null) stats.promptTokens = Number(promptTokens || 0);
+  }
+
+  const choices = Array.isArray(event.choices) ? event.choices : [];
+  for (const choice of choices) {
+    const choiceIndex = choice?.index ?? 0;
+    const delta = choice?.delta || {};
+    const contentDelta = typeof delta.content === "string" ? delta.content : "";
+    if (contentDelta) {
+      if (stats.firstTokenMs == null) stats.firstTokenMs = Math.max(0, Date.now() - stats.startedAtMs);
+      stats.outputChars += contentDelta.length;
+    }
+
+    const reasoningDelta = typeof delta.reasoning_content === "string"
+      ? delta.reasoning_content
+      : typeof delta.reasoning === "string"
+        ? delta.reasoning
+        : "";
+    if (reasoningDelta && stats.firstTokenMs == null) {
+      stats.firstTokenMs = Math.max(0, Date.now() - stats.startedAtMs);
+    }
+
+    for (const toolCall of Array.isArray(delta.tool_calls) ? delta.tool_calls : []) {
+      const toolKey = toolCall?.index != null
+        ? `choice:${choiceIndex}:index:${toolCall.index}`
+        : toolCall?.id
+          ? `choice:${choiceIndex}:id:${toolCall.id}`
+          : null;
+      trackOpenAIChatToolCall(stats, toolKey, toolCall.function?.name);
+    }
+
+    if (choice?.finish_reason) {
+      stats.finishReason = choice.finish_reason === "tool_calls" ? "tool_calls" : choice.finish_reason;
+    }
+  }
+}
+
+function analyzeOpenAIChatSseChunk(text, parser, stats) {
+  for (const data of readSseEventsFromParser(text, parser)) {
+    if (data === "[DONE]") continue;
+    try {
+      analyzeOpenAIChatCompletionEvent(JSON.parse(data), stats);
+    } catch {
+      // Analytics should never interfere with protocol proxying.
+    }
+  }
+}
+
+function analyzeOpenAIChatJsonPayload(text, stats) {
+  try {
+    const event = JSON.parse(text);
+    const choices = Array.isArray(event.choices)
+      ? event.choices.map((choice) => {
+          const message = choice?.message || {};
+          return {
+            ...choice,
+            delta: {
+              content: typeof message.content === "string" ? message.content : "",
+              reasoning_content: typeof message.reasoning_content === "string"
+                ? message.reasoning_content
+                : typeof message.reasoning === "string"
+                  ? message.reasoning
+                  : undefined,
+              tool_calls: Array.isArray(message.tool_calls) ? message.tool_calls : undefined,
+            },
+          };
+        })
+      : [];
+    analyzeOpenAIChatCompletionEvent({ choices, usage: event.usage }, stats);
+  } catch {
+    // Analytics should never interfere with protocol proxying.
+  }
+}
+
+async function proxyOpenAIChatCompletions(req, res, body) {
+  const proxyStartedAtMs = Date.now();
+  const model = getRoutedModel(body.model || "assistant");
+  if (model.api !== "openai-completions") {
+    const message = `OpenAI Chat endpoint cannot raw-proxy non-chat model ${model.provider}/${model.id} (${model.api})`;
+    sendJson(res, 400, {
+      error: "unsupported_model_api",
+      message,
+    });
+    return {
+      status: "error",
+      finishReason: "stop",
+      errorCode: "unsupported_model_api",
+      errorMessage: message,
+      outputChars: 0,
+      toolCalls: 0,
+      toolCallNames: [],
+      firstTokenMs: null,
+      routing: {
+        provider: model.provider,
+        model: model.id,
+        api: model.api,
+        baseUrl: model.baseUrl,
+      },
+    };
+  }
+
   const resolvedAuth = await modelRegistry.getApiKeyAndHeaders(model);
   if (!resolvedAuth.ok) {
     throw new Error(`Auth resolution failed for ${model.provider}/${model.id}: ${resolvedAuth.error}`);
   }
 
-  const context = convertChatRequestToContext(body);
-  const reasoning = body.reasoning_effort || body.reasoning?.effort;
-  const maxTokens = body.max_completion_tokens ?? body.max_tokens;
+  const upstreamBody = {
+    ...body,
+    model: model.id,
+  };
 
-  console.log("[gateway] routed via Pi auth", {
-    abstractModel: body.model,
-    provider: model.provider,
-    routedModel: model.id,
-    api: model.api,
-    stream: !!body.stream,
-    messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
-    toolCount: Array.isArray(body.tools) ? body.tools.length : 0,
-  });
+  const abortController = new AbortController();
+  const abortUpstream = () => {
+    if (!res.writableEnded && !abortController.signal.aborted) abortController.abort();
+  };
+  const disposeAbortHandlers = () => {
+    req.off("aborted", abortUpstream);
+    res.off("close", abortUpstream);
+  };
+  req.on("aborted", abortUpstream);
+  res.on("close", abortUpstream);
 
-  res.writeHead(200, {
-    "content-type": "text/event-stream; charset=utf-8",
-    "cache-control": "no-cache",
-    connection: "keep-alive",
-  });
-
-  const streamStartedAtMs = Date.now();
-  const streamId = `chatcmpl_pi_${streamStartedAtMs}`;
-  let sentRole = false;
-  let toolIndex = 0;
-  let outputChars = 0;
-  let toolCalls = 0;
-  let toolCallNames = [];
-  let firstTokenMs = null;
-  let finishReason = "stop";
-
-  function markFirstToken() {
-    if (firstTokenMs == null) firstTokenMs = Math.max(0, Date.now() - streamStartedAtMs);
+  let upstreamResponse;
+  try {
+    upstreamResponse = await fetch(resolveOpenAIChatCompletionsUrl(model.baseUrl), {
+      method: "POST",
+      headers: buildOpenAIChatProxyHeaders(req, model, resolvedAuth),
+      body: JSON.stringify(upstreamBody),
+      signal: abortController.signal,
+    });
+  } catch (error) {
+    disposeAbortHandlers();
+    throw error;
   }
 
-  const eventStream = piStreamSimple(model, context, {
-    apiKey: resolvedAuth.apiKey,
-    headers: resolvedAuth.headers,
-    maxTokens,
-    temperature: body.temperature,
-    reasoning,
-    sessionId: typeof body.user === "string" ? body.user : undefined,
-  });
-
-  for await (const event of eventStream) {
-    if (!sentRole && event.type === "start") {
-      writeOpenAIChunk(res, streamId, body.model || "assistant", { role: "assistant" });
-      sentRole = true;
-      continue;
-    }
-
-    if (event.type === "text_delta") {
-      if (!sentRole) {
-        writeOpenAIChunk(res, streamId, body.model || "assistant", { role: "assistant" });
-        sentRole = true;
-      }
-      if (event.delta) {
-        markFirstToken();
-        outputChars += event.delta.length;
-        writeOpenAIChunk(res, streamId, body.model || "assistant", { content: event.delta });
-      }
-      continue;
-    }
-
-    if (event.type === "thinking_delta") {
-      if (!sentRole) {
-        writeOpenAIChunk(res, streamId, body.model || "assistant", { role: "assistant" });
-        sentRole = true;
-      }
-      if (event.delta) {
-        markFirstToken();
-        writeOpenAIChunk(res, streamId, body.model || "assistant", { reasoning_content: event.delta });
-      }
-      continue;
-    }
-
-    if (event.type === "toolcall_end") {
-      markFirstToken();
-      toolCalls += 1;
-      toolCallNames.push(cleanMetricName(event.toolCall?.name, "unknown"));
-      if (!sentRole) {
-        writeOpenAIChunk(res, streamId, body.model || "assistant", { role: "assistant" });
-        sentRole = true;
-      }
-      writeOpenAIChunk(res, streamId, body.model || "assistant", {
-        tool_calls: [
-          {
-            index: toolIndex++,
-            id: event.toolCall.id,
-            type: "function",
-            function: {
-              name: event.toolCall.name,
-              arguments: JSON.stringify(event.toolCall.arguments),
-            },
-          },
-        ],
-      });
-      continue;
-    }
-
-    if (event.type === "done") {
-      finishReason = mapFinishReason(event.reason);
-      writeOpenAIChunk(res, streamId, body.model || "assistant", {}, finishReason);
-      res.write("data: [DONE]\n\n");
-      res.end();
-      return {
-        status: "success",
-        finishReason,
-        outputChars,
-        outputTokens: event.message?.usage?.output,
-        toolCalls,
-        toolCallNames,
-        firstTokenMs,
-        routing: {
-          provider: model.provider,
-          model: model.id,
-          api: model.api,
-          baseUrl: model.baseUrl,
-        },
-      };
-    }
-
-    if (event.type === "error") {
-      if (!sentRole) {
-        writeOpenAIChunk(res, streamId, body.model || "assistant", { role: "assistant" });
-        sentRole = true;
-      }
-      const message = event.error?.errorMessage || `Gateway upstream error (${event.reason})`;
-      markFirstToken();
-      outputChars += message.length;
-      writeOpenAIChunk(res, streamId, body.model || "assistant", { content: message });
-      writeOpenAIChunk(res, streamId, body.model || "assistant", {}, "stop");
-      res.write("data: [DONE]\n\n");
-      res.end();
-      return {
-        status: "error",
-        finishReason: "stop",
-        errorCode: event.reason || "upstream_error",
-        errorMessage: message,
-        outputChars,
-        toolCalls,
-        toolCallNames,
-        firstTokenMs,
-        routing: {
-          provider: model.provider,
-          model: model.id,
-          api: model.api,
-          baseUrl: model.baseUrl,
-        },
-      };
-    }
-  }
-
-  writeOpenAIChunk(res, streamId, body.model || "assistant", {}, "stop");
-  res.write("data: [DONE]\n\n");
-  res.end();
-  return {
-    status: "success",
+  const stats = {
+    startedAtMs: proxyStartedAtMs,
+    status: upstreamResponse.ok ? "success" : "error",
     finishReason: "stop",
-    outputChars,
-    toolCalls,
-    toolCallNames,
-    firstTokenMs,
+    errorCode: upstreamResponse.ok ? null : `http_${upstreamResponse.status}`,
+    errorMessage: upstreamResponse.ok ? null : upstreamResponse.statusText,
+    outputChars: 0,
+    outputTokens: null,
+    promptTokens: null,
+    toolCalls: 0,
+    toolCallsByKey: new Map(),
+    firstTokenMs: null,
+  };
+
+  const upstreamContentType = upstreamResponse.headers.get("content-type") || "";
+  const isEventStream = upstreamContentType.toLowerCase().includes("text/event-stream");
+  res.writeHead(upstreamResponse.status, {
+    ...copyFetchHeaders(upstreamResponse.headers),
+    "cache-control": upstreamResponse.headers.get("cache-control") || "no-cache",
+  });
+
+  if (!upstreamResponse.body) {
+    res.end();
+    disposeAbortHandlers();
+  } else {
+    const reader = upstreamResponse.body.getReader();
+    const decoder = new TextDecoder();
+    const parser = { buffer: "" };
+    let jsonText = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(Buffer.from(value));
+        const chunkText = decoder.decode(value, { stream: true });
+        if (isEventStream) {
+          analyzeOpenAIChatSseChunk(chunkText, parser, stats);
+        } else if (jsonText.length < VFS_MAX_OUTPUT_BYTES) {
+          jsonText += chunkText;
+        }
+      }
+      const tail = decoder.decode();
+      if (tail) {
+        if (isEventStream) {
+          analyzeOpenAIChatSseChunk(tail, parser, stats);
+        } else if (jsonText.length < VFS_MAX_OUTPUT_BYTES) {
+          jsonText += tail;
+        }
+      }
+      if (!isEventStream && jsonText) {
+        analyzeOpenAIChatJsonPayload(jsonText, stats);
+        if (!upstreamResponse.ok) {
+          stats.errorMessage = jsonText;
+        }
+      }
+    } finally {
+      try {
+        reader.releaseLock();
+      } catch {
+        // Best effort.
+      }
+      res.end();
+      disposeAbortHandlers();
+    }
+  }
+
+  if (!upstreamResponse.ok && stats.errorMessage === upstreamResponse.statusText) {
+    stats.errorMessage = upstreamResponse.statusText || `HTTP ${upstreamResponse.status}`;
+  }
+
+  return {
+    status: stats.status,
+    finishReason: stats.finishReason,
+    errorCode: stats.errorCode,
+    errorMessage: stats.errorMessage,
+    outputChars: stats.outputChars,
+    ...(stats.outputTokens != null ? { outputTokens: stats.outputTokens } : {}),
+    toolCalls: stats.toolCalls,
+    toolCallNames: [...stats.toolCallsByKey.values()],
+    firstTokenMs: stats.firstTokenMs,
     routing: {
       provider: model.provider,
       model: model.id,
@@ -930,10 +921,10 @@ function analyzeCodexResponseEvent(event, stats) {
 function readSseEventsFromParser(text, parser) {
   parser.buffer += text;
   const events = [];
-  let separatorIndex = parser.buffer.indexOf("\n\n");
-  while (separatorIndex !== -1) {
-    const rawEvent = parser.buffer.slice(0, separatorIndex);
-    parser.buffer = parser.buffer.slice(separatorIndex + 2);
+  let separatorMatch = /\r?\n\r?\n/.exec(parser.buffer);
+  while (separatorMatch?.index != null) {
+    const rawEvent = parser.buffer.slice(0, separatorMatch.index);
+    parser.buffer = parser.buffer.slice(separatorMatch.index + separatorMatch[0].length);
     const data = rawEvent
       .split(/\r?\n/)
       .filter((line) => line.startsWith("data:"))
@@ -941,7 +932,7 @@ function readSseEventsFromParser(text, parser) {
       .join("\n")
       .trim();
     if (data) events.push(data);
-    separatorIndex = parser.buffer.indexOf("\n\n");
+    separatorMatch = /\r?\n\r?\n/.exec(parser.buffer);
   }
   return events;
 }
@@ -2219,7 +2210,7 @@ async function handleChatCompletions(req, res) {
     routing: {
       provider: MOCK_MODE ? "mock" : route.provider,
       model: MOCK_MODE ? body.model || "assistant" : route.modelId,
-      api: MOCK_MODE ? "mock" : "pi-auth",
+      api: MOCK_MODE ? "mock" : "openai-completions",
     },
   });
 
@@ -2232,25 +2223,14 @@ async function handleChatCompletions(req, res) {
         identity: client.identity,
         client: client.client,
       });
-      const result = sendMockStream(res, body);
+      const result = body.stream === false
+        ? sendMockChatCompletionJson(res, body)
+        : sendMockStream(res, body);
       await analyticsStore.finishRequest(active, result);
       return;
     }
 
-    if (body.stream === false) {
-      await analyticsStore.finishRequest(active, {
-        status: "error",
-        finishReason: "stop",
-        errorCode: "unsupported_mode",
-        errorMessage: "unsupported_mode",
-      });
-      return sendJson(res, 400, {
-        error: "unsupported_mode",
-        message: "This gateway currently supports only stream=true requests.",
-      });
-    }
-
-    const result = await streamViaPiAuth(res, body);
+    const result = await proxyOpenAIChatCompletions(req, res, body);
     await analyticsStore.finishRequest(active, result);
   } catch (error) {
     await analyticsStore.finishRequest(active, {
@@ -2944,16 +2924,22 @@ const server = http.createServer(async (req, res) => {
             id: "gpt-5.5",
             object: "model",
             owned_by: "office-agent",
+            api: "openai-responses",
+            endpoints: ["/v1/responses", "/v1/codex/responses"],
           },
           {
             id: requestyAbstractModelId,
             object: "model",
             owned_by: "office-agent",
+            api: "openai-completions",
+            endpoints: ["/v1/chat/completions"],
           },
           {
             id: "assistant",
             object: "model",
             owned_by: "office-agent",
+            api: "openai-codex-responses",
+            endpoints: ["/v1/codex/responses"],
           },
         ],
       });

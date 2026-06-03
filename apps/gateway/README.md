@@ -19,7 +19,7 @@ This first version exposes:
 - `POST /v1/vfs/grep`
 - `POST /v1/tools/castrosua_sql_read_only`
 
-It accepts abstract models such as `assistant` and `gpt-5.5`, routes them to configured upstream Pi models, proxies Responses/Codex streams for reasoning-capable models, exposes read-only server resources, and writes practical request analytics to append-only JSONL ledgers. The dashboard focuses on request volume, estimated input/output tokens, processing time, users, models, and tools; health/latency are present but secondary.
+It accepts abstract models and routes them to configured upstream Pi models. `/v1/chat/completions` raw-proxies only OpenAI Chat-compatible (`openai-completions`) routes such as Requesty; Responses/Codex routes such as `gpt-5.5` should use `/v1/responses` or `/v1/codex/responses`. The gateway exposes read-only server resources and writes practical request analytics to append-only JSONL ledgers. Analytics observes streamed chunks but does not reconstruct provider streams. The dashboard focuses on request volume, estimated input/output tokens, processing time, users, models, and tools; health/latency are present but secondary.
 
 ## Environment variables
 
@@ -33,6 +33,9 @@ It accepts abstract models such as `assistant` and `gpt-5.5`, routes them to con
 - `GATEWAY_UPSTREAM_PROVIDER` - default `openai-codex`
 - `GATEWAY_UPSTREAM_MODEL` - default `gpt-5.3-codex-spark` for `assistant`
 - `GATEWAY_GPT55_UPSTREAM_MODEL` / `GATEWAY_GPT_5_5_UPSTREAM_MODEL` - default `gpt-5.4` for abstract `gpt-5.5`
+- `GATEWAY_REQUESTY_ABSTRACT_MODEL` - default `azure/gpt-5.4@swedencentral`; the OpenAI Chat-compatible model id exposed by `/v1/chat/completions`.
+- `GATEWAY_REQUESTY_UPSTREAM_PROVIDER` / `GATEWAY_GPT54_REQUESTY_UPSTREAM_PROVIDER` - default `requesty`; upstream provider for the Requesty chat route.
+- `GATEWAY_REQUESTY_UPSTREAM_MODEL` / `GATEWAY_GPT54_REQUESTY_UPSTREAM_MODEL` - default `azure/gpt-5.4@swedencentral`; upstream model for the Requesty chat route.
 - `OFFICE_AGENT_VFS_BASE_DIR` - optional parent directory for configured virtual root folders; default `/srv/officeagent/vfs`.
 
 Virtual root registry details live in `packages/office-agent-runtime/src/office-agent-vfs-roots.ts` so gateway and client use the same source of truth.
@@ -60,6 +63,14 @@ npm run gateway:smoke:analytics
 ```
 
 This starts the gateway in mock mode, sends one streamed request, and verifies the analytics summary includes requests, estimated tokens, users, models, tools, buckets, and deltas.
+
+## Chat proxy smoke
+
+```bash
+npm run gateway:smoke:chat-proxy
+```
+
+This starts a temporary OpenAI Chat-compatible upstream, verifies `/v1/chat/completions` rewrites only routing/auth and preserves upstream CRLF-delimited SSE bytes unchanged, then checks analytics counted the request.
 
 ## VFS smoke
 

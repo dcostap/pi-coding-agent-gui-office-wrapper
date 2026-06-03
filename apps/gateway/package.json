@@ -10,13 +10,13 @@
     "start": "node src/server.mjs",
     "smoke:analytics": "node scripts/smoke-analytics.mjs",
     "smoke:responses": "node scripts/smoke-responses.mjs",
+    "smoke:chat-proxy": "node scripts/smoke-chat-proxy.mjs",
     "smoke:vfs": "node scripts/smoke-vfs.mjs",
     "smoke:sql": "node scripts/smoke-sql.mjs",
     "bootstrap-auth": "node scripts/bootstrap-auth.mjs",
     "probe-auth": "node scripts/probe-pi-auth.mjs"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.75.3",
     "@earendil-works/pi-coding-agent": "0.75.3",
     "@office-agent/runtime": "0.0.0"
   }
