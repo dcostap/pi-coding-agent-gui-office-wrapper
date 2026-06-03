@@ -32,13 +32,22 @@ let automaticWindowsSandboxSetupStarted = false;
 
 const SECONDARY_LOGON_TOAST_STORAGE_KEY = "office-agent:secondary-logon-warning-shown";
 
+const SANDBOX_LOGON_LAUNCH_BLOCKED_CODE = "SANDBOX_LOGON_LAUNCH_BLOCKED";
+
 function isSecondaryLogonLaunchErrorText(text: string | null | undefined) {
-  return Boolean(
-    text &&
-      text.includes("CreateProcessWithLogonW failed: Access is denied") &&
-      text.includes("CreateProcessWithTokenW fallback failed") &&
-      text.includes("CreateProcessAsUserW fallback failed"),
-  );
+  if (!text) {
+    return false;
+  }
+  if (text.includes(SANDBOX_LOGON_LAUNCH_BLOCKED_CODE)) {
+    return true;
+  }
+  const hasLaunchApiNames =
+    text.includes("CreateProcessWithLogonW") &&
+    text.includes("CreateProcessWithTokenW") &&
+    text.includes("CreateProcessAsUserW");
+  const lowerText = text.toLowerCase();
+  const hasInvariantWindowsCodes = lowerText.includes("0x80070005") && lowerText.includes("0x80070522");
+  return hasLaunchApiNames && hasInvariantWindowsCodes;
 }
 
 function getSecondaryLogonRepairMessage(intro: string) {

@@ -1,5 +1,6 @@
 pub mod cap;
 pub mod constants;
+pub mod diagnostics;
 #[cfg(windows)]
 pub mod named_pipes;
 pub mod platform;

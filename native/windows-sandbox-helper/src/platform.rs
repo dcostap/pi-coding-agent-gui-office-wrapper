@@ -123,7 +123,15 @@ fn launch_platform(request: LaunchRequest) -> HelperResponse {
     if use_v2_backend() {
         return match crate::runner_launch::launch_v2(request) {
             Ok(response) => response,
-            Err(error) => HelperResponse::err(request_id, "V2_LAUNCH_FAILED", error),
+            Err(error) => match crate::diagnostics::classify_error_message(&error) {
+                Some(diagnostics) => HelperResponse::err_with_diagnostics(
+                    request_id,
+                    "V2_LAUNCH_FAILED",
+                    error,
+                    diagnostics,
+                ),
+                None => HelperResponse::err(request_id, "V2_LAUNCH_FAILED", error),
+            },
         };
     }
     if !allow_legacy_backend() {

@@ -4,7 +4,7 @@ use crate::sandbox_credentials::SandboxCredentials;
 use std::mem::{size_of, zeroed};
 use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
-use windows::core::{PCWSTR, PWSTR};
+use windows::core::{Error, PCWSTR, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT};
 use windows::Win32::Security::{LogonUserW, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT};
 use windows::Win32::System::Threading::{
@@ -153,8 +153,13 @@ pub fn spawn_process_with_logon(
                             &mut process_information,
                         )
                         .map_err(|cpau_error| {
-                            format!(
-                                "CreateProcessWithLogonW failed: {cpwl_error}; CreateProcessWithTokenW fallback failed: {cpwt_error}; CreateProcessAsUserW fallback failed: {cpau_error}"
+                            crate::diagnostics::format_logon_launch_blocked_message(
+                                &cpwl_error.to_string(),
+                                &format_hresult(&cpwl_error),
+                                &cpwt_error.to_string(),
+                                &format_hresult(&cpwt_error),
+                                &cpau_error.to_string(),
+                                &format_hresult(&cpau_error),
                             )
                         })?;
                     }
@@ -201,6 +206,10 @@ pub fn wait_for_process(
         process.close();
         Ok(ProcessRunResult { pid, exit_code })
     }
+}
+
+fn format_hresult(error: &Error) -> String {
+    format!("0x{:08X}", error.code().0 as u32)
 }
 
 fn build_command_line(executable: &str, args: &[String]) -> String {

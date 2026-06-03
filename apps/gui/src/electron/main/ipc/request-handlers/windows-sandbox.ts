@@ -31,6 +31,14 @@ function resultBoolean(result: Readonly<Record<string, unknown>> | undefined, ke
   return typeof value === "boolean" ? value : undefined;
 }
 
+function responseErrorBoolean(
+  error: Awaited<ReturnType<typeof runOfficeAgentWindowsSandboxRunnerSelfTest>>["error"] | undefined,
+  key: "secondaryLogonLikelyBlocked",
+): boolean | undefined {
+  const value = error?.[key];
+  return typeof value === "boolean" ? value : undefined;
+}
+
 function resultIssues(result: Readonly<Record<string, unknown>> | undefined): readonly string[] {
   const value = result?.issues;
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
@@ -70,13 +78,22 @@ function mapStatusResponse(response: Awaited<ReturnType<typeof checkOfficeAgentW
   };
 }
 
-function isSecondaryLogonLikelyBlocked(message: string | undefined) {
-  return Boolean(
-    message &&
-      message.includes("CreateProcessWithLogonW failed: Access is denied") &&
-      message.includes("CreateProcessWithTokenW fallback failed") &&
-      message.includes("CreateProcessAsUserW fallback failed"),
-  );
+const SANDBOX_LOGON_LAUNCH_BLOCKED_CODE = "SANDBOX_LOGON_LAUNCH_BLOCKED";
+
+function isSecondaryLogonLikelyBlockedText(message: string | undefined) {
+  if (!message) {
+    return false;
+  }
+  if (message.includes(SANDBOX_LOGON_LAUNCH_BLOCKED_CODE)) {
+    return true;
+  }
+  const hasLaunchApiNames =
+    message.includes("CreateProcessWithLogonW") &&
+    message.includes("CreateProcessWithTokenW") &&
+    message.includes("CreateProcessAsUserW");
+  const lowerMessage = message.toLowerCase();
+  const hasInvariantWindowsCodes = lowerMessage.includes("0x80070005") && lowerMessage.includes("0x80070522");
+  return hasLaunchApiNames && hasInvariantWindowsCodes;
 }
 
 function mapLaunchStatusResponse(response: Awaited<ReturnType<typeof runOfficeAgentWindowsSandboxRunnerSelfTest>>) {
@@ -86,18 +103,25 @@ function mapLaunchStatusResponse(response: Awaited<ReturnType<typeof runOfficeAg
       ok: false,
       ready: false,
       error,
-      secondaryLogonLikelyBlocked: isSecondaryLogonLikelyBlocked(error),
+      secondaryLogonLikelyBlocked:
+        responseErrorBoolean(response.error, "secondaryLogonLikelyBlocked") ??
+        (response.error?.code === SANDBOX_LOGON_LAUNCH_BLOCKED_CODE ||
+          response.error?.diagnosticCode === SANDBOX_LOGON_LAUNCH_BLOCKED_CODE ||
+          isSecondaryLogonLikelyBlockedText(error)),
     };
   }
   const status = resultString(response.result, "status");
   const issue = resultString(response.result, "issue");
-  const ready = status === "ok" || resultBoolean(response.result, "launched") === true;
+  const ready = status === "ok" || status === "passed" || resultBoolean(response.result, "launched") === true;
   return {
     ok: true,
     ready,
     status,
     issue,
-    secondaryLogonLikelyBlocked: isSecondaryLogonLikelyBlocked(issue),
+    secondaryLogonLikelyBlocked:
+      resultBoolean(response.result, "secondaryLogonLikelyBlocked") ??
+      (resultString(response.result, "issueCode") === SANDBOX_LOGON_LAUNCH_BLOCKED_CODE ||
+        isSecondaryLogonLikelyBlockedText(issue)),
   };
 }
 

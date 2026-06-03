@@ -100,6 +100,9 @@ export interface WindowsSandboxHelperResponse {
   readonly error?: {
     readonly code: string;
     readonly message: string;
+    readonly diagnosticCode?: string;
+    readonly secondaryLogonLikelyBlocked?: boolean;
+    readonly windowsErrorCodes?: Readonly<Record<string, string>>;
   };
 }
 
@@ -210,7 +213,7 @@ export function createOfficeAgentSandboxBashOperations(
       }
 
       if (!response.ok) {
-        throw new Error(response.error?.message ?? "OfficeAgent sandbox helper launch failed.");
+        throw new Error(formatWindowsSandboxHelperError(response, "OfficeAgent sandbox helper launch failed."));
       }
 
       const responseStdout = typeof response.result?.stdout === "string" ? Buffer.from(response.result.stdout) : undefined;
@@ -545,7 +548,9 @@ async function runOfficeAgentManagedPythonSelfTest(options: {
   ).toString("utf8").trim();
   const output = fileOutput || responseOutput;
   if (!response.ok || response.result?.exitCode !== 0) {
-    const detail = response.error?.message ?? output;
+    const detail = response.error
+      ? formatWindowsSandboxHelperError(response, output)
+      : output;
     throw new Error([
       "OfficeAgent managed Python startup self-test failed.",
       `Expected python/pip/py to resolve to the hidden managed environment: ${pythonEnv}`,
@@ -695,6 +700,28 @@ export async function invokeWindowsSandboxHelper(
 ): Promise<WindowsSandboxHelperResponse> {
   const helperPath = await resolveWindowsSandboxHelperPath();
   return invokeHelperExecutable(helperPath, request, options);
+}
+
+function formatWindowsSandboxHelperError(response: WindowsSandboxHelperResponse, fallback: string): string {
+  const error = response.error;
+  if (!error) {
+    return fallback;
+  }
+  const details = [error.message || fallback];
+  if (error.code && !details[0]?.includes(error.code)) {
+    details.push(`Error code: ${error.code}`);
+  }
+  if (error.diagnosticCode && error.diagnosticCode !== error.code && !details[0]?.includes(error.diagnosticCode)) {
+    details.push(`Diagnostic code: ${error.diagnosticCode}`);
+  }
+  if (error.secondaryLogonLikelyBlocked === true) {
+    details.push("Secondary Logon likely blocked: true");
+  }
+  const windowsErrorCodes = error.windowsErrorCodes ? Object.entries(error.windowsErrorCodes) : [];
+  if (windowsErrorCodes.length > 0) {
+    details.push(`Windows error codes: ${windowsErrorCodes.map(([key, value]) => `${key}=${value}`).join(", ")}`);
+  }
+  return details.join("\n");
 }
 
 export async function writeFileWithOfficeAgentSandbox(

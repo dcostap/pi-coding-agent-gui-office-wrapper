@@ -1,3 +1,4 @@
+use crate::diagnostics::ErrorDiagnostics;
 use crate::setup::SetupAction;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -187,6 +188,12 @@ pub struct SandboxRunnerSelfTestResult {
     pub runner_exe_path: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub issue: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issue_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secondary_logon_likely_blocked: Option<bool>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub windows_error_codes: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -194,6 +201,12 @@ pub struct SandboxRunnerSelfTestResult {
 pub struct HelperError {
     pub code: String,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostic_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secondary_logon_likely_blocked: Option<bool>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub windows_error_codes: BTreeMap<String, String>,
 }
 
 impl HelperResponse {
@@ -258,6 +271,36 @@ impl HelperResponse {
             error: Some(HelperError {
                 code: code.into(),
                 message: message.into(),
+                diagnostic_code: None,
+                secondary_logon_likely_blocked: None,
+                windows_error_codes: BTreeMap::new(),
+            }),
+        }
+    }
+
+    pub fn err_with_diagnostics(
+        request_id: Option<String>,
+        fallback_code: impl Into<String>,
+        message: impl Into<String>,
+        diagnostics: ErrorDiagnostics,
+    ) -> Self {
+        let fallback_code = fallback_code.into();
+        let diagnostic_code = diagnostics.diagnostic_code;
+        let code = if diagnostic_code.trim().is_empty() {
+            fallback_code
+        } else {
+            diagnostic_code.clone()
+        };
+        Self {
+            ok: false,
+            request_id,
+            result: None,
+            error: Some(HelperError {
+                code,
+                message: message.into(),
+                diagnostic_code: Some(diagnostic_code),
+                secondary_logon_likely_blocked: Some(diagnostics.secondary_logon_likely_blocked),
+                windows_error_codes: diagnostics.windows_error_codes,
             }),
         }
     }

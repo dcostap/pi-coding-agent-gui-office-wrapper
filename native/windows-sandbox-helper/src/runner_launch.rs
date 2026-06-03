@@ -87,13 +87,25 @@ pub fn launch_v2(request: LaunchRequest) -> Result<HelperResponse, String> {
 pub fn runner_self_test(managed_root: PathBuf) -> SandboxRunnerSelfTestResult {
     match runner_self_test_inner(managed_root) {
         Ok(result) => result,
-        Err(error) => SandboxRunnerSelfTestResult {
-            status: "error".to_string(),
-            launched: false,
-            exit_code: None,
-            runner_exe_path: None,
-            issue: Some(error),
-        },
+        Err(error) => {
+            let diagnostics = crate::diagnostics::classify_error_message(&error);
+            SandboxRunnerSelfTestResult {
+                status: "error".to_string(),
+                launched: false,
+                exit_code: None,
+                runner_exe_path: None,
+                issue: Some(error),
+                issue_code: diagnostics
+                    .as_ref()
+                    .map(|value| value.diagnostic_code.clone()),
+                secondary_logon_likely_blocked: diagnostics
+                    .as_ref()
+                    .map(|value| value.secondary_logon_likely_blocked),
+                windows_error_codes: diagnostics
+                    .map(|value| value.windows_error_codes)
+                    .unwrap_or_default(),
+            }
+        }
     }
 }
 
@@ -146,6 +158,9 @@ fn runner_self_test_inner(managed_root: PathBuf) -> Result<SandboxRunnerSelfTest
         } else {
             Some(format!("command runner self-test exited with {exit_code}"))
         },
+        issue_code: None,
+        secondary_logon_likely_blocked: None,
+        windows_error_codes: Default::default(),
     })
 }
 
