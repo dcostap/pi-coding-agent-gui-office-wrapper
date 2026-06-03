@@ -75,7 +75,7 @@ const SQL_MAX_SQL_CHARS = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVE
 const SQL_TIMEOUT_MS = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_TIMEOUT_MS, 120_000);
 const SQL_MAX_STDOUT_BYTES = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_STDOUT_BYTES, 2 * 1024 * 1024);
 const SQL_MAX_STDERR_BYTES = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_STDERR_BYTES, 256 * 1024);
-const SQL_MAX_CONCURRENT = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_CONCURRENT, 50);
+const SQL_MAX_CONCURRENT = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_CONCURRENT, 70);
 const SQL_DANGEROUS_KEYWORD_PATTERN = /\b(?:INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC|EXECUTE|GRANT|REVOKE|BACKUP|RESTORE|DBCC|USE)\b/i;
 
 const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
