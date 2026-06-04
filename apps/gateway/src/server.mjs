@@ -2971,26 +2971,26 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/v1/vfs/roots") {
-      return handleVfsRequest(req, res, handleVfsRoots);
+      return await handleVfsRequest(req, res, handleVfsRoots);
     }
 
     if (req.method === "POST" && url.pathname === SQL_TOOL_ENDPOINT_PATH) {
-      return handleSqlReadonlyRequest(req, res);
+      return await handleSqlReadonlyRequest(req, res);
     }
 
     if (req.method === "POST" && (url.pathname === "/v1/responses" || url.pathname === "/responses")) {
-      return handleCodexResponses(req, res, {
+      return await handleCodexResponses(req, res, {
         fromOpenAIResponsesClient: true,
         normalizeForOpenAIResponsesClient: true,
       });
     }
 
     if (req.method === "POST" && (url.pathname === "/v1/codex/responses" || url.pathname === "/codex/responses")) {
-      return handleCodexResponses(req, res);
+      return await handleCodexResponses(req, res);
     }
 
     if (req.method === "POST" && url.pathname === "/v1/chat/completions") {
-      return handleChatCompletions(req, res);
+      return await handleChatCompletions(req, res);
     }
 
     sendJson(res, 404, { error: "not_found" });
