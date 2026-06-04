@@ -1042,6 +1042,10 @@ function normalizeCodexProxyRequestBody(body, model, options = {}) {
   }
 
   delete upstreamBody.prompt_cache_retention;
+  // The OpenAI Responses client emits this public Responses API parameter, but
+  // ChatGPT's Codex backend rejects it with HTTP 400 ("Unsupported parameter:
+  // max_output_tokens"). Let the upstream use its model/default cap instead.
+  delete upstreamBody.max_output_tokens;
   if (Array.isArray(upstreamBody.tools)) {
     upstreamBody.tools = upstreamBody.tools.map(normalizeCodexToolForUpstream);
   }
