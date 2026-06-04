@@ -1046,6 +1046,11 @@ function normalizeCodexProxyRequestBody(body, model, options = {}) {
   // ChatGPT's Codex backend rejects it with HTTP 400 ("Unsupported parameter:
   // max_output_tokens"). Let the upstream use its model/default cap instead.
   delete upstreamBody.max_output_tokens;
+  // ChatGPT's Codex backend requires an explicit instruction string and
+  // rejects omitted/default store values. The public Responses API client can
+  // omit both for simple prompts, so fill the backend-required defaults here.
+  upstreamBody.instructions ??= "You are a helpful assistant.";
+  upstreamBody.store = false;
   if (Array.isArray(upstreamBody.tools)) {
     upstreamBody.tools = upstreamBody.tools.map(normalizeCodexToolForUpstream);
   }
