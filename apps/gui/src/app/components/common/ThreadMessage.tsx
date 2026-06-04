@@ -1,8 +1,9 @@
 import { memo, useEffect, useId, useRef, useState } from "react";
+import { Brain } from "lucide-react";
 import { parseComposerAttachmentBlock } from "../../../../shared/composer-attachment-prompt";
 import type { Message } from "../../types";
 import { getThinkingPreview } from "../../utils/thread-previews";
-import { ExpandablePanel } from "./ExpandablePanel";
+import { ChatWidgetBlock } from "../workspace/thread/ChatWidgetBlock";
 import { MarkdownContent } from "./MarkdownContent";
 import { BotActivityMark } from "./BotActivityMark";
 import { UserMessageAttachments } from "./UserMessageAttachments";
@@ -88,14 +89,14 @@ function AssistantThinkingBlock({
   }, [autoExpandThinking]);
 
   const label =
-    thinkingRedacted && thinkingContent.length === 0 ? "Thinking unavailable" : "Thinking";
+    thinkingRedacted && thinkingContent.length === 0 ? "Razonamiento no disponible" : "Razonando";
   const preview =
     thinkingHeaders && thinkingHeaders.length > 0
       ? thinkingHeaders.join(", ")
       : getThinkingPreview(thinkingContent, thinkingRedacted);
 
   return (
-    <ExpandablePanel
+    <ChatWidgetBlock
       expanded={expanded}
       onToggle={() => {
         if (primaryToggleAction) {
@@ -111,15 +112,14 @@ function AssistantThinkingBlock({
         setExpanded((current) => !current);
       }}
       panelId={panelId}
-      className="mb-3 border border-[rgba(169,178,215,0.05)] bg-[rgba(255,255,255,0.012)]"
-      triggerClassName="hover:bg-[rgba(255,255,255,0.015)]"
-      bodyClassName="border-[rgba(169,178,215,0.05)]"
+      className="mb-3"
       interactive={interactive}
       showChevron={interactive}
       header={
         <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-          <span className="shrink-0 truncate text-[13.5px] leading-[1.2] font-medium text-[color:var(--text)]">
-            {label}
+          <span className="flex shrink-0 items-center gap-1.5 truncate text-[13px] leading-[1.2] font-medium text-[color:var(--muted)]/90">
+            <Brain size={14} className="shrink-0 text-[color:var(--muted-2)]/90" aria-hidden="true" />
+            <span className="truncate">{label}</span>
           </span>
           <span className="shrink-0 text-[12px] leading-[1.2] text-[color:var(--muted-2)]/80">
             —
@@ -134,10 +134,10 @@ function AssistantThinkingBlock({
         renderThinking(thinkingContent)
       ) : (
         <div className="text-[13px] italic text-[color:var(--muted-2)]/82">
-          This provider redacted the reasoning trace.
+          Este proveedor ocultó el razonamiento.
         </div>
       )}
-    </ExpandablePanel>
+    </ChatWidgetBlock>
   );
 }
 

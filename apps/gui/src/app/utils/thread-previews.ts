@@ -8,7 +8,7 @@ export function getThinkingPreview(thinkingContent: string[], thinkingRedacted?:
     return thinkingContent[0];
   }
 
-  return thinkingRedacted ? "Reasoning unavailable" : "No reasoning captured";
+  return thinkingRedacted ? "Razonamiento no disponible" : "No se capturó razonamiento";
 }
 
 export function getAssistantPreview(message: Message | null | undefined) {

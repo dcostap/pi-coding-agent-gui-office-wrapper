@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { PointerEvent, ReactNode } from "react";
 import { chatRowShellClass } from "./thread-layout";
+import { chatWidgetClass, chatWidgetHoverClass } from "./ChatWidgetBlock";
 
 const clampOneLineClass =
   "overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:1]";
@@ -9,11 +10,6 @@ const clampTwoLinesClass =
 const clampThreeLinesClass =
   "overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]";
 
-export const foldedWidgetClass = "border border-white/10 bg-white/[0.04]";
-export const foldedWidgetHoverClass = "hover:border-white/15 hover:bg-white/[0.06]";
-export const foldedWidgetBodyClass = "border-white/10 bg-white/[0.018]";
-export const foldedWidgetItemClass = "border border-white/[0.08] bg-white/[0.028]";
-export const foldedWidgetItemHoverClass = "hover:bg-white/[0.05]";
 
 export function FoldedTimelineRow({
   label,
@@ -35,7 +31,7 @@ export function FoldedTimelineRow({
   return (
     <button
       type="button"
-      className={`${foldedWidgetClass} ${foldedWidgetHoverClass} grid w-full min-w-0 gap-1 rounded-xl px-3 py-2.5 text-left transition-colors`}
+      className={`${chatWidgetClass} ${chatWidgetHoverClass} grid w-full min-w-0 gap-1 rounded-xl px-3 py-2.5 text-left transition-colors`}
       onClick={onToggle}
     >
       <div className="flex min-w-0 items-center gap-2">

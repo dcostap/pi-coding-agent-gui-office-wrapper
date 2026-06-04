@@ -1,15 +1,13 @@
 import { useState } from "react";
+import { Wrench } from "lucide-react";
 import type { Message } from "../../../types";
 import { stripAnsi } from "../../../utils/ansi";
 import { getToolCallPreview, getToolCallTitle } from "../../../utils/thread-previews";
-import { ExpandablePanel } from "../../common/ExpandablePanel";
 import {
-  foldedWidgetBodyClass,
-  foldedWidgetClass,
-  foldedWidgetHoverClass,
-  foldedWidgetItemClass,
-  foldedWidgetItemHoverClass,
-} from "./ThreadTimelineRowChrome";
+  ChatWidgetBlock,
+  chatWidgetItemClass,
+  chatWidgetItemHoverClass,
+} from "./ChatWidgetBlock";
 
 type ToolCallMessage = Extract<Message, { role: "toolResult" | "bashExecution" }>;
 
@@ -113,7 +111,7 @@ export function ToolCallsCard({
   const [expandedToolCallIds, setExpandedToolCallIds] = useState<Record<string, boolean>>({});
 
   return (
-    <ExpandablePanel
+    <ChatWidgetBlock
       expanded={expanded}
       onToggle={() => {
         if (forceExpanded) {
@@ -123,13 +121,12 @@ export function ToolCallsCard({
         onToggleGroupExpanded?.();
       }}
       panelId={`tool-call-group-${id}`}
-      className={foldedWidgetClass}
-      triggerClassName={foldedWidgetHoverClass}
-      bodyClassName={`${foldedWidgetBodyClass} px-2 py-2`}
+      bodyClassName="px-2 py-2"
       header={
         <span className="flex min-w-0 flex-1 items-center justify-between gap-3 overflow-hidden">
-          <span className="truncate text-[13px] font-medium text-[color:var(--muted)]/90">
-            Uso de herramientas ({messages.length})
+          <span className="flex min-w-0 items-center gap-1.5 truncate text-[13px] font-medium text-[color:var(--muted)]/90">
+            <Wrench size={14} className="shrink-0 text-[color:var(--muted-2)]/90" aria-hidden="true" />
+            <span className="truncate">Uso de herramientas ({messages.length})</span>
           </span>
         </span>
       }
@@ -143,7 +140,7 @@ export function ToolCallsCard({
           const isError = message.role === "toolResult" && message.isError;
 
           return (
-            <ExpandablePanel
+            <ChatWidgetBlock
               key={messageKey}
               expanded={toolCallExpanded}
               onToggle={() => {
@@ -154,8 +151,8 @@ export function ToolCallsCard({
                 }));
               }}
               panelId={`tool-call-panel-${messageKey}`}
-              className={foldedWidgetItemClass}
-              triggerClassName={`${foldedWidgetItemHoverClass} rounded-lg px-2 py-2`}
+              className={chatWidgetItemClass}
+              triggerClassName={`${chatWidgetItemHoverClass} rounded-lg px-2 py-2`}
               bodyClassName="!border-0 px-2 pt-0 pb-2"
               showChevron={false}
               header={
@@ -175,10 +172,10 @@ export function ToolCallsCard({
               }
             >
               {renderToolCallBody(message)}
-            </ExpandablePanel>
+            </ChatWidgetBlock>
           );
         })}
       </div>
-    </ExpandablePanel>
+    </ChatWidgetBlock>
   );
 }
