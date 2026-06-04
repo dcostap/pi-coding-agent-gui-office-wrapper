@@ -162,7 +162,7 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
   ): Promise<RuntimeSnapshot> {
     const context = await this.ensureContext(workspace);
     if (!thinkingLevel) {
-      throw new Error("Thinking level is required.");
+      throw new Error("El nivel de razonamiento es obligatorio.");
     }
     context.settingsManager.setDefaultThinkingLevel(thinkingLevel);
     await context.settingsManager.flush();
@@ -175,7 +175,7 @@ export class RuntimeSupervisor implements RuntimeResourceDriver {
   ): Promise<RuntimeSnapshot> {
     const context = await this.ensureContext(workspace);
     if (!thinkingLevel) {
-      throw new Error("Thinking level is required.");
+      throw new Error("El nivel de razonamiento es obligatorio.");
     }
     const settingsManager = context.settingsManager as unknown as ProjectWritableSettingsManager;
     const projectSettings = context.settingsManager.getProjectSettings() as Record<string, unknown>;

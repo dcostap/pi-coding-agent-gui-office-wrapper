@@ -1814,7 +1814,7 @@ function treeNodeTitle(entry: SessionTreeNodeRecord["entry"]): string {
     case "model_change":
       return "Model";
     case "thinking_level_change":
-      return "Thinking";
+      return "Razonando";
     case "custom":
       return "Custom";
     case "label":

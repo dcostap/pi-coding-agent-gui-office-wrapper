@@ -142,8 +142,8 @@ export function buildPiRuntimeSettingsDescriptors({
         ["showImages", "Show images", "Render supported image attachments in capable terminals."],
         [
           "hideThinkingBlock",
-          "Hide thinking blocks",
-          "Collapse model reasoning blocks in Pi TUI conversation output.",
+          "Ocultar bloques de razonamiento",
+          "Contrae los bloques de razonamiento del modelo en la salida de conversación de Pi TUI.",
         ],
         [
           "showHardwareCursor",
