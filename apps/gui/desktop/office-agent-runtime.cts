@@ -32,6 +32,10 @@ export {
   getOfficeAgentVirtualFsPromptContext,
   OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS,
 };
+import {
+  getOfficeAgentArtifactPromptContexts,
+  getOfficeAgentManagedAppPromptContexts,
+} from "../../../packages/pi-sdk-driver/src/office-agent-prompt-context.ts";
 import { expandOfficeAgentPathPlaceholders } from "../../../packages/pi-sdk-driver/src/office-agent-path-placeholders.ts";
 import { createCopyFileIntoWorkspaceToolDefinition } from "../../../packages/pi-sdk-driver/src/office-agent-workspace-tools.ts";
 import {
@@ -98,25 +102,62 @@ export async function prepareOfficeAgentDesktopRuntime(): Promise<{
   return { agentDir, managedRootDir, projectsDir };
 }
 
-export function getOfficeAgentDefaultVirtualFsPromptContext(): string {
+function getOfficeAgentDefaultVirtualFsPromptContext(): string {
   return getOfficeAgentVirtualFsPromptContext(OFFICE_AGENT_DEFAULT_VIRTUAL_ROOTS);
 }
 
-export async function createOfficeAgentManagedCustomTools(options: {
+type OfficeAgentPiToolFactories = Pick<
+  PiModule,
+  | "createBashToolDefinition"
+  | "createEditToolDefinition"
+  | "createFindToolDefinition"
+  | "createGrepToolDefinition"
+  | "createLsToolDefinition"
+  | "createReadToolDefinition"
+  | "createWriteToolDefinition"
+>;
+
+export function getOfficeAgentDesktopPromptContexts(options: {
+  readonly cwd: string;
+  readonly managedRootDir?: string;
+  readonly sessionId?: string;
+  readonly shellPromptContext?: string;
+  readonly includeManagedWorkspace?: boolean;
+}): string[] {
+  const cwd = resolve(options.cwd);
+  const includeManagedWorkspace = options.includeManagedWorkspace ?? true;
+  const managedRootDir = includeManagedWorkspace
+    ? (options.managedRootDir ?? resolveOfficeAgentManagedRootForPath(cwd))
+    : null;
+  if (includeManagedWorkspace && !managedRootDir) {
+    throw new Error(`OfficeAgent project is outside managed AgentData: ${cwd}`);
+  }
+
+  if (!managedRootDir) {
+    return getOfficeAgentArtifactPromptContexts();
+  }
+
+  return [
+    ...getOfficeAgentManagedAppPromptContexts({
+      cwd,
+      managedRootDir,
+      sessionId: options.sessionId,
+    }),
+    ...(options.shellPromptContext ? [options.shellPromptContext] : []),
+    getOfficeAgentDefaultVirtualFsPromptContext(),
+  ];
+}
+
+export async function createOfficeAgentManagedRuntimeContext(options: {
   readonly cwd: string;
   readonly sessionId: string;
   readonly agentDir: string;
-  readonly pi: Pick<
-    PiModule,
-    | "createBashToolDefinition"
-    | "createEditToolDefinition"
-    | "createFindToolDefinition"
-    | "createGrepToolDefinition"
-    | "createLsToolDefinition"
-    | "createReadToolDefinition"
-    | "createWriteToolDefinition"
-  >;
-}): Promise<NonNullable<CreateAgentSessionOptions["customTools"]>> {
+  readonly pi: OfficeAgentPiToolFactories;
+}): Promise<{
+  readonly customTools: NonNullable<CreateAgentSessionOptions["customTools"]>;
+  readonly promptContexts: string[];
+  readonly managedRootDir: string;
+}> {
   const cwd = resolve(options.cwd);
   const managedRootDir = resolveOfficeAgentManagedRootForPath(cwd);
   if (!managedRootDir) {
@@ -215,38 +256,44 @@ export async function createOfficeAgentManagedCustomTools(options: {
     sessionEnv,
   );
   const editTool = withOfficeAgentPathPlaceholderExpansion(
-    withOfficeAgentVirtualEditGuard(options.pi.createEditToolDefinition(cwd, {
-      operations: {
-        access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
-        readFile: (absolutePath: string) =>
-          readFile(assertManagedPath(managedRootDir, absolutePath)),
-        writeFile: async (absolutePath: string, content: string) => {
-          const target = assertManagedPath(managedRootDir, absolutePath);
-          await writeFileWithOfficeAgentSandbox(managedRootDir, target, content, {
-            createParentDirs: true,
-          });
+    withOfficeAgentVirtualEditGuard(
+      options.pi.createEditToolDefinition(cwd, {
+        operations: {
+          access: (absolutePath: string) => access(assertManagedPath(managedRootDir, absolutePath)),
+          readFile: (absolutePath: string) =>
+            readFile(assertManagedPath(managedRootDir, absolutePath)),
+          writeFile: async (absolutePath: string, content: string) => {
+            const target = assertManagedPath(managedRootDir, absolutePath);
+            await writeFileWithOfficeAgentSandbox(managedRootDir, target, content, {
+              createParentDirs: true,
+            });
+          },
         },
-      },
-    }), virtualRoots),
+      }),
+      virtualRoots,
+    ),
     sessionEnv,
   );
   const writeTool = withOfficeAgentPathPlaceholderExpansion(
-    withOfficeAgentVirtualWriteGuard(options.pi.createWriteToolDefinition(cwd, {
-      operations: {
-        mkdir: (dir: string) =>
-          mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
-        writeFile: (absolutePath: string, content: string) =>
-          writeFileWithOfficeAgentSandbox(
-            managedRootDir,
-            assertManagedPath(managedRootDir, absolutePath),
-            content,
-          ),
-      },
-    }), virtualRoots),
+    withOfficeAgentVirtualWriteGuard(
+      options.pi.createWriteToolDefinition(cwd, {
+        operations: {
+          mkdir: (dir: string) =>
+            mkdirWithOfficeAgentSandbox(managedRootDir, assertManagedPath(managedRootDir, dir)),
+          writeFile: (absolutePath: string, content: string) =>
+            writeFileWithOfficeAgentSandbox(
+              managedRootDir,
+              assertManagedPath(managedRootDir, absolutePath),
+              content,
+            ),
+        },
+      }),
+      virtualRoots,
+    ),
     sessionEnv,
   );
 
-  return [
+  const customTools = [
     readTool,
     lsTool,
     findTool,
@@ -256,6 +303,17 @@ export async function createOfficeAgentManagedCustomTools(options: {
     editTool,
     writeTool,
   ] as NonNullable<CreateAgentSessionOptions["customTools"]>;
+
+  return {
+    customTools,
+    promptContexts: getOfficeAgentDesktopPromptContexts({
+      cwd,
+      managedRootDir,
+      sessionId: options.sessionId,
+      shellPromptContext,
+    }),
+    managedRootDir,
+  };
 }
 
 function getOfficeAgentSessionWritablePathsForSetup(
@@ -383,7 +441,9 @@ async function stageBundledRipgrepForPi(agentDir: string): Promise<void> {
 
   const currentPath = process.env.PATH ?? "";
   const pathEntries = currentPath.split(delimiter).filter(Boolean);
-  if (!pathEntries.some((entry) => resolve(entry).toLowerCase() === resolve(binDir).toLowerCase())) {
+  if (
+    !pathEntries.some((entry) => resolve(entry).toLowerCase() === resolve(binDir).toLowerCase())
+  ) {
     process.env.PATH = [binDir, currentPath].filter(Boolean).join(delimiter);
   }
 }

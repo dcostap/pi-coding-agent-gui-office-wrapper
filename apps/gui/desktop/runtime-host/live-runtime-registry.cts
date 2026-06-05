@@ -14,8 +14,8 @@ import {
   disposeAgentSessionGracefully,
 } from "../runtime/pi-session-services.cts";
 import {
-  getOfficeAgentDefaultVirtualFsPromptContext,
-  createOfficeAgentManagedCustomTools,
+  getOfficeAgentDesktopPromptContexts,
+  createOfficeAgentManagedRuntimeContext,
 } from "../office-agent-runtime.cts";
 import { invokeMainRequest } from "./main-request-client.cts";
 import {
@@ -150,27 +150,16 @@ async function createRuntime(options: {
   });
   const sessionDir = options.sessionDir ?? settingsManager.getSessionDir() ?? undefined;
   const sessionManager = options.sessionManager ?? SessionManager.create(options.cwd, sessionDir);
-  const virtualFsPromptContext = getOfficeAgentDefaultVirtualFsPromptContext();
-  const resourceLoader = await createIsolatedRuntimeResourceLoader({
-    DefaultResourceLoader,
-    cwd: options.cwd,
-    agentDir,
-    settingsCwd: options.settingsCwd,
-    settingsManager,
-    appendSystemPromptOverride: (base) => [
-      ...base,
-      virtualFsPromptContext,
-    ],
-  });
-  const customTools = options.settingsCwd
-    ? createArtifactTools({
-        createArtifact: (input) => invokeMainRequest("createArtifact", input),
-        editArtifact: (input) => invokeMainRequest("editArtifact", input),
-        getArtifact: ({ conversationId, slug }) =>
-          invokeMainRequest("getArtifact", { artifactSlug: slug, conversationId }),
-        listArtifacts: (conversationId) => invokeMainRequest("listArtifacts", { conversationId }),
+  const officeAgentPromptContexts = options.settingsCwd
+    ? getOfficeAgentDesktopPromptContexts({
+        cwd: options.cwd,
+        sessionId: sessionManager.getSessionId(),
+        includeManagedWorkspace: false,
       })
-    : await createOfficeAgentManagedCustomTools({
+    : null;
+  const managedRuntimeContext = options.settingsCwd
+    ? null
+    : await createOfficeAgentManagedRuntimeContext({
         cwd: options.cwd,
         sessionId: sessionManager.getSessionId(),
         agentDir,
@@ -184,6 +173,24 @@ async function createRuntime(options: {
           createWriteToolDefinition,
         },
       });
+  const promptContexts = managedRuntimeContext?.promptContexts ?? officeAgentPromptContexts ?? [];
+  const customTools = managedRuntimeContext
+    ? managedRuntimeContext.customTools
+    : createArtifactTools({
+        createArtifact: (input) => invokeMainRequest("createArtifact", input),
+        editArtifact: (input) => invokeMainRequest("editArtifact", input),
+        getArtifact: ({ conversationId, slug }) =>
+          invokeMainRequest("getArtifact", { artifactSlug: slug, conversationId }),
+        listArtifacts: (conversationId) => invokeMainRequest("listArtifacts", { conversationId }),
+      });
+  const resourceLoader = await createIsolatedRuntimeResourceLoader({
+    DefaultResourceLoader,
+    cwd: options.cwd,
+    agentDir,
+    settingsCwd: options.settingsCwd,
+    settingsManager,
+    appendSystemPromptOverride: (base) => [...base, ...promptContexts],
+  });
   const services = resourceLoader
     ? createServicesFromLoadedResourceLoader({
         cwd: options.cwd,
@@ -200,10 +207,7 @@ async function createRuntime(options: {
         modelRegistry,
         settingsManager,
         resourceLoaderOptions: {
-          appendSystemPromptOverride: (base) => [
-            ...base,
-            virtualFsPromptContext,
-          ],
+          appendSystemPromptOverride: (base) => [...base, ...promptContexts],
         },
       });
   const { session } = await createAgentSessionFromServices({

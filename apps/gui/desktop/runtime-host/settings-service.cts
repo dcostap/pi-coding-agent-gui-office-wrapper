@@ -2,7 +2,6 @@ import type { PiSettings } from "../../shared/desktop-contracts.ts";
 import { defaultPiSettings } from "../../shared/default-pi-settings.ts";
 import { getDesktopWorkingDirectory } from "../../shared/desktop-working-directory.ts";
 import { getPiModule } from "../pi-module.cts";
-import { markRuntimeSettingsStaleForProject } from "../runtime/runtime-registry.cts";
 
 export type PiSettingsKey = keyof PiSettings;
 
@@ -190,7 +189,6 @@ export async function updatePiSettingInHost(
 
   if (updated) {
     await settingsManager.flush();
-    await markRuntimeSettingsStaleForProject(null);
   }
 
   return loadPiSettingsInHost(projectPath);
