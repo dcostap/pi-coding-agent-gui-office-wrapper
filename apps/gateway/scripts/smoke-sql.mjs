@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
@@ -41,6 +42,7 @@ function assert(condition, message) {
 
 const port = await getFreePort();
 const analyticsDir = await mkdtemp(path.join(os.tmpdir(), "officeagent-gateway-sql-"));
+const sqlOutputDir = path.join(analyticsDir, "sql-output");
 const baseUrl = `http://127.0.0.1:${port}`;
 let output = "";
 
@@ -54,6 +56,9 @@ const child = spawn(process.execPath, ["src/server.mjs"], {
     MOCK_MODE: "1",
     GATEWAY_TOKEN: token,
     OFFICE_AGENT_GATEWAY_ANALYTICS_DIR: analyticsDir,
+    OFFICE_AGENT_SQLSERVER_TEST_FAKE_CLI: "1",
+    OFFICE_AGENT_SQLSERVER_TEST_FAKE_FILE_OUTPUT: "1",
+    OFFICE_AGENT_SQLSERVER_OUTPUT_DIR: sqlOutputDir,
   },
 });
 
@@ -82,12 +87,27 @@ try {
   await assertToolError({ action: "info", database: "LOGIC" }, "invalid_database");
 
   const info = await postTool({ action: "info" });
-  if (info.isError && info.details?.errorCode === "missing_sql_tool") {
-    console.log("[gateway:sql-smoke] skipped live info; no server-side SQL executable was found");
-  } else {
-    assert(!info.isError, `live info returned tool error: ${JSON.stringify(info)}\nGateway output:\n${output}`);
-    assert(Array.isArray(info.content), "live info missing content");
-  }
+  assert(!info.isError, `fake info returned tool error: ${JSON.stringify(info)}\nGateway output:\n${output}`);
+  assert(Array.isArray(info.content), "fake info missing content");
+
+  const query = await postTool({ action: "query", sql: "SELECT 1 AS value" });
+  assert(!query.isError, `fake query returned tool error: ${JSON.stringify(query)}\nGateway output:\n${output}`);
+  const remoteFiles = query.details?.remoteFiles;
+  assert(Array.isArray(remoteFiles) && remoteFiles.length === 1, `query missing remote file descriptor: ${JSON.stringify(query)}`);
+  assert(remoteFiles[0].downloadUrl.startsWith("files/"), "remote file downloadUrl should be relative");
+  const serializedQuery = JSON.stringify(query);
+  assert(!serializedQuery.includes(sqlOutputDir), "gateway response leaked SQL output dir path");
+
+  const unauthorizedDownload = await fetch(`${baseUrl}/v1/tools/castrosua_sql_read_only/${remoteFiles[0].downloadUrl}`);
+  assert(unauthorizedDownload.status === 401, `unauthorized download returned HTTP ${unauthorizedDownload.status}`);
+
+  const download = await fetch(`${baseUrl}/v1/tools/castrosua_sql_read_only/${remoteFiles[0].downloadUrl}`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert(download.ok, `download failed: HTTP ${download.status}`);
+  const bytes = Buffer.from(await download.arrayBuffer());
+  assert(bytes.length === remoteFiles[0].bytes, "download byte count mismatch");
+  assert(hashSha256(bytes) === remoteFiles[0].sha256, "download sha256 mismatch");
 
   console.log("[gateway:sql-smoke] ok");
 } catch (error) {
@@ -105,6 +125,10 @@ async function assertToolError(body, expectedCode) {
     payload.details?.errorCode === expectedCode,
     `expected ${expectedCode}, got ${payload.details?.errorCode}: ${JSON.stringify(payload)}\nGateway output:\n${output}`,
   );
+}
+
+function hashSha256(buffer) {
+  return createHash("sha256").update(buffer).digest("hex");
 }
 
 async function postTool(body) {

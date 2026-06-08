@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { appendFile, lstat, mkdir, readFile, readdir, realpath } from "node:fs/promises";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { appendFile, lstat, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -64,7 +64,9 @@ const VFS_TIMEOUT_MS = Number(process.env.OFFICE_AGENT_VFS_TIMEOUT_MS || 30_000)
 const VFS_BASE_DIR = process.env.OFFICE_AGENT_VFS_BASE_DIR || "/srv/officeagent/vfs";
 const VFS_ROOT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 const SQL_TOOL_ENDPOINT_PATH = "/v1/tools/castrosua_sql_read_only";
+const SQL_TOOL_FILE_ENDPOINT_PREFIX = `${SQL_TOOL_ENDPOINT_PATH}/files/`;
 const SQL_ALLOWED_ACTIONS = new Set(["info", "list_tables", "describe", "sample", "query"]);
+const SQL_ROW_OUTPUT_ACTIONS = new Set(["sample", "query"]);
 const SQL_DEFAULT_DATABASE = "CastrosuaIA";
 const SQL_ALLOWED_DATABASES = new Set([SQL_DEFAULT_DATABASE.toUpperCase()]);
 const SQL_IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_$#@]{0,127}$/;
@@ -75,6 +77,29 @@ const SQL_TIMEOUT_MS = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_T
 const SQL_MAX_STDOUT_BYTES = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_STDOUT_BYTES, 2 * 1024 * 1024);
 const SQL_MAX_STDERR_BYTES = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_STDERR_BYTES, 256 * 1024);
 const SQL_MAX_CONCURRENT = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_CONCURRENT, 70);
+const SQL_REMOTE_FILE_OUTPUTS_ENABLED = parseBooleanEnv(
+  process.env.OFFICE_AGENT_SQLSERVER_REMOTE_FILE_OUTPUTS || process.env.OFFICE_AGENT_SQLSERVER_ENABLE_REMOTE_FILES,
+  true,
+);
+const SQL_OUTPUT_AUTO_THRESHOLD = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_AUTO_THRESHOLD, 12_000);
+const SQL_DEFAULT_QUERY_ROW_LIMIT = parsePositiveInteger(
+  process.env.OFFICE_AGENT_SQLSERVER_DEFAULT_QUERY_ROW_LIMIT || process.env.MCP_SQL_DEFAULT_ROW_LIMIT,
+  10_000,
+);
+const SQL_MAX_QUERY_ROW_LIMIT = Math.max(
+  SQL_DEFAULT_QUERY_ROW_LIMIT,
+  parsePositiveInteger(
+    process.env.OFFICE_AGENT_SQLSERVER_MAX_QUERY_ROW_LIMIT || process.env.MCP_SQL_MAX_ROW_LIMIT,
+    10_000,
+  ),
+);
+const SQL_REMOTE_FILE_TTL_MS = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_FILE_TTL_MS, 60 * 60 * 1000);
+const SQL_REMOTE_FILE_MAX_BYTES = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_FILE_BYTES, 100 * 1024 * 1024);
+const SQL_REMOTE_FILE_MAX_TOTAL_BYTES = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_MAX_OUTPUT_DIR_BYTES, 1024 * 1024 * 1024);
+const SQL_REMOTE_FILE_CLEANUP_INTERVAL_MS = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_FILE_CLEANUP_INTERVAL_MS, 10 * 60 * 1000);
+const SQL_CAPABILITY_PROBE_TIMEOUT_MS = parsePositiveInteger(process.env.OFFICE_AGENT_SQLSERVER_CAPABILITY_PROBE_TIMEOUT_MS, 5000);
+const SQL_CAPABILITY_PROBE_MAX_BYTES = 64 * 1024;
+const SQL_OUTPUT_FILE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SQL_DANGEROUS_KEYWORD_PATTERN = /\b(?:INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|EXEC|EXECUTE|GRANT|REVOKE|BACKUP|RESTORE|DBCC|USE)\b/i;
 
 const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
@@ -87,6 +112,11 @@ const analyticsDir =
   process.env.OFFICE_AGENT_GATEWAY_ANALYTICS_DIR || path.join(localAppData, "OfficeAgent", "gateway-analytics");
 const analyticsEventsPath = path.join(analyticsDir, "events.jsonl");
 const sqlAuditEventsPath = path.join(analyticsDir, "sql-events.jsonl");
+const sqlOutputDir =
+  process.env.OFFICE_AGENT_SQLSERVER_OUTPUT_DIR || path.join(localAppData, "OfficeAgent", "gateway-sql-output");
+const sqlOutputFileRegistry = new Map();
+const sqlToolCapabilityCache = new Map();
+const SQL_TEST_FAKE_TOOL_EXE = "__officeagent_test_fake_sql_tool__";
 const defaultRoutedProvider = process.env.GATEWAY_UPSTREAM_PROVIDER || "openai-codex";
 const sparkRoute = {
   provider: process.env.GATEWAY_SPARK_UPSTREAM_PROVIDER || defaultRoutedProvider,
@@ -101,8 +131,8 @@ const gpt55Route = {
     process.env.GATEWAY_GPT55_UPSTREAM_MODEL ||
     process.env.GATEWAY_GPT_5_5_UPSTREAM_MODEL ||
     // The OfficeAgent client asks the gateway for abstract model "gpt-5.5".
-    // Route that abstract model to Pi's current upstream Codex model by default.
-    "gpt-5.5",
+    // Route that abstract model to the currently available upstream Codex model by default.
+    "gpt-5.4",
 };
 const requestyAbstractModelId = process.env.GATEWAY_REQUESTY_ABSTRACT_MODEL || "azure/gpt-5.4@swedencentral";
 const requestyRoute = {
@@ -1608,6 +1638,14 @@ function parsePositiveInteger(value, fallback) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseBooleanEnv(value, fallback = false) {
+  if (value == null) return fallback;
+  const normalized = String(value).trim();
+  if (/^(?:1|true|yes|on)$/i.test(normalized)) return true;
+  if (/^(?:0|false|no|off)$/i.test(normalized)) return false;
+  return fallback;
+}
+
 async function handleSqlReadonlyRequest(req, res) {
   const token = getBearer(req);
   if (token !== GATEWAY_TOKEN) return unauthorized(res);
@@ -1692,11 +1730,14 @@ async function handleSqlReadonlyRequest(req, res) {
   res.on("close", onClientClosed);
 
   try {
-    const runResult = await runSqlTool(exe, normalized.args, {
+    const capabilities = await detectSqlToolCapabilities(exe);
+    const outputPolicy = await getSqlOutputPolicy(normalized.action, capabilities);
+    const runResult = await runSqlTool(exe, buildSqlToolArgs(normalized, outputPolicy), {
       signal: abortController.signal,
       timeoutMs: SQL_TIMEOUT_MS,
       maxStdoutBytes: SQL_MAX_STDOUT_BYTES,
       maxStderrBytes: SQL_MAX_STDERR_BYTES,
+      env: outputPolicy.env,
     });
     completed = true;
     const stdout = runResult.stdout.trim();
@@ -1732,12 +1773,55 @@ async function handleSqlReadonlyRequest(req, res) {
       return;
     }
 
+    const fileOutputPaths = getSqlFileOutputPaths(payload);
+    if (fileOutputPaths.length > 0 && !outputPolicy.remoteFileBridgeEnabled) {
+      const result = createSqlToolErrorResult({
+        action: normalized.action,
+        database: normalized.database,
+        errorCode: "unexpected_file_output",
+        message: "SQL Server read-only CLI produced a server-side file, but gateway remote-file bridging is disabled.",
+        extraDetails: {
+          outputMode: "file",
+          stdoutBytes: Buffer.byteLength(runResult.stdout, "utf8"),
+        },
+      });
+      await appendSqlAuditEvent(createSqlAuditEvent({
+        startedAtMs,
+        client,
+        action: normalized.action,
+        database: normalized.database,
+        status: "unexpected_file_output",
+        errorCode: "unexpected_file_output",
+        stdoutBytes: Buffer.byteLength(runResult.stdout, "utf8"),
+        stderrBytes: Buffer.byteLength(runResult.stderr, "utf8"),
+        sql: normalized.sql,
+      }));
+      if (!res.destroyed) return sendJson(res, 200, result);
+      return;
+    }
+
+    const remoteFiles = [];
+    for (const fileOutputPath of fileOutputPaths) {
+      remoteFiles.push(await registerSqlOutputFile(fileOutputPath, {
+        action: normalized.action,
+        format: getSqlPayloadOutputFormat(payload),
+      }));
+    }
+    const clientPayload = remoteFiles.length > 0
+      ? sanitizeSqlCliPayloadForClient(payload, fileOutputPaths)
+      : payload;
     const result = {
-      content: [{ type: "text", text: summarizeSqlToolResult(normalized.action, payload) }],
+      content: [{
+        type: "text",
+        text: remoteFiles.length > 0
+          ? summarizeSqlToolRemoteFileResult(normalized.action, clientPayload, remoteFiles)
+          : summarizeSqlToolResult(normalized.action, clientPayload),
+      }],
       details: {
         action: normalized.action,
         database: normalized.database,
-        result: payload,
+        result: clientPayload,
+        ...(remoteFiles.length > 0 ? { remoteFiles } : {}),
         ...(stderr ? { stderr: sanitizeSqlToolText(stderr, normalized.sql) } : {}),
       },
     };
@@ -1749,6 +1833,8 @@ async function handleSqlReadonlyRequest(req, res) {
       status: "success",
       stdoutBytes: Buffer.byteLength(runResult.stdout, "utf8"),
       stderrBytes: Buffer.byteLength(runResult.stderr, "utf8"),
+      remoteFileCount: remoteFiles.length,
+      remoteFileBytes: remoteFiles.reduce((sum, file) => sum + Number(file.bytes || 0), 0),
       sql: normalized.sql,
     }));
     if (!res.destroyed) return sendJson(res, 200, result);
@@ -1845,15 +1931,10 @@ function validateSqlReadonlyParams(body) {
       action,
       database,
       sql,
-      args: buildSqlToolArgs({
-        action,
-        database,
-        sql,
-        schema,
-        table,
-        includeViews: body.includeViews === true,
-        limit,
-      }),
+      schema,
+      table,
+      includeViews: body.includeViews === true,
+      limit,
     },
   };
 }
@@ -1984,19 +2065,134 @@ function maskSqlLiteralsAndComments(sql) {
   return output;
 }
 
-function buildSqlToolArgs(params) {
+async function getSqlOutputPolicy(action, capabilities) {
+  if (capabilities.probeFailed) {
+    throw new Error("Could not verify SQL CLI output capabilities; refusing to run without an explicit output policy.");
+  }
+
+  if (!capabilities.supportsOutputFlags) {
+    return {
+      remoteFileBridgeEnabled: false,
+      args: [],
+      reason: "output_flags_unsupported",
+    };
+  }
+
+  if (SQL_REMOTE_FILE_OUTPUTS_ENABLED && SQL_ROW_OUTPUT_ACTIONS.has(action)) {
+    const outputDir = await getSqlOutputDir();
+    return {
+      remoteFileBridgeEnabled: true,
+      outputDir,
+      env: {
+        MCP_SQL_DEFAULT_ROW_LIMIT: String(SQL_DEFAULT_QUERY_ROW_LIMIT),
+        MCP_SQL_MAX_ROW_LIMIT: String(SQL_MAX_QUERY_ROW_LIMIT),
+      },
+      queryArgs: ["--limit", String(SQL_DEFAULT_QUERY_ROW_LIMIT)],
+      args: [
+        "--output",
+        "auto",
+        "--format",
+        "json",
+        "--out-dir",
+        outputDir,
+        "--auto-threshold",
+        String(SQL_OUTPUT_AUTO_THRESHOLD),
+      ],
+      reason: "remote_file_bridge_enabled",
+    };
+  }
+
+  return {
+    remoteFileBridgeEnabled: false,
+    args: ["--output", "inline"],
+    reason: SQL_REMOTE_FILE_OUTPUTS_ENABLED ? "action_forced_inline" : "remote_file_bridge_disabled",
+  };
+}
+
+async function detectSqlToolCapabilities(exe) {
+  if (exe === SQL_TEST_FAKE_TOOL_EXE) {
+    return { supportsOutputFlags: true, probeFailed: false };
+  }
+
+  const cached = sqlToolCapabilityCache.get(exe);
+  if (cached) return cached;
+
+  const promise = probeSqlToolCapabilities(exe).catch((error) => ({
+    supportsOutputFlags: false,
+    probeFailed: true,
+    error: sanitizeSqlToolText(error?.message || String(error)),
+  }));
+  sqlToolCapabilityCache.set(exe, promise);
+  return promise;
+}
+
+function probeSqlToolCapabilities(exe) {
+  return new Promise((resolve) => {
+    const child = spawn(exe, ["help"], {
+      cwd: path.dirname(exe),
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      windowsHide: true,
+    });
+    const chunks = [];
+    let bytes = 0;
+    let settled = false;
+    const timeout = setTimeout(() => finish(true), SQL_CAPABILITY_PROBE_TIMEOUT_MS);
+
+    function finish(probeFailed) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      try {
+        child.kill();
+      } catch {
+        // ignore kill errors after process exit
+      }
+      const text = Buffer.concat(chunks).toString("utf8");
+      resolve({
+        supportsOutputFlags:
+          /--output\b/i.test(text) && /--out-dir\b/i.test(text) && /--auto-threshold\b/i.test(text),
+        probeFailed,
+      });
+    }
+
+    function appendChunk(chunk) {
+      if (bytes >= SQL_CAPABILITY_PROBE_MAX_BYTES) return;
+      const remaining = SQL_CAPABILITY_PROBE_MAX_BYTES - bytes;
+      const slice = chunk.length > remaining ? chunk.subarray(0, remaining) : chunk;
+      chunks.push(slice);
+      bytes += slice.length;
+    }
+
+    child.stdout.on("data", appendChunk);
+    child.stderr.on("data", appendChunk);
+    child.on("error", () => finish(true));
+    child.on("close", () => finish(false));
+  });
+}
+
+function buildSqlToolArgs(params, outputPolicy = { args: [] }) {
   const databaseArgs = ["--database", params.database];
+  const outputArgs = outputPolicy.args || [];
   switch (params.action) {
     case "info":
-      return ["info", ...databaseArgs];
+      return ["info", ...databaseArgs, ...outputArgs];
     case "list_tables": {
       const args = ["list-tables", ...databaseArgs];
       if (params.schema) args.push("--schema", params.schema);
       if (params.includeViews) args.push("--include-views");
+      args.push(...outputArgs);
       return args;
     }
     case "describe":
-      return ["describe", ...databaseArgs, ...(params.schema ? ["--schema", params.schema] : []), "--table", params.table];
+      return [
+        "describe",
+        ...databaseArgs,
+        ...(params.schema ? ["--schema", params.schema] : []),
+        "--table",
+        params.table,
+        ...outputArgs,
+      ];
     case "sample":
       return [
         "sample",
@@ -2006,15 +2202,18 @@ function buildSqlToolArgs(params) {
         params.table,
         "--limit",
         String(params.limit),
+        ...outputArgs,
       ];
     case "query":
-      return ["query", ...databaseArgs, params.sql];
+      return ["query", ...databaseArgs, params.sql, ...(outputPolicy.queryArgs || []), ...outputArgs];
     default:
       throw new Error("Unsupported SQL action: " + params.action);
   }
 }
 
 function resolveSqlToolExe() {
+  if (process.env.OFFICE_AGENT_SQLSERVER_TEST_FAKE_CLI === "1") return SQL_TEST_FAKE_TOOL_EXE;
+
   const configured = process.env[OFFICE_AGENT_SQLSERVER_TOOL_EXE_ENV_NAME]?.trim();
   if (configured && existsSync(configured)) return configured;
 
@@ -2030,7 +2229,66 @@ function resolveSqlToolExe() {
   return candidates.find((candidate) => existsSync(candidate));
 }
 
+async function runFakeSqlTool(args) {
+  const command = String(args[0] || "info");
+  const outputMode = getCliArgValue(args, "--output") || "inline";
+  const outDir = getCliArgValue(args, "--out-dir") || await getSqlOutputDir();
+  const payload = {
+    ok: true,
+    command,
+    result: command === "query" || command === "sample"
+      ? {
+          columns: ["value"],
+          rowCount: 1,
+          truncated: false,
+          rows: [{ value: 1 }],
+        }
+      : {
+          database: SQL_DEFAULT_DATABASE,
+          fake: true,
+        },
+  };
+
+  if (
+    process.env.OFFICE_AGENT_SQLSERVER_TEST_FAKE_FILE_OUTPUT === "1" &&
+    outputMode === "auto" &&
+    (command === "query" || command === "sample")
+  ) {
+    await mkdir(outDir, { recursive: true });
+    const filePath = path.join(outDir, `sqlserver-${command}-fake-${randomUUID()}.json`);
+    const fileContent = JSON.stringify(payload, null, 2) + "\n";
+    await writeFile(filePath, fileContent, "utf8");
+    const notice = {
+      ok: true,
+      command,
+      result: {
+        columns: payload.result.columns,
+        rowCount: payload.result.rowCount,
+        truncated: payload.result.truncated,
+      },
+      output: {
+        mode: "file",
+        format: "json",
+        path: filePath,
+        bytes: Buffer.byteLength(fileContent, "utf8"),
+      },
+    };
+    return { code: 0, stdout: JSON.stringify(notice), stderr: "" };
+  }
+
+  return { code: 0, stdout: JSON.stringify(payload), stderr: "" };
+}
+
+function getCliArgValue(args, name) {
+  const index = args.indexOf(name);
+  if (index < 0) return undefined;
+  const value = args[index + 1];
+  return typeof value === "string" && !value.startsWith("--") ? value : undefined;
+}
+
 function runSqlTool(exe, args, options) {
+  if (exe === SQL_TEST_FAKE_TOOL_EXE) return runFakeSqlTool(args, options);
+
   return new Promise((resolve, reject) => {
     let settled = false;
     const stdoutChunks = [];
@@ -2042,6 +2300,10 @@ function runSqlTool(exe, args, options) {
       stdio: ["ignore", "pipe", "pipe"],
       shell: false,
       windowsHide: true,
+      env: {
+        ...process.env,
+        ...(options.env || {}),
+      },
     });
 
     function cleanup() {
@@ -2114,7 +2376,7 @@ function parseSqlToolPayload(stdout) {
   try {
     return JSON.parse(stdout);
   } catch {
-    return { stdout };
+    return { stdout: sanitizeSqlToolText(stdout) };
   }
 }
 
@@ -2125,6 +2387,278 @@ function summarizeSqlToolResult(action, payload) {
     "",
     json.length > 30000 ? json.slice(0, 30000) + "\n... [truncated in display; full JSON is in details]" : json,
   ].join("\n");
+}
+
+function summarizeSqlToolRemoteFileResult(action, payload, remoteFiles) {
+  const json = JSON.stringify(payload, null, 2) ?? String(payload ?? "");
+  return [
+    "SQL Server read-only tool completed action: " + action + ".",
+    "",
+    "The full result was too large for inline output and is available as a remote file payload.",
+    "The OfficeAgent client must materialize this payload locally before exposing it to the model in production sessions.",
+    "",
+    "Remote file payloads:",
+    ...remoteFiles.map((file) => `- ${file.fileName} (${file.format}, ${file.bytes} bytes, sha256 ${file.sha256}; download: ${file.downloadUrl})`),
+    "",
+    "Sanitized result summary:",
+    json.length > 12000 ? json.slice(0, 12000) + "\n... [truncated in display; full JSON is in details]" : json,
+  ].join("\n");
+}
+
+function getSqlFileOutputPaths(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return [];
+  const output = payload.output;
+  if (!output || typeof output !== "object" || Array.isArray(output)) return [];
+  if (String(output.mode || "").toLowerCase() !== "file") return [];
+  const paths = [];
+  if (typeof output.path === "string" && output.path.trim()) paths.push(output.path.trim());
+  if (Array.isArray(output.files)) {
+    for (const file of output.files) {
+      if (file && typeof file === "object" && typeof file.path === "string" && file.path.trim()) {
+        paths.push(file.path.trim());
+      }
+    }
+  }
+  return [...new Set(paths)];
+}
+
+function getSqlPayloadOutputFormat(payload) {
+  const raw = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload.output?.format
+    : undefined;
+  return normalizeSqlFileFormat(raw);
+}
+
+function sanitizeSqlCliPayloadForClient(payload, serverPaths) {
+  const pathsToRedact = serverPaths.filter((value) => typeof value === "string" && value);
+  return sanitizeSqlJsonValue(payload, pathsToRedact, false);
+}
+
+function sanitizeSqlJsonValue(value, serverPaths, insideOutput) {
+  if (typeof value === "string") {
+    return serverPaths.reduce((text, serverPath) => text.split(serverPath).join("<remote-file>"), value);
+  }
+  if (!value || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((item) => sanitizeSqlJsonValue(item, serverPaths, insideOutput));
+
+  const sanitized = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (insideOutput && key === "path") continue;
+    sanitized[key] = sanitizeSqlJsonValue(child, serverPaths, insideOutput || key === "output");
+  }
+  return sanitized;
+}
+
+async function getSqlOutputDir() {
+  const resolved = path.resolve(sqlOutputDir);
+  await mkdir(resolved, { recursive: true });
+  return realpath(resolved);
+}
+
+async function registerSqlOutputFile(filePath, options) {
+  const outputDir = await getSqlOutputDir();
+  let fileRealPath;
+  try {
+    fileRealPath = await realpath(path.resolve(filePath));
+  } catch {
+    throw new Error("SQL output file was not available for registration.");
+  }
+  if (!isPathWithin(outputDir, fileRealPath)) {
+    throw new Error("SQL output file was outside the gateway-controlled output directory.");
+  }
+
+  const fileStats = await stat(fileRealPath).catch(() => null);
+  if (!fileStats?.isFile()) {
+    throw new Error("SQL output payload was not a regular file.");
+  }
+  if (fileStats.size > SQL_REMOTE_FILE_MAX_BYTES) {
+    throw new Error("SQL output file exceeded the gateway maximum file size.");
+  }
+
+  const format = normalizeSqlFileFormat(options.format);
+  const bytes = fileStats.size;
+  const sha256 = await hashFileSha256(fileRealPath);
+  const id = randomUUID();
+  const fileName = sanitizeDownloadFileName(path.basename(fileRealPath), format, options.action);
+  const mimeType = getSqlFileMimeType(format);
+  const record = {
+    id,
+    path: fileRealPath,
+    fileName,
+    format,
+    mimeType,
+    bytes,
+    sha256,
+    createdAtMs: Date.now(),
+    expiresAtMs: Date.now() + SQL_REMOTE_FILE_TTL_MS,
+  };
+  sqlOutputFileRegistry.set(id, record);
+  void cleanupExpiredSqlOutputFiles({ pruneTotalSize: true });
+
+  return {
+    id,
+    downloadUrl: `files/${id}`,
+    fileName,
+    format,
+    mimeType,
+    bytes,
+    sha256,
+  };
+}
+
+function normalizeSqlFileFormat(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return ["json", "csv", "jsonl"].includes(normalized) ? normalized : "json";
+}
+
+function getSqlFileMimeType(format) {
+  switch (normalizeSqlFileFormat(format)) {
+    case "csv":
+      return "text/csv; charset=utf-8";
+    case "jsonl":
+      return "application/x-ndjson";
+    case "json":
+    default:
+      return "application/json";
+  }
+}
+
+function sanitizeDownloadFileName(input, format, action = "output") {
+  const extension = normalizeSqlFileFormat(format) === "jsonl" ? ".jsonl" : `.${normalizeSqlFileFormat(format)}`;
+  const rawBase = path.basename(String(input || "")).replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
+  let base = rawBase.trim().replace(/[ .]+$/g, "");
+  if (!base || base === "." || base === "..") {
+    base = `sqlserver-${action}${extension}`;
+  }
+
+  let parsed = path.parse(base);
+  if (!hasExpectedSqlFileExtension(parsed.ext, format)) {
+    base += extension;
+    parsed = path.parse(base);
+  }
+  if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(parsed.name)) {
+    base = `${parsed.name}_${parsed.ext}`;
+  }
+  if (base.length > 180) {
+    const ext = path.extname(base);
+    const stem = base.slice(0, -ext.length).slice(0, Math.max(1, 180 - ext.length));
+    base = `${stem}${ext}`;
+  }
+  return base;
+}
+
+function hasExpectedSqlFileExtension(extension, format) {
+  const normalized = extension.toLowerCase();
+  if (format === "jsonl") return normalized === ".jsonl" || normalized === ".ndjson";
+  return normalized === `.${format}`;
+}
+
+function hashFileSha256(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = createHash("sha256");
+    const stream = createReadStream(filePath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("error", () => reject(new Error("Failed to hash SQL output file.")));
+    stream.on("end", () => resolve(hash.digest("hex")));
+  });
+}
+
+async function sendRegisteredSqlOutputFile(req, res, fileId) {
+  const token = getBearer(req);
+  if (token !== GATEWAY_TOKEN) return unauthorized(res);
+
+  if (!SQL_OUTPUT_FILE_ID_PATTERN.test(fileId)) {
+    return sendJson(res, 404, { error: "not_found" });
+  }
+
+  const record = sqlOutputFileRegistry.get(fileId);
+  if (!record || record.expiresAtMs <= Date.now()) {
+    if (record) {
+      sqlOutputFileRegistry.delete(fileId);
+      void rm(record.path, { force: true }).catch(() => undefined);
+    }
+    return sendJson(res, 404, { error: "not_found" });
+  }
+
+  const fileStats = await stat(record.path).catch(() => null);
+  if (!fileStats?.isFile()) {
+    sqlOutputFileRegistry.delete(fileId);
+    return sendJson(res, 404, { error: "not_found" });
+  }
+
+  await appendSqlAuditEvent({
+    schemaVersion: 1,
+    id: randomUUID(),
+    eventType: "sql_file_download",
+    completedAt: new Date().toISOString(),
+    client: getClientIdentity(req),
+    status: "success",
+    file: {
+      id: record.id,
+      fileName: record.fileName,
+      mimeType: record.mimeType,
+      bytes: fileStats.size,
+      sha256: record.sha256,
+    },
+  });
+
+  res.writeHead(200, {
+    "content-type": record.mimeType,
+    "content-length": String(fileStats.size),
+    "content-disposition": contentDispositionAttachment(record.fileName),
+    "cache-control": "no-store",
+  });
+
+  const stream = createReadStream(record.path);
+  stream.on("error", () => {
+    if (!res.destroyed) res.destroy(new Error("SQL output file stream failed."));
+  });
+  stream.pipe(res);
+}
+
+function contentDispositionAttachment(fileName) {
+  const ascii = fileName.replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "_");
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
+async function cleanupExpiredSqlOutputFiles(options = {}) {
+  const now = Date.now();
+  for (const [id, record] of sqlOutputFileRegistry.entries()) {
+    if (record.expiresAtMs > now) continue;
+    sqlOutputFileRegistry.delete(id);
+    await rm(record.path, { force: true }).catch(() => undefined);
+  }
+
+  let outputDir;
+  try {
+    outputDir = await getSqlOutputDir();
+  } catch {
+    return;
+  }
+
+  const entries = await readdir(outputDir, { withFileTypes: true }).catch(() => []);
+  const files = [];
+  const registeredPaths = new Set([...sqlOutputFileRegistry.values()].map((record) => path.resolve(record.path).toLowerCase()));
+  for (const entry of entries) {
+    const candidate = path.join(outputDir, entry.name);
+    const entryStats = await lstat(candidate).catch(() => null);
+    if (!entryStats || (!entryStats.isFile() && !entryStats.isSymbolicLink())) continue;
+    if (entryStats.mtimeMs + SQL_REMOTE_FILE_TTL_MS < now && !registeredPaths.has(path.resolve(candidate).toLowerCase())) {
+      await rm(candidate, { force: true }).catch(() => undefined);
+      continue;
+    }
+    files.push({ path: candidate, bytes: entryStats.size, mtimeMs: entryStats.mtimeMs });
+  }
+
+  if (!options.pruneTotalSize) return;
+  let totalBytes = files.reduce((sum, file) => sum + file.bytes, 0);
+  if (totalBytes <= SQL_REMOTE_FILE_MAX_TOTAL_BYTES) return;
+  for (const file of files.sort((a, b) => a.mtimeMs - b.mtimeMs)) {
+    if (registeredPaths.has(path.resolve(file.path).toLowerCase())) continue;
+    await rm(file.path, { force: true }).catch(() => undefined);
+    totalBytes -= file.bytes;
+    if (totalBytes <= SQL_REMOTE_FILE_MAX_TOTAL_BYTES) break;
+  }
 }
 
 function createSqlToolErrorResult(options) {
@@ -2186,6 +2720,8 @@ function createSqlAuditEvent(options) {
     errorCode: options.errorCode || null,
     stdoutBytes: Number(options.stdoutBytes || 0),
     stderrBytes: Number(options.stderrBytes || 0),
+    remoteFileCount: Number(options.remoteFileCount || 0),
+    remoteFileBytes: Number(options.remoteFileBytes || 0),
     activeSqlToolRequests,
     sql: options.sql
       ? {
@@ -2899,6 +3435,8 @@ const server = http.createServer(async (req, res) => {
         };
       }
 
+      const sqlToolExe = resolveSqlToolExe();
+      const sqlToolCapabilities = sqlToolExe ? await detectSqlToolCapabilities(sqlToolExe) : null;
       return sendJson(res, 200, {
         ok: true,
         mockMode: MOCK_MODE,
@@ -2907,9 +3445,15 @@ const server = http.createServer(async (req, res) => {
         sqlAuditEventsPath,
         dashboardUrl: `http://localhost:${PORT}/dashboard`,
         sqlTool: {
-          configured: Boolean(resolveSqlToolExe()),
+          configured: Boolean(sqlToolExe),
           maxConcurrent: SQL_MAX_CONCURRENT,
           active: activeSqlToolRequests,
+          remoteFileOutputsEnabled: SQL_REMOTE_FILE_OUTPUTS_ENABLED,
+          outputFlagsSupported: sqlToolCapabilities?.supportsOutputFlags ?? false,
+          autoThreshold: SQL_OUTPUT_AUTO_THRESHOLD,
+          defaultQueryRowLimit: SQL_DEFAULT_QUERY_ROW_LIMIT,
+          maxQueryRowLimit: SQL_MAX_QUERY_ROW_LIMIT,
+          outputDir: sqlOutputDir,
         },
         routed,
       });
@@ -2979,6 +3523,16 @@ const server = http.createServer(async (req, res) => {
       return await handleVfsRequest(req, res, handleVfsRoots);
     }
 
+    if (req.method === "GET" && url.pathname.startsWith(SQL_TOOL_FILE_ENDPOINT_PREFIX)) {
+      let fileId;
+      try {
+        fileId = decodeURIComponent(url.pathname.slice(SQL_TOOL_FILE_ENDPOINT_PREFIX.length));
+      } catch {
+        return sendJson(res, 404, { error: "not_found" });
+      }
+      return await sendRegisteredSqlOutputFile(req, res, fileId);
+    }
+
     if (req.method === "POST" && url.pathname === SQL_TOOL_ENDPOINT_PATH) {
       return await handleSqlReadonlyRequest(req, res);
     }
@@ -3007,6 +3561,12 @@ const server = http.createServer(async (req, res) => {
     res.end();
   }
 });
+
+void cleanupExpiredSqlOutputFiles({ pruneTotalSize: true });
+const sqlOutputCleanupTimer = setInterval(() => {
+  void cleanupExpiredSqlOutputFiles({ pruneTotalSize: true });
+}, SQL_REMOTE_FILE_CLEANUP_INTERVAL_MS);
+sqlOutputCleanupTimer.unref?.();
 
 server.listen(PORT, HOST, () => {
   console.log(`[gateway] listening on http://${HOST}:${PORT}`);
