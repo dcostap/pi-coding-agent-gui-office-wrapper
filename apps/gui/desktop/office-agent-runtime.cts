@@ -14,9 +14,12 @@ import {
   getOfficeAgentManagedRootDir,
   getOfficeAgentManagedSessionEnv,
   getOfficeAgentProjectsDir,
+  OFFICE_AGENT_DISABLE_GLOBAL_SQL_TOOL_ENV_NAME,
   OFFICE_AGENT_MODEL_ID,
   OFFICE_AGENT_PROVIDER_ID,
   OFFICE_AGENT_PROVIDER_LABEL,
+  OFFICE_AGENT_SQLSERVER_READONLY_CONTEXT,
+  OFFICE_AGENT_TOOL_FILES_ENV_NAME,
   getDefaultOfficeAgentEnabledModel,
   getOfficeAgentEnabledModel,
   normalizeOfficeAgentModelSelection,
@@ -60,6 +63,7 @@ import {
   mkdirWithOfficeAgentSandbox,
   writeFileWithOfficeAgentSandbox,
 } from "../../../packages/pi-sdk-driver/src/windows-sandbox-helper-client.ts";
+import { createCastrosuaSqlReadonlyToolDefinition } from "./sql-readonly-tool.cts";
 
 const bundledRipgrepRuntimeId = "ripgrep-14.1.1-win-x64-officeagent-r1";
 const defaultOfficeAgentModel = getDefaultOfficeAgentEnabledModel();
@@ -91,6 +95,7 @@ export async function prepareOfficeAgentDesktopRuntime(): Promise<{
     process.env,
     getOfficeAgentManagedEnv(process.env, { agentDir, clientKind: "gui" }),
   );
+  process.env[OFFICE_AGENT_DISABLE_GLOBAL_SQL_TOOL_ENV_NAME] = "1";
   process.env.HOWCODE_REPO_ROOT = process.env.HOWCODE_REPO_ROOT?.trim() || projectsDir;
   defaultWindowsSandboxBackendToV2();
   setSandboxHelperEnvIfPresent();
@@ -143,6 +148,7 @@ export function getOfficeAgentDesktopPromptContexts(options: {
       managedRootDir,
       sessionId: options.sessionId,
     }),
+    OFFICE_AGENT_SQLSERVER_READONLY_CONTEXT,
     ...(options.shellPromptContext ? [options.shellPromptContext] : []),
     getOfficeAgentDefaultVirtualFsPromptContext(),
   ];
@@ -158,6 +164,8 @@ export async function createOfficeAgentManagedRuntimeContext(options: {
   readonly promptContexts: string[];
   readonly managedRootDir: string;
 }> {
+  process.env[OFFICE_AGENT_DISABLE_GLOBAL_SQL_TOOL_ENV_NAME] = "1";
+
   const cwd = resolve(options.cwd);
   const managedRootDir = resolveOfficeAgentManagedRootForPath(cwd);
   if (!managedRootDir) {
@@ -187,6 +195,10 @@ export async function createOfficeAgentManagedRuntimeContext(options: {
     clientKind: "gui",
     activeProjectDir: cwd,
   });
+  const toolFilesDir = sessionEnv[OFFICE_AGENT_TOOL_FILES_ENV_NAME];
+  if (toolFilesDir) {
+    await mkdir(assertManagedPath(managedRootDir, toolFilesDir), { recursive: true });
+  }
 
   const sandboxCommandTool = options.pi.createBashToolDefinition(cwd, {
     operations: createOfficeAgentSandboxBashOperations({
@@ -216,7 +228,7 @@ export async function createOfficeAgentManagedRuntimeContext(options: {
     shellPromptContext,
     "Prefer commands that operate inside the current managed project.",
     "Before modifying, transforming, deeply inspecting, or running tools against a real user file, call copy_file_into_workspace and work on the returned workspace copy.",
-    "Use %OFFICE_AGENT_SCRATCH% for temporary scripts/intermediate files; keep %OFFICE_AGENT_WORKSPACE% for user-facing files and final outputs.",
+    "Use %OFFICE_AGENT_SCRATCH% for temporary scripts/intermediate files; keep %OFFICE_AGENT_WORKSPACE% for user-facing files and final outputs. Remote/user-facing tool files land under %OFFICE_AGENT_TOOL_FILES% when available.",
     "Use normal python, py, pip, python -m pip, and uv pip commands. OfficeAgent routes them to a hidden managed Python environment automatically; do not create pylibs or .venv folders in the visible workspace.",
     "Writes outside the OfficeAgent managed root should fail.",
   ];
@@ -298,6 +310,7 @@ export async function createOfficeAgentManagedRuntimeContext(options: {
     lsTool,
     findTool,
     grepTool,
+    createCastrosuaSqlReadonlyToolDefinition({ cwd, env: sessionEnv }),
     createCopyFileIntoWorkspaceToolDefinition({ cwd, managedRootDir, env: sessionEnv }),
     withOfficeAgentVirtualBashAdvisory(sandboxCommandTool, virtualRoots),
     editTool,

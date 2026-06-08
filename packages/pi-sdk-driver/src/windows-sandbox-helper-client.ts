@@ -689,7 +689,7 @@ export function getOfficeAgentSandboxShellPromptContext(shellConfig: OfficeAgent
     `Commands are launched as: ${invocation}.`,
     syntax,
     "Commands run as real Windows processes with OfficeAgent write containment. They can modify only the OfficeAgent AgentData/managed project tree. Standard user folders (Desktop, Documents, Downloads, Pictures, Videos, Music, Temp) are intended to be readable after sandbox setup; other outside reads may fail according to Windows permissions.",
-    "USERPROFILE/HOME/APPDATA/LOCALAPPDATA are sandbox-private per-session locations. For the active workspace, use %OFFICE_AGENT_WORKSPACE% in commands. Use %OFFICE_AGENT_SCRATCH% for hidden temporary scripts/intermediate files. For user-facing folders, use OFFICE_AGENT_REAL_USER_DESKTOP, OFFICE_AGENT_REAL_USER_DOWNLOADS, OFFICE_AGENT_REAL_USER_DOCUMENTS, OFFICE_AGENT_REAL_USER_PICTURES, OFFICE_AGENT_REAL_USER_VIDEOS, OFFICE_AGENT_REAL_USER_MUSIC, and OFFICE_AGENT_REAL_USER_TEMP.",
+    "USERPROFILE/HOME/APPDATA/LOCALAPPDATA are sandbox-private per-session locations. For the active workspace, use %OFFICE_AGENT_WORKSPACE% in commands. Use %OFFICE_AGENT_TOOL_FILES% for files produced/materialized by tools and %OFFICE_AGENT_SCRATCH% for hidden temporary scripts/intermediate files. For user-facing folders, use OFFICE_AGENT_REAL_USER_DESKTOP, OFFICE_AGENT_REAL_USER_DOWNLOADS, OFFICE_AGENT_REAL_USER_DOCUMENTS, OFFICE_AGENT_REAL_USER_PICTURES, OFFICE_AGENT_REAL_USER_VIDEOS, OFFICE_AGENT_REAL_USER_MUSIC, and OFFICE_AGENT_REAL_USER_TEMP.",
     "Python commands are routed through OfficeAgent's hidden managed Python environment. Use normal python/py/pip/python -m pip/uv pip commands; do not create pylibs or .venv folders in the visible workspace.",
   ].join("\n");
 }
@@ -1619,6 +1619,7 @@ const OFFICE_AGENT_SANDBOX_ENV_KEYS = [
   "OFFICE_AGENT_PYTHON_ENV",
   "VIRTUAL_ENV",
   "OFFICE_AGENT_SCRATCH",
+  "OFFICE_AGENT_TOOL_FILES",
   "UV_CACHE_DIR",
   "UV_TOOL_DIR",
   "UV_TOOL_BIN_DIR",

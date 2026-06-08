@@ -188,7 +188,7 @@ async function createOfficeAgentManagedRuntimeOptions(options: {
     "You may use normal Windows commands and tools such as cmd.exe, powershell.exe, pwsh.exe, npm, npx, node, python, pip, uv, git, cargo, dotnet, and package scripts when they are available.",
     "The OS enforces write containment. Commands can modify the OfficeAgent managed project/root; reads outside the root may succeed or fail according to normal Windows permissions.",
     "Python is managed by OfficeAgent: use normal python/pip/py/uv commands; packages install into the hidden managed environment, not into the visible workspace.",
-    "For complex logic, write temporary .cmd, .ps1, .js, or .py files under %OFFICE_AGENT_SCRATCH%; save only user-facing inputs/outputs in %OFFICE_AGENT_WORKSPACE%.",
+    "For complex logic, write temporary .cmd, .ps1, .js, or .py files under %OFFICE_AGENT_SCRATCH%; save user-facing inputs/outputs in %OFFICE_AGENT_WORKSPACE%, with tool-produced/materialized files under %OFFICE_AGENT_TOOL_FILES% when available.",
     "Host tools visible on PATH may be tried when available. Prefer OfficeAgent-staged/project-local tools for reproducibility.",
   ].join(" ");
   sandboxCommandTool.promptSnippet = "Execute normal Windows commands with OfficeAgent write containment for the current project.";
@@ -197,7 +197,7 @@ async function createOfficeAgentManagedRuntimeOptions(options: {
     "You may use cmd.exe, powershell.exe, pwsh.exe, direct project/toolchain commands, and package scripts. OfficeAgent should not be treated as a fake shell with its own command vocabulary.",
     "Prefer commands that operate within the current project/managed root. Writes outside the managed root should fail; reads outside may succeed or fail according to Windows permissions.",
     "Use normal python, py, pip, python -m pip, and uv pip commands. OfficeAgent routes them to a hidden per-workspace Python environment automatically; do not create pylibs, .venv, or package folders in the visible workspace.",
-    "For multi-step or complex logic, write temporary .cmd, .ps1, .js, or .py scripts under %OFFICE_AGENT_SCRATCH% and execute them. Keep %OFFICE_AGENT_WORKSPACE% for user-visible files and final results.",
+    "For multi-step or complex logic, write temporary .cmd, .ps1, .js, or .py scripts under %OFFICE_AGENT_SCRATCH% and execute them. Keep %OFFICE_AGENT_WORKSPACE% for user-visible files and final results; use %OFFICE_AGENT_TOOL_FILES% for files produced/materialized by tools.",
     "Host tools on PATH may be tried when available. Prefer npm scripts, node, python, pip, uv, git, cargo, dotnet, and other project-local/staged tools over host-specific assumptions.",
   ];
 
